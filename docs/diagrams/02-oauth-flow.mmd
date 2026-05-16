@@ -1,0 +1,27 @@
+﻿```mermaid
+sequenceDiagram
+    participant User
+    participant Extension
+    participant Server as Server<br/>127.0.0.1:4597
+    participant Provider as Email Provider<br/>OAuth Server
+    participant DB as Database
+    
+    User->>Extension: Click "Add Account"
+    Extension->>Server: GET /auth/{provider}/start
+    Server->>DB: Create OAuth state
+    Server-->>Extension: Redirect URL
+    
+    Extension->>Provider: Redirect to OAuth
+    Provider-->>User: Login Prompt
+    User->>Provider: Enter credentials
+    Provider-->>Extension: Auth code
+    
+    Extension->>Server: POST /auth/{provider}/callback
+    Server->>Provider: Exchange code for tokens
+    Provider-->>Server: Access + Refresh tokens
+    
+    Server->>DB: Store encrypted tokens
+    Server-->>Extension: Success
+    
+    Note over Extension,DB: Future: Auto-refresh tokens before expiry
+```

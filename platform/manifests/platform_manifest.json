@@ -1,0 +1,23 @@
+{
+  "id": "mailpilot.platform.logistics_operations",
+  "name": "MailPilot Logistics Operations Platform Layer",
+  "version": "11.0.0",
+  "scope": "platform-only",
+  "core_app_modified": false,
+  "new_work_root": "/platform",
+  "positioning": "AI-powered logistics operations automation workspace, not ERP/CRM/accounting",
+  "modules": [
+    "runtime",
+    "sdk",
+    "shipment_workspace",
+    "whatsapp_operations",
+    "approval_first_automation",
+    "ocr_document_intelligence",
+    "tracking_aggregation",
+    "communication_timeline",
+    "queues_workers",
+    "tenant_isolation",
+    "search_indexing",
+    "security_governance"
+  ]
+}

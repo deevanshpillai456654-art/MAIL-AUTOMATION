@@ -1,0 +1,33 @@
+{
+  "name": "slack_connector",
+  "version": "1.2.0",
+  "type": "connector",
+  "category": "communication",
+  "description": "Slack OAuth connector for sending notifications, reading channel messages, and managing workflows",
+  "author": "MailPilot",
+  "enabled": false,
+  "multiTenant": true,
+  "supports_oauth": true,
+  "supports_api_key": false,
+  "supports_webhook": true,
+  "queue_enabled": false,
+  "oauth_provider": "slack",
+  "oauth_scopes": [
+    "channels:read",
+    "channels:history",
+    "chat:write",
+    "chat:write.public",
+    "users:read",
+    "team:read",
+    "incoming-webhook"
+  ],
+  "permissions": ["slack.message.send", "slack.channels.read", "slack.users.read"],
+  "events": ["slack.message.received", "slack.notification.sent", "slack.channel.created"],
+  "webhook_events": ["message", "channel_created", "app_mention"],
+  "config_schema": {
+    "client_id": {"type": "string", "required": true, "source": "env:SLACK_CLIENT_ID"},
+    "client_secret": {"type": "secret", "required": true, "source": "env:SLACK_CLIENT_SECRET"},
+    "redirect_uri": {"type": "string", "required": true},
+    "signing_secret": {"type": "secret", "required": false, "source": "env:SLACK_SIGNING_SECRET"}
+  }
+}

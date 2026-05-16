@@ -1,0 +1,22 @@
+{
+  "name": "ocr_engine_connector",
+  "version": "1.1.0",
+  "type": "connector",
+  "category": "ocr",
+  "description": "OCR engine connector that bridges to the platform OCR pipeline for invoice and document processing",
+  "author": "MailPilot",
+  "enabled": false,
+  "multiTenant": true,
+  "supports_oauth": false,
+  "supports_api_key": true,
+  "supports_webhook": false,
+  "queue_enabled": true,
+  "permissions": ["documents.read", "documents.process", "ocr.results.write", "invoices.read"],
+  "events": ["ocr.document.processed", "ocr.document.failed"],
+  "config_schema": {
+    "ocr_engine": {"type": "string", "enum": ["internal", "google_vision", "aws_textract", "azure_form_recognizer"], "default": "internal", "required": false},
+    "api_key": {"type": "secret", "required": false, "description": "API key for external OCR provider (not needed for internal engine)"},
+    "confidence_threshold": {"type": "number", "default": 0.85, "required": false},
+    "supported_formats": {"type": "array", "default": ["pdf", "jpg", "jpeg", "png", "tiff"], "required": false}
+  }
+}

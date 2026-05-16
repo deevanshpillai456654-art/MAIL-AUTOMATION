@@ -1,0 +1,23 @@
+{
+  "name": "webhook_listener",
+  "version": "1.0.0",
+  "type": "connector",
+  "category": "webhook",
+  "description": "Generic webhook listener that receives inbound HTTP webhooks from any system and routes them to the MailPilot event bus",
+  "author": "MailPilot",
+  "enabled": false,
+  "multiTenant": true,
+  "supports_oauth": false,
+  "supports_api_key": false,
+  "supports_webhook": true,
+  "queue_enabled": true,
+  "permissions": ["webhooks.receive", "events.publish"],
+  "events": ["webhook.received", "webhook.failed", "webhook.retry"],
+  "webhook_events": ["*"],
+  "config_schema": {
+    "verify_signature": {"type": "boolean", "default": true, "required": false},
+    "secret": {"type": "secret", "required": false, "description": "HMAC-SHA256 signing secret for webhook verification"},
+    "event_type_header": {"type": "string", "default": "X-Webhook-Event", "required": false},
+    "allowed_ips": {"type": "array", "required": false, "description": "IP allowlist (empty = allow all)"}
+  }
+}

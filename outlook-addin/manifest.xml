@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:mailappor="http://schemas.microsoft.com/office/mailappor/1.0"
+           xsi:type="MailApp">
+
+  <Id>7f4a60df-3b20-4c31-85d5-217f29f9830e</Id>
+  <Version>9.7.0</Version>
+  <ProviderName>AI Email Organizer</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName>
+    <DefaultValue>AI Email Organizer</DefaultValue>
+  </DisplayName>
+  <Description>
+    <DefaultValue>AI-powered local email organization for Outlook</DefaultValue>
+  </Description>
+  <IconUrl>http://127.0.0.1:4597/icons/icon32.png</IconUrl>
+  <HighResolutionIconUrl>http://127.0.0.1:4597/icons/icon128.png</HighResolutionIconUrl>
+
+  <Requirements>
+    <Sets>
+      <Set Name="Mailbox" MinVersion="1.1"/>
+    </Sets>
+  </Requirements>
+
+  <Hosts>
+    <Host xsi:type="MailHost">
+      <DesktopFormFactor>
+        <ExtensionPoint xsi:type="MessageReadCommandSurface">
+          <OfficeTab id="TabRead">
+            <Group id="aiEmailGroup">
+              <Label>AI Organizer</Label>
+              <Control xsi:type="Button" id="aiClassifyBtn">
+                <Label>
+                  <DefaultValue>Classify Email</DefaultValue>
+                </Label>
+                <Supertip>
+                  <DefaultValue>Classify this email using AI</DefaultValue>
+                </Supertip>
+                <Icon>
+                  <bt:Icon Size="16" Url="http://127.0.0.1:4597/icons/icon16.png"/>
+                  <bt:Icon Size="32" Url="http://127.0.0.1:4597/icons/icon32.png"/>
+                </Icon>
+                <Action xsi:type="ExecuteFunction">
+                  <FunctionName>classifyEmail</FunctionName>
+                </Action>
+              </Control>
+              <Control xsi:type="Button" id="aiMoveBtn">
+                <Label>
+                  <DefaultValue>Smart Move</DefaultValue>
+                </Label>
+                <Supertip>
+                  <DefaultValue>Move to AI-suggested folder</DefaultValue>
+                </Supertip>
+                <Icon>
+                  <bt:Icon Size="16" Url="http://127.0.0.1:4597/icons/icon16.png"/>
+                  <bt:Icon Size="32" Url="http://127.0.0.1:4597/icons/icon32.png"/>
+                </Icon>
+                <Action xsi:type="ExecuteFunction">
+                  <FunctionName>moveToFolder</FunctionName>
+                </Action>
+              </Control>
+            </Group>
+          </OfficeTab>
+        </ExtensionPoint>
+
+        <ExtensionPoint xsi:type="MessageComposeCommandSurface">
+          <OfficeTab id="TabCompose">
+            <Group id="aiEmailComposeGroup">
+              <Label>AI Organizer</Label>
+              <Control xsi:type="Button" id="aiSuggestBtnCompose">
+                <Label>
+                  <DefaultValue>AI Suggest</DefaultValue>
+                </Label>
+                <Supertip>
+                  <DefaultValue>Get AI suggestions for this email</DefaultValue>
+                </Supertip>
+                <Icon>
+                  <bt:Icon Size="16" Url="http://127.0.0.1:4597/icons/icon16.png"/>
+                  <bt:Icon Size="32" Url="http://127.0.0.1:4597/icons/icon32.png"/>
+                </Icon>
+                <Action xsi:type="ExecuteFunction">
+                  <FunctionName>suggestCategoryCompose</FunctionName>
+                </Action>
+              </Control>
+            </Group>
+          </OfficeTab>
+        </ExtensionPoint>
+
+        <ExtensionPoint xsi:type="AppointmentOrganizerCommandSurface">
+          <OfficeTab id="TabAppointment">
+            <Group id="aiMeetingGroup">
+              <Label>AI Organizer</Label>
+              <Control xsi:type="Button" id="aiMeetingBtn">
+                <Label>
+                  <DefaultValue>Categorize Meeting</DefaultValue>
+                </Label>
+                <Supertip>
+                  <DefaultValue>Categorize meeting using AI</DefaultValue>
+                </Supertip>
+                <Icon>
+                  <bt:Icon Size="16" Url="http://127.0.0.1:4597/icons/icon16.png"/>
+                </Icon>
+                <Action xsi:type="ExecuteFunction">
+                  <FunctionName>categorizeMeeting</FunctionName>
+                </Action>
+              </Control>
+            </Group>
+          </OfficeTab>
+        </ExtensionPoint>
+
+        <ExtensionPoint xsi:type="Module">
+          <RequestedHeight>300px</RequestedHeight>
+          <SourceLocation>http://127.0.0.1:4597/taskpane.html</SourceLocation>
+        </ExtensionPoint>
+      </DesktopFormFactor>
+    </Host>
+  </Hosts>
+
+  <Resources>
+    <bt:Urls>
+      <bt:Url id="messageReadUrl" DefaultValue="http://127.0.0.1:4597/mail-read.html"/>
+      <bt:Url id="messageComposeUrl" DefaultValue="http://127.0.0.1:4597/mail-compose.html"/>
+      <bt:Url id="taskpaneUrl" DefaultValue="http://127.0.0.1:4597/taskpane.html"/>
+    </bt:Urls>
+  </Resources>
+
+  <Permissions>ReadWriteMailbox</Permissions>
+
+  <Rule xsi:type="RuleCollection" Mode="Or">
+    <Rule xsi:type="ItemIs" ItemType="Message"/>
+    <Rule xsi:type="ItemIs" ItemType="Appointment"/>
+  </Rule>
+</OfficeApp>

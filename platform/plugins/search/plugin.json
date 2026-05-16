@@ -1,0 +1,15 @@
+{
+  "plugin_id": "mailpilot.search_indexing",
+  "name": "Operational Search and Indexing",
+  "version": "11.0.0",
+  "entrypoint": "module.py",
+  "permissions": [
+    "search.view"
+  ],
+  "hooks": [
+    "document.index",
+    "message.index",
+    "shipment.index"
+  ],
+  "enabled_by_default": true
+}

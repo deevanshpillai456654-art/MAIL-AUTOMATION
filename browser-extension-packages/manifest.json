@@ -1,0 +1,52 @@
+[
+  {
+    "browser": "chrome",
+    "name": "INTEMO \u2014 AI Email Security",
+    "version": "14.0.1B",
+    "package": "ai-email-organizer-chrome-extension-v14.0.1B.zip"
+  },
+  {
+    "browser": "edge",
+    "name": "INTEMO \u2014 AI Email Security",
+    "version": "14.0.1B",
+    "package": "ai-email-organizer-edge-extension-v14.0.1B.zip"
+  },
+  {
+    "browser": "firefox",
+    "name": "INTEMO \u2014 AI Email Security",
+    "version": "14.0.1B",
+    "package": "ai-email-organizer-firefox-extension-v14.0.1B.zip"
+  },
+  {
+    "browser": "brave",
+    "name": "INTEMO \u2014 AI Email Security",
+    "version": "14.0.1B",
+    "package": "ai-email-organizer-brave-extension-v14.0.1B.zip"
+  },
+  {
+    "browser": "opera",
+    "name": "INTEMO \u2014 AI Email Security",
+    "version": "14.0.1B",
+    "package": "ai-email-organizer-opera-extension-v14.0.1B.zip"
+  },
+  {
+    "browser": "safari",
+    "name": "INTEMO \u2014 AI Email Security",
+    "version": "14.0.1B",
+    "package": "ai-email-organizer-safari-extension-v14.0.1B.zip"
+  },
+  {
+    "browser": "gmail-chrome",
+    "name": "INTEMO \u2014 AI Email Security for Gmail",
+    "version": "14.0.1B",
+    "package": "ai-email-organizer-gmail-chrome-extension-v14.0.1B.zip"
+  },
+  {
+    "browser": "outlook-addin",
+    "name": "AI Email Organizer",
+    "version": "9.7.0",
+    "package": "ai-email-organizer-outlook-addin-v9.7.0.zip",
+    "package_type": "office-addin",
+    "manual_install": "Extract the ZIP and sideload manifest.xml as a custom Outlook add-in."
+  }
+]

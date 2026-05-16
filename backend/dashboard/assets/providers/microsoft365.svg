@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Microsoft 365">
+  <defs>
+    <linearGradient id="m365a" x1="13" x2="50" y1="13" y2="51" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffb900"/>
+      <stop offset=".45" stop-color="#f25022"/>
+      <stop offset="1" stop-color="#7f1dff"/>
+    </linearGradient>
+  </defs>
+  <path d="M32 10l20 11v22L32 54 12 43V21z" fill="url(#m365a)"/>
+  <path d="M32 16l13 7.3v17.4L32 48l-13-7.3V23.3z" fill="#fff" opacity=".28"/>
+  <path d="M32 16v32M19 23.3l26 17.4M45 23.3L19 40.7" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".88"/>
+</svg>

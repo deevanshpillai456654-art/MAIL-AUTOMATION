@@ -1,0 +1,27 @@
+{
+  "name": "openai_connector",
+  "version": "1.3.0",
+  "type": "connector",
+  "category": "ai",
+  "description": "OpenAI GPT connector for email classification, entity extraction, summarisation, and intelligent routing",
+  "author": "MailPilot",
+  "enabled": false,
+  "multiTenant": true,
+  "supports_oauth": false,
+  "supports_api_key": true,
+  "supports_webhook": false,
+  "queue_enabled": true,
+  "permissions": ["ai.classify", "ai.extract", "ai.chat", "ai.embed"],
+  "events": [
+    "ai.classification.completed",
+    "ai.extraction.completed",
+    "ai.summary.completed"
+  ],
+  "config_schema": {
+    "api_key": {"type": "secret", "required": true, "source": "env:OPENAI_API_KEY"},
+    "model": {"type": "string", "default": "gpt-4o-mini", "required": false},
+    "max_tokens": {"type": "integer", "default": 1024, "required": false},
+    "temperature": {"type": "number", "default": 0.2, "required": false},
+    "organization_id": {"type": "string", "required": false}
+  }
+}

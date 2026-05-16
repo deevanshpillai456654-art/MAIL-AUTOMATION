@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en" data-platform="shared">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>INTEMO Settings</title>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<main class="options-wrap">
+
+  <!-- hero -->
+  <section class="options-hero">
+    <div class="hero-brand">
+      <div class="logo" aria-hidden="true">IT</div>
+      <div>
+        <h1>INTEMO Extension Settings</h1>
+        <p>Settings are stored locally in this browser. OAuth tokens and account credentials remain in the encrypted desktop app vault — never in the extension.</p>
+      </div>
+    </div>
+    <span class="pill" id="extensionName">INTEMO</span>
+  </section>
+
+  <div id="saveToast" class="save-toast hidden" role="status" aria-live="polite">Settings saved</div>
+
+  <section class="options-panel">
+
+    <!-- LEFT COLUMN -->
+    <div class="options-col">
+
+      <!-- Connection -->
+      <div class="panel">
+        <h2>Local service connection</h2>
+        <p>Only <code>http://127.0.0.1</code> and <code>http://localhost</code> origins are permitted.</p>
+        <label for="origin">Service origin</label>
+        <div class="row">
+          <input id="origin" type="text" placeholder="http://127.0.0.1:4597" autocomplete="off">
+          <button type="button" id="testConnection" class="secondary">Test</button>
+        </div>
+        <label for="dashboardPath">Default page</label>
+        <select id="dashboardPath">
+          <option value="/dashboard">Dashboard</option>
+          <option value="/security">Security panel</option>
+          <option value="/setup">Setup</option>
+          <option value="/admin">Admin</option>
+        </select>
+        <div class="status">
+          <span id="statusDot" class="dot" aria-hidden="true"></span>
+          <div>
+            <strong id="statusText">Not tested</strong>
+            <div class="note" id="statusDetail">Save or test the connection before using overlays.</div>
+          </div>
+        </div>
+        <div class="actions">
+          <button type="button" id="save">Save settings</button>
+          <button type="button" id="openDashboard" class="secondary">Open page</button>
+          <button type="button" id="reset" class="danger">Reset all</button>
+        </div>
+      </div>
+
+      <!-- AI Classification -->
+      <div class="panel">
+        <h2>AI classification</h2>
+        <div class="toggle-row">
+          <div>
+            <b>Auto-discover local service</b>
+            <span>Try multiple ports when the saved URL is offline.</span>
+          </div>
+          <button type="button" class="toggle active" data-key="autoDiscover" aria-label="Auto discover"></button>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <b>Auto-classify visible emails</b>
+            <span>Classify Gmail and Outlook rows via the local service.</span>
+          </div>
+          <button type="button" class="toggle active" data-key="autoClassify" aria-label="Auto classify"></button>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <b>Show category badges</b>
+            <span>Display classification labels inside supported webmail pages.</span>
+          </div>
+          <button type="button" class="toggle active" data-key="showBadges" aria-label="Show badges"></button>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <b>Compact badge style</b>
+            <span>Show only a coloured dot instead of the full label.</span>
+          </div>
+          <button type="button" class="toggle" data-key="compactBadges" aria-label="Compact badges"></button>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <b>Show correction suggestions</b>
+            <span>Offer quick correction actions on misclassified emails.</span>
+          </div>
+          <button type="button" class="toggle active" data-key="showSuggestions" aria-label="Show suggestions"></button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="options-col">
+
+      <!-- Threat Detection -->
+      <div class="panel">
+        <h2>Threat detection</h2>
+        <div class="toggle-row">
+          <div>
+            <b>Show threat badges</b>
+            <span>Colour-coded risk badges: green / yellow / orange / red.</span>
+          </div>
+          <button type="button" class="toggle active" data-key="showThreatBadges" aria-label="Threat badges"></button>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <b>Highlight scam email rows</b>
+            <span>Tint high-risk rows with a red background stripe.</span>
+          </div>
+          <button type="button" class="toggle active" data-key="highlightScamEmails" aria-label="Highlight scam rows"></button>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <b>Show quick-action toolbar</b>
+            <span>Hover toolbar with Report / Mark Safe / Block / Details.</span>
+          </div>
+          <button type="button" class="toggle active" data-key="showQuickActions" aria-label="Quick actions"></button>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <b>Analyse sender domains</b>
+            <span>Show threat score tooltip when hovering sender names.</span>
+          </div>
+          <button type="button" class="toggle active" data-key="analyzeDomains" aria-label="Analyse domains"></button>
+        </div>
+        <label for="threatThreshold">Threat score threshold (0–100)</label>
+        <input id="threatThreshold" type="range" min="0" max="100" step="5" value="30" class="range-input">
+        <div class="range-labels">
+          <span>All (0)</span>
+          <span id="thresholdVal">30</span>
+          <span>Only critical (100)</span>
+        </div>
+      </div>
+
+      <!-- Notifications -->
+      <div class="panel">
+        <h2>Notifications</h2>
+        <div class="toggle-row">
+          <div>
+            <b>Browser notifications for scams</b>
+            <span>Show a desktop alert when a high-risk email is detected.</span>
+          </div>
+          <button type="button" class="toggle active" data-key="browserNotifications" aria-label="Browser notifications"></button>
+        </div>
+        <label for="notificationThreshold">Minimum score to notify (0–100)</label>
+        <input id="notificationThreshold" type="range" min="0" max="100" step="5" value="56" class="range-input">
+        <div class="range-labels">
+          <span>All</span>
+          <span id="notifThresholdVal">56</span>
+          <span>Critical only</span>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <b>Send local telemetry</b>
+            <span>Send extension health events only to your local INTEMO service.</span>
+          </div>
+          <button type="button" class="toggle active" data-key="enableTelemetry" aria-label="Local telemetry"></button>
+        </div>
+      </div>
+
+      <!-- Advanced -->
+      <div class="panel">
+        <h2>Advanced</h2>
+        <div class="toggle-row">
+          <div>
+            <b>Keyboard shortcuts</b>
+            <span><kbd>Ctrl+Shift+S</kbd> Security panel · <kbd>Ctrl+Shift+D</kbd> Dashboard</span>
+          </div>
+          <button type="button" class="toggle active" data-key="keyboardShortcuts" aria-label="Keyboard shortcuts"></button>
+        </div>
+        <label for="statsRefreshInterval">Stats refresh interval (seconds)</label>
+        <select id="statsRefreshInterval">
+          <option value="60">Every minute</option>
+          <option value="120" selected>Every 2 minutes</option>
+          <option value="300">Every 5 minutes</option>
+          <option value="600">Every 10 minutes</option>
+        </select>
+        <p class="footer">OAuth tokens, refresh tokens, and account credentials are never stored in the extension.</p>
+      </div>
+
+    </div>
+  </section>
+</main>
+<script src="extension_runtime.js"></script>
+<script src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+{
+  "name": "Customer Communication Automation",
+  "description": "Classify incoming emails, draft AI response, human review, auto-send approved replies",
+  "tags": ["email", "ai", "communication", "customer-service"],
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "trigger_email",
+      "label": "Incoming Email",
+      "config": {"folder": "INBOX"},
+      "position": {"x": 100, "y": 200}
+    },
+    {
+      "id": "n2",
+      "type": "ai_classify",
+      "label": "Classify Intent",
+      "config": {
+        "text": "{{trigger.subject}} {{trigger.body}}",
+        "categories": ["inquiry", "complaint", "order", "support", "feedback", "spam"]
+      },
+      "position": {"x": 300, "y": 200}
+    },
+    {
+      "id": "n3",
+      "type": "condition",
+      "label": "Is Spam?",
+      "config": {"condition": "node_n2.get('classification') == 'spam'"},
+      "position": {"x": 500, "y": 200}
+    },
+    {
+      "id": "n4",
+      "type": "ai_sentiment",
+      "label": "Sentiment Analysis",
+      "config": {"text": "{{trigger.body}}"},
+      "position": {"x": 700, "y": 200}
+    },
+    {
+      "id": "n5",
+      "type": "ai_generate",
+      "label": "Draft Response",
+      "config": {
+        "prompt": "Draft a professional response to this {{node_n2.classification}} email with {{node_n4.sentiment}} sentiment:\n\n{{trigger.body}}",
+        "system_prompt": "You are a helpful customer service agent. Write empathetic, solution-focused responses.",
+        "max_tokens": 500
+      },
+      "position": {"x": 900, "y": 200}
+    },
+    {
+      "id": "n6",
+      "type": "condition",
+      "label": "Negative Sentiment?",
+      "config": {"condition": "node_n4.get('sentiment') == 'negative'"},
+      "position": {"x": 1100, "y": 200}
+    },
+    {
+      "id": "n7",
+      "type": "approval_request",
+      "label": "Human Review",
+      "config": {
+        "title": "Review Response for Unhappy Customer",
+        "risk_level": "medium",
+        "assignee_group": "customer_success"
+      },
+      "position": {"x": 1300, "y": 100}
+    },
+    {
+      "id": "n8",
+      "type": "send_email",
+      "label": "Send Reply",
+      "config": {
+        "to": "{{trigger.sender_email}}",
+        "subject": "Re: {{trigger.subject}}",
+        "body": "{{node_n5.generated}}"
+      },
+      "position": {"x": 1500, "y": 200}
+    },
+    {
+      "id": "n9",
+      "type": "log",
+      "label": "Log Response",
+      "config": {"message": "Replied to {{trigger.sender_email}} intent={{node_n2.classification}}"},
+      "position": {"x": 1700, "y": 200}
+    }
+  ],
+  "connections": [
+    {"source_id": "n1", "target_id": "n2"},
+    {"source_id": "n2", "target_id": "n3"},
+    {"source_id": "n3", "target_id": "n4", "condition": "not node_n3.get('condition_result')"},
+    {"source_id": "n4", "target_id": "n5"},
+    {"source_id": "n5", "target_id": "n6"},
+    {"source_id": "n6", "target_id": "n7", "condition": "node_n6.get('condition_result')"},
+    {"source_id": "n6", "target_id": "n8", "condition": "not node_n6.get('condition_result')"},
+    {"source_id": "n7", "target_id": "n8"},
+    {"source_id": "n8", "target_id": "n9"}
+  ],
+  "variables": {}
+}

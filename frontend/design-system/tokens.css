@@ -1,0 +1,114 @@
+/* INTEMO Design System — Linear Light Theme tokens */
+
+/* ── base palette (light default) ─────────────────────────────────────────── */
+:root {
+  color-scheme: light;
+
+  /* backgrounds */
+  --aio-bg:       #F8FAFC;
+  --aio-panel:    #FFFFFF;
+  --aio-panel-2:  #F4F7FB;
+
+  /* text */
+  --aio-text:     #0F172A;
+  --aio-muted:    #64748B;
+
+  /* borders */
+  --aio-line:     #E2E8F0;
+  --aio-line-med: #CBD5E1;
+
+  /* accent — blue only, no purple */
+  --aio-brand:    #2563EB;
+  --aio-brand-2:  #1D4ED8;
+  --aio-brand-ghost: rgba(37, 99, 235, 0.08);
+
+  /* semantic */
+  --aio-good:     #15803D;
+  --aio-warn:     #D97706;
+  --aio-bad:      #DC2626;
+
+  /* radius */
+  --aio-radius:   8px;
+  --aio-radius-md: 12px;
+  --aio-radius-lg: 16px;
+
+  /* shadow — minimal, Linear-inspired */
+  --aio-shadow:           0 1px 3px rgba(15, 23, 42, 0.06), 0 2px 8px rgba(15, 23, 42, 0.04);
+  --aio-shadow-md:        0 2px 8px rgba(15, 23, 42, 0.06), 0 4px 16px rgba(15, 23, 42, 0.05);
+  --aio-shadow-hover:     0 4px 14px rgba(15, 23, 42, 0.09), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --aio-shadow-btn:       0 1px 2px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  --aio-shadow-btn-hover: 0 2px 5px rgba(15, 23, 42, 0.10), 0 4px 10px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.80);
+  --aio-shadow-btn-press: inset 0 1px 3px rgba(15, 23, 42, 0.10);
+  --aio-shadow-primary:   0 1px 3px rgba(37, 99, 235, 0.30), 0 3px 8px rgba(37, 99, 235, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* ── dark mode override ────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --aio-bg:       #07111F;
+  --aio-panel:    #0F172A;
+  --aio-panel-2:  #1E293B;
+  --aio-text:     #F8FAFC;
+  --aio-muted:    #94A3B8;
+  --aio-line:     rgba(148, 163, 184, 0.16);
+  --aio-line-med: rgba(148, 163, 184, 0.28);
+}
+
+/* ── canonical AI34/INTEMO token layer ────────────────────────────────────── */
+:root {
+  /* typography */
+  --ai34-font-sans: Inter, Geist, 'SF Pro Text', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --ai34-font-mono: ui-monospace, 'Cascadia Code', 'Fira Code', SFMono-Regular, Consolas, monospace;
+
+  /* spacing scale: 4/8/12/16/24/32/40/48 */
+  --ai34-space-1:  4px;
+  --ai34-space-2:  8px;
+  --ai34-space-3:  12px;
+  --ai34-space-4:  16px;
+  --ai34-space-6:  24px;
+  --ai34-space-8:  32px;
+  --ai34-space-10: 40px;
+  --ai34-space-12: 48px;
+
+  /* radius */
+  --ai34-radius-sm:   8px;
+  --ai34-radius-md:   12px;
+  --ai34-radius-lg:   16px;
+  --ai34-radius-xl:   20px;
+  --ai34-radius-pill: 999px;
+
+  /* colors */
+  --ai34-surface:      #FFFFFF;
+  --ai34-surface-2:    #F4F7FB;
+  --ai34-ink:          #0F172A;
+  --ai34-muted:        #64748B;
+  --ai34-brand:        #2563EB;
+  --ai34-brand-hover:  #1D4ED8;
+  --ai34-indigo:       #4F46E5;
+  --ai34-success:      #15803D;
+  --ai34-warning:      #D97706;
+  --ai34-danger:       #DC2626;
+
+  /* shadows */
+  --ai34-shadow-card:         0 1px 3px rgba(15, 23, 42, 0.06), 0 2px 8px rgba(15, 23, 42, 0.04);
+  --ai34-shadow-float:        0 4px 16px rgba(15, 23, 42, 0.08), 0 8px 32px rgba(15, 23, 42, 0.06);
+  --ai34-shadow-hover:        0 4px 14px rgba(15, 23, 42, 0.09), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --ai34-shadow-btn:          0 1px 2px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  --ai34-shadow-btn-hover:    0 2px 5px rgba(15, 23, 42, 0.10), 0 4px 10px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.80);
+  --ai34-shadow-btn-press:    inset 0 1px 3px rgba(15, 23, 42, 0.10);
+  --ai34-shadow-btn-primary:  0 1px 3px rgba(37, 99, 235, 0.30), 0 3px 8px rgba(37, 99, 235, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+
+  /* motion */
+  --ai34-motion-fast: 130ms;
+  --ai34-motion-med:  200ms;
+  --ai34-motion-slow: 380ms;
+  --ai34-ease:        cubic-bezier(.2, .8, .2, 1);
+}
+
+/* ── dark overrides for canonical tokens ──────────────────────────────────── */
+[data-theme="dark"] {
+  --ai34-surface:    #0F172A;
+  --ai34-surface-2:  #1E293B;
+  --ai34-ink:        #F8FAFC;
+  --ai34-muted:      #94A3B8;
+}

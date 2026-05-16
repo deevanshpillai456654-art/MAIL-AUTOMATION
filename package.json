@@ -1,0 +1,14 @@
+{
+  "name": "ai-email-organizer-local-enterprise",
+  "version": "9.8.1-ai36-frontend-fix",
+  "private": true,
+  "description": "Local-first enterprise AI email operations desktop runtime with frontend warning cleanup",
+  "scripts": {
+    "validate": "python -B scripts/validate_ai36_production_cleanup.py",
+    "test": "python -B -m pytest -q -p no:cacheprovider",
+    "visual:smoke": "python -B scripts/dashboard_visual_smoke.py",
+    "onnx:evaluate": "python -B scripts/evaluate_onnx_models.py"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

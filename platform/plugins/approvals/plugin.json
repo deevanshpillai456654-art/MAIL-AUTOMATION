@@ -1,0 +1,14 @@
+{
+  "plugin_id": "mailpilot.approval_first_automation",
+  "name": "Approval First Automation",
+  "version": "11.0.0",
+  "entrypoint": "module.py",
+  "permissions": [
+    "approvals.view",
+    "approvals.decide"
+  ],
+  "hooks": [
+    "automation.requested"
+  ],
+  "enabled_by_default": true
+}

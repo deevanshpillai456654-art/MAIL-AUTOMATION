@@ -1,0 +1,16 @@
+{
+  "service": "AI Email Organizer",
+  "version": "9.7.0",
+  "host": "127.0.0.1",
+  "port": 4597,
+  "api_base": "http://127.0.0.1:4597",
+  "endpoints": {
+    "health": "http://127.0.0.1:4597/api/v1/health",
+    "classify": "http://127.0.0.1:4597/api/v1/classify",
+    "categories": "http://127.0.0.1:4597/api/v1/categories",
+    "feedback": "http://127.0.0.1:4597/api/v1/feedback",
+    "discover": "http://127.0.0.1:4597/api/v1/extension/discover"
+  },
+  "timestamp": 1778934935,
+  "ttl": 300
+}

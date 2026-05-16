@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+artifacts/
+tmp_models_test/
+
+# Local data
+local-service/data/
+local-service/logs/
+local-service/models/
+*.db
+*.db-journal
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Secrets
+.env
+.env.local
+*.pem
+*.key
+secrets/
+
+# Build
+build/
+dist/
+*.exe
+*.dmg
+*.app
+
+# Generated validation outputs
+AI36_FRONTEND_FIX_VALIDATION_REPORT.json
+AI36_FRONTEND_FIX_VALIDATION_REPORT.md

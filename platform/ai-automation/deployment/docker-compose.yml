@@ -1,0 +1,63 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: ../../../
+      dockerfile: platform/ai-automation/deployment/Dockerfile
+    image: mailpilot-ai-automation:latest
+    container_name: mailpilot-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - AI_AUTOMATION_DB_PATH=/data/ai_automation.db
+      - CONNECTOR_PANEL_DB_PATH=/data/connectors_panel.db
+    volumes:
+      - mailpilot-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/ai-automation/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  worker:
+    build:
+      context: ../../../
+      dockerfile: platform/ai-automation/deployment/Dockerfile
+    image: mailpilot-ai-automation:latest
+    container_name: mailpilot-worker
+    restart: unless-stopped
+    command: python -m platform.ai_automation.workers.main
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - AI_AUTOMATION_DB_PATH=/data/ai_automation.db
+      - WORKER_POLL_INTERVAL=5
+    volumes:
+      - mailpilot-data:/data
+    depends_on:
+      api:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: mailpilot-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+
+volumes:
+  mailpilot-data:
+    driver: local

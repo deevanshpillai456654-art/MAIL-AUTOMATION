@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "INTEMO — AI Email Security for Gmail",
+  "version": "14.0.1B",
+  "description": "Real-time scam detection, threat badges, domain analysis and inbox overlays for Gmail — powered by your local INTEMO v14 service.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "*://mail.google.com/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "INTEMO",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "*://mail.google.com/*"
+      ],
+      "js": [
+        "secure_message_bridge.js",
+        "content.js"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'; connect-src http://127.0.0.1:* http://localhost:*;"
+  },
+  "minimum_chrome_version": "114"
+}

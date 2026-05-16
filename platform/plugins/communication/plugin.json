@@ -1,0 +1,14 @@
+{
+  "plugin_id": "mailpilot.communication_timeline",
+  "name": "Email + WhatsApp Unified Communication",
+  "version": "11.0.0",
+  "entrypoint": "module.py",
+  "permissions": [
+    "communication.view"
+  ],
+  "hooks": [
+    "email.received",
+    "whatsapp.received"
+  ],
+  "enabled_by_default": true
+}

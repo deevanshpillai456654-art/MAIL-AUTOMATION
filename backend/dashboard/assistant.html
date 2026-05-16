@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>INTEMO — AI Support Assistant</title>
+  <link rel="stylesheet" href="/dashboard/assistant.css">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+
+<div class="assistant-layout">
+
+  <!-- ── topbar ─────────────────────────────────────────────────────────── -->
+  <header class="asst-topbar">
+    <button class="brand" id="btnHome" type="button" title="Back to overview">
+      <span class="icon" aria-hidden="true">I</span>
+      INTEMO
+    </button>
+    <span class="title">AI Support Assistant</span>
+    <div class="health-status" role="status" aria-live="polite" aria-label="System health">
+      <span id="healthDot" aria-hidden="true"></span>
+      <span id="healthLabel">Checking…</span>
+    </div>
+    <div class="spacer" aria-hidden="true"></div>
+    <span id="modeBadge" class="mode-badge user">User Mode</span>
+    <button class="back-btn" id="btnBackDash" type="button" title="Return to dashboard">
+      ← Dashboard
+    </button>
+  </header>
+
+  <!-- ── sidebar ───────────────────────────────────────────────────────── -->
+  <aside class="asst-sidebar" aria-label="Issue navigation">
+    <div class="search-wrap">
+      <input type="search" id="issueSearch" placeholder="Search issues…" autocomplete="off" aria-label="Search issues">
+    </div>
+
+    <nav id="issueNav" aria-label="Support issues">
+      <!-- populated by assistant.js -->
+      <div class="loading-placeholder skeleton nav-skeleton"></div>
+      <div class="loading-placeholder skeleton nav-skeleton nav-skeleton--tall"></div>
+      <div class="loading-placeholder skeleton nav-skeleton nav-skeleton--tall"></div>
+    </nav>
+
+    <div class="diag-btn-wrap">
+      <button class="diag-run-btn" id="btnRunDiag" type="button">
+        <span class="spinner" id="diagSpinner"></span>
+        <span id="diagBtnLabel">Run Diagnostics</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── main area ─────────────────────────────────────────────────────── -->
+  <main class="asst-main" id="mainArea">
+
+    <!-- HOME / WELCOME panel -->
+    <section id="panelHome" aria-label="Home">
+
+      <div class="home-hero">
+        <div class="hero-text">
+          <h1>AI Support Assistant</h1>
+          <p>
+            Diagnose and resolve common INTEMO issues with guided step-by-step
+            walkthroughs, visual guides, and safe automated actions.
+            No technical knowledge required.
+          </p>
+          <div class="hero-stats">
+            <div class="stat-pill"><strong id="statIssues">—</strong>Guided flows</div>
+            <div class="stat-pill"><strong id="statActions">—</strong>Safe actions</div>
+            <div class="stat-pill"><strong id="statCategories">—</strong>Categories</div>
+          </div>
+        </div>
+        <div class="hero-icon" aria-hidden="true">🛠</div>
+      </div>
+
+      <!-- Detected issues (shown when diagnostics finds something) -->
+      <div id="detectedSection">
+        <div class="section-label">⚠ Detected Issues</div>
+        <div id="detectedList"></div>
+      </div>
+
+      <!-- Recommendations -->
+      <div id="recsSection">
+        <div class="section-label section-label--md">Recommendations</div>
+        <ul id="recsList"></ul>
+      </div>
+
+      <!-- Popular issues quick-launch -->
+      <div>
+        <div class="section-label section-label--lg">Common Issues</div>
+        <div class="quick-issues-grid" id="quickIssuesGrid">
+          <!-- populated by JS -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- DIAGNOSTICS panel -->
+    <section id="panelDiag" aria-labelledby="diagHeading">
+      <div class="diag-header">
+        <h2 id="diagHeading">System Diagnostics</h2>
+        <p id="diagTimestamp">Last run: never</p>
+      </div>
+
+      <div class="diag-grid" id="diagGrid">
+        <!-- component cards -->
+      </div>
+
+      <div id="diagIssuesSection" class="diag-issues">
+        <div class="section-label section-label--lg">Detected Issues</div>
+        <div id="diagIssuesList"></div>
+      </div>
+
+      <div id="diagRecsSection" class="diag-recs">
+        <h4>Recommendations</h4>
+        <ul id="diagRecsList"></ul>
+      </div>
+    </section>
+
+    <!-- FLOW panel (step-by-step guided troubleshooting) -->
+    <section id="panelFlow" aria-labelledby="flowTitle">
+
+      <div class="flow-header">
+        <div class="fh-icon" id="flowIcon">🔧</div>
+        <div class="fh-body">
+          <h2 id="flowTitle">Loading…</h2>
+          <p id="flowDesc"></p>
+          <span id="flowSeverityBadge" class="severity-badge"></span>
+        </div>
+      </div>
+
+      <!-- Symptoms list (collapsed on mobile) -->
+      <details class="symptoms-box" id="symptomsBox" open>
+        <summary>
+          Symptoms to look for
+        </summary>
+        <ul id="symptomsList"></ul>
+      </details>
+
+      <!-- Visual flow diagram -->
+      <div class="visual-flow" id="visualFlow"></div>
+
+      <!-- Progress bar -->
+      <div class="flow-progress" id="flowProgress">
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <span class="progress-label" id="progressLabel">Step 1</span>
+      </div>
+
+      <!-- Steps container -->
+      <div id="stepsContainer"></div>
+
+      <!-- Navigation buttons -->
+      <div class="step-nav" id="stepNav">
+        <span class="nav-hint" id="navHint"></span>
+        <button class="btn btn-secondary" id="btnStepFailed" type="button">← This didn't work</button>
+        <button class="btn btn-primary" id="btnStepDone" type="button">Done — Next Step →</button>
+      </div>
+
+      <!-- Flow complete banner (hidden until all steps done) -->
+      <div class="flow-complete" id="flowComplete">
+        <h3>✓ All Steps Complete</h3>
+        <p id="flowCompleteMsg">If the issue persists, try a related flow or contact support.</p>
+      </div>
+
+      <!-- Related issues -->
+      <div class="related-section" id="relatedSection">
+        <h4>Related Issues</h4>
+        <div class="related-grid" id="relatedGrid"></div>
+      </div>
+
+    </section>
+
+  </main>
+</div><!-- /assistant-layout -->
+
+<!-- ── confirmation modal ─────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-hidden="true">
+  <div class="modal-box">
+    <h3 id="modalTitle">Confirm Action</h3>
+    <div class="impact-box" id="modalImpact"></div>
+    <div class="rollback-box">
+      <strong>Can this be undone?</strong><br>
+      <span id="modalRollback"></span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="modalCancel" type="button">Cancel</button>
+      <button class="btn btn-primary"   id="modalConfirm" type="button">Confirm &amp; Execute</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── toast container ──────────────────────────────────────────────────────── -->
+<div id="toastContainer" role="region" aria-live="polite" aria-label="Notifications" aria-atomic="false"></div>
+
+<script src="/dashboard/assistant.js"></script>
+</body>
+</html>

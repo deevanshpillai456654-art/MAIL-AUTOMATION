@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en" data-platform="shared">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>INTEMO</title>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body class="extension-popup">
+<div class="wrap">
+
+  <!-- brand -->
+  <div class="brand">
+    <div class="logo" aria-hidden="true">IT</div>
+    <div>
+      <h1>INTEMO</h1>
+      <p class="small" id="platform">AI Email Security</p>
+    </div>
+    <button type="button" id="refresh" class="icon-btn" title="Refresh status" aria-label="Refresh">↻</button>
+  </div>
+
+  <!-- service status -->
+  <div class="card status">
+    <div>
+      <strong id="statusText">Checking service…</strong>
+      <div class="small" id="originText">Discovering local API</div>
+    </div>
+    <span id="statusDot" class="dot" aria-hidden="true"></span>
+  </div>
+
+  <!-- stats row -->
+  <div class="card grid-4">
+    <div class="metric">
+      <b id="statScam">—</b>
+      <span>Scams today</span>
+    </div>
+    <div class="metric">
+      <b id="statSuspicious">—</b>
+      <span>Suspicious</span>
+    </div>
+    <div class="metric">
+      <b id="statTotal">—</b>
+      <span>Emails</span>
+    </div>
+    <div class="metric">
+      <b id="statProviders">—</b>
+      <span>Providers</span>
+    </div>
+  </div>
+
+  <!-- quick toggles -->
+  <div class="card">
+    <div class="toggle-row-mini">
+      <div class="pill-pair">
+        <span>Auto-classify</span>
+        <button type="button" class="toggle-mini active" id="toggleClassify" aria-label="Auto classify"></button>
+      </div>
+      <div class="pill-pair">
+        <span>Badges</span>
+        <button type="button" class="toggle-mini active" id="toggleBadges" aria-label="Badges"></button>
+      </div>
+      <div class="pill-pair">
+        <span>Threat alerts</span>
+        <button type="button" class="toggle-mini active" id="toggleThreat" aria-label="Threat badges"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- recent threats -->
+  <div class="card hidden" id="threatSection">
+    <div class="section-title">
+      <strong class="small-label">Recent threats</strong>
+      <span class="chip" id="threatCount">0</span>
+    </div>
+    <div id="threatList" class="threat-list" role="list" aria-live="polite" aria-label="Recent threats"></div>
+  </div>
+
+  <!-- domain quick-check -->
+  <div class="card">
+    <div class="domain-row">
+      <input id="domainInput" type="text" placeholder="Check a domain…" autocomplete="off" spellcheck="false" aria-label="Check a domain">
+      <button type="button" id="domainCheck" class="secondary small-btn">Check</button>
+    </div>
+    <div id="domainResult" class="domain-result hidden" aria-live="polite"></div>
+  </div>
+
+  <!-- actions -->
+  <div class="actions">
+    <button type="button" id="openDashboard">Dashboard</button>
+    <button type="button" id="openSecurity" class="secondary">Security</button>
+    <button type="button" id="openSettings" class="secondary">Settings</button>
+  </div>
+
+  <div class="footer">INTEMO v<span id="extVersion">14.0.1B</span></div>
+</div>
+
+<script src="secure_message_bridge.js"></script>
+<script src="extension_runtime.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

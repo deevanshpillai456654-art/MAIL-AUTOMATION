@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>INTEMO — Threat Intelligence Panel</title>
+  <link rel="stylesheet" href="/dashboard/enterprise-ui.css" />
+  <link rel="stylesheet" href="/dashboard/scam-panel.css" />
+</head>
+<body>
+
+<!-- Live toast stream -->
+<div class="alert-stream" id="alertStream" role="region" aria-label="Threat alerts" aria-live="assertive" aria-atomic="false"></div>
+
+<div class="threat-shell">
+
+  <!-- ═══════════════ SIDEBAR ═══════════════ -->
+  <aside class="threat-sidebar" aria-label="Threat Intelligence navigation">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-title" aria-hidden="true">⚡ Threat Intel</div>
+      <div class="sidebar-brand-sub">INTEMO Security Panel</div>
+    </div>
+
+    <nav aria-label="Threat panel sections">
+    <div class="nav-section">
+      <div class="nav-section-label">Overview</div>
+      <button class="threat-nav-btn active" data-view="dashboard" type="button" aria-current="page">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/><rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5"/></svg>
+        Dashboard
+      </button>
+      <button class="threat-nav-btn" data-view="feed" type="button">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M2 4h16M2 8h12M2 12h8M2 16h6"/></svg>
+        Live Threat Feed
+        <span class="badge-count" id="feedBadge">0</span>
+      </button>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Detection</div>
+      <button class="threat-nav-btn" data-view="scam-emails" type="button">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M2 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5Z"/><path d="m2 5 8 6 8-6"/></svg>
+        Scam Emails
+        <span class="badge-count" id="scamBadge">0</span>
+      </button>
+      <button class="threat-nav-btn" data-view="lookalike" type="button">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="M10 6v4l3 3"/></svg>
+        Lookalike Monitor
+      </button>
+      <button class="threat-nav-btn" data-view="domain-analyser" type="button">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="m15 15 3 3"/></svg>
+        Domain Analyser
+      </button>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Management</div>
+      <button class="threat-nav-btn" data-view="blacklist" type="button">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="M5 10h10"/></svg>
+        Blacklist
+      </button>
+      <button class="threat-nav-btn" data-view="whitelist" type="button">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="m7 10 2 2 4-4"/></svg>
+        Trusted Senders
+      </button>
+      <button class="threat-nav-btn" data-view="audit" type="button">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 7h6M7 10h4M7 13h3"/></svg>
+        Audit Log
+      </button>
+    </div>
+
+    </nav>
+
+    <div class="live-indicator" role="status" aria-live="polite" aria-label="WebSocket connection status">
+      <div class="live-dot" id="liveDot" aria-hidden="true"></div>
+      <span id="liveStatus">Connecting…</span>
+    </div>
+  </aside>
+
+  <!-- ═══════════════ MAIN ═══════════════ -->
+  <div class="threat-main">
+
+    <!-- Header -->
+    <div class="threat-header">
+      <div aria-live="polite" aria-atomic="true">
+        <div class="threat-header-title" id="viewTitle">Threat Dashboard</div>
+        <div class="threat-header-sub" id="viewSub">Real-time security monitoring</div>
+      </div>
+      <div class="header-actions">
+        <a href="/dashboard" class="back-link">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 4l-6 6 6 6"/></svg>
+          Dashboard
+        </a>
+        <button class="btn btn-ghost btn-sm" id="refreshBtn" type="button">
+          <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 12a6 6 0 0 0 10.6 3M16 8A6 6 0 0 0 5.4 5"/><path d="M4 4v4h4M16 16v-4h-4"/></svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content-area" role="main">
+
+      <!-- ── VIEW: Dashboard ── -->
+      <div class="view active" id="view-dashboard">
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-card"><div class="stat-label">Loading…</div><div class="stat-value">—</div></div>
+        </div>
+
+        <div class="two-col">
+          <div>
+            <div class="section-header">
+              <div class="section-title">Top Impersonated Brands</div>
+            </div>
+            <div class="data-table-wrap">
+              <table class="data-table" id="brandsTable">
+                <thead><tr><th scope="col">Brand</th><th scope="col">Detections</th><th scope="col">Risk</th></tr></thead>
+                <tbody id="brandsBody"><tr><td colspan="3" class="empty-state"><p>Loading…</p></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <div class="section-header">
+              <div class="section-title">Threat Type Breakdown</div>
+            </div>
+            <div class="data-table-wrap">
+              <table class="data-table" id="typesTable">
+                <thead><tr><th scope="col">Threat Type</th><th scope="col">Count</th></tr></thead>
+                <tbody id="typesBody"><tr><td colspan="2" class="empty-state"><p>Loading…</p></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── VIEW: Live Feed ── -->
+      <div class="view" id="view-feed">
+        <div class="filter-bar">
+          <input class="filter-input" id="feedSearch" placeholder="Search domain, sender…" aria-label="Search threats" />
+          <select class="filter-select" id="feedStatusFilter" aria-label="Filter by status">
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="dismissed">Dismissed</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" data-action="load-feed" type="button">Apply</button>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr><th scope="col">Domain</th><th scope="col">Impersonating</th><th scope="col">Type</th><th scope="col">Score</th><th scope="col">Sender</th><th scope="col">Time</th><th scope="col">Status</th><th scope="col" aria-label="Actions"></th></tr></thead>
+            <tbody id="feedBody"><tr><td colspan="8" class="table-empty">Loading feed…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="feedPagination"></div>
+      </div>
+
+      <!-- ── VIEW: Scam Emails ── -->
+      <div class="view" id="view-scam-emails">
+        <div class="filter-bar">
+          <select class="filter-select" id="emailCategoryFilter" aria-label="Filter by email category">
+            <option value="Scam">Scam</option>
+            <option value="Pending Review">Pending Review</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" data-action="load-scam-emails" type="button">Apply</button>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr><th scope="col">Subject</th><th scope="col">Sender</th><th scope="col">Category</th><th scope="col">Confidence</th><th scope="col">Reasons</th><th scope="col">Date</th><th scope="col">Actions</th></tr></thead>
+            <tbody id="scamEmailsBody"><tr><td colspan="7" class="table-empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── VIEW: Lookalike Monitor ── -->
+      <div class="view" id="view-lookalike">
+        <div class="section-header">
+          <div class="section-title">Brand Impersonation Monitor</div>
+          <span class="severity-badge critical" id="lookalikeCount">0 Active</span>
+        </div>
+        <div class="brand-grid mb-20" id="brandGrid"></div>
+        <div class="section-header"><div class="section-title">Active Lookalike Alerts</div></div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr><th scope="col">Detected Domain</th><th scope="col">Impersonates</th><th scope="col">Type</th><th scope="col">Score</th><th scope="col">Reasons</th><th scope="col">Time</th></tr></thead>
+            <tbody id="lookalikeBody"><tr><td colspan="6" class="table-empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── VIEW: Domain Analyser ── -->
+      <div class="view" id="view-domain-analyser">
+        <div class="domain-analyser">
+          <div class="analyser-row">
+            <div class="analyser-input-group">
+              <label class="analyser-label" for="domainInput">Domain or sender email to analyse</label>
+              <input class="analyser-input" id="domainInput" placeholder="e.g. paypa1.com or noreply@amaz0n-support.com" />
+            </div>
+            <button class="btn btn-primary" data-action="analyse-domain" type="button">Analyse</button>
+          </div>
+          <div class="analyser-result" id="analyserResult"></div>
+        </div>
+      </div>
+
+      <!-- ── VIEW: Blacklist ── -->
+      <div class="view" id="view-blacklist">
+        <div class="filter-bar">
+          <button class="btn btn-primary btn-sm" data-action="show-blacklist-form" type="button">
+            <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+            Add Entry
+          </button>
+        </div>
+        <div id="addBlacklistForm" class="entry-form hidden">
+          <div class="form-row-wrap">
+            <div>
+              <label class="analyser-label" for="blType">Type</label>
+              <select class="filter-select" id="blType"><option value="sender">Sender</option><option value="domain">Domain</option></select>
+            </div>
+            <div class="flex-field">
+              <label class="analyser-label" for="blValue">Value</label>
+              <input class="analyser-input" id="blValue" placeholder="email@domain.com or domain.com" />
+            </div>
+            <div class="flex-field">
+              <label class="analyser-label" for="blReason">Reason</label>
+              <input class="analyser-input" id="blReason" placeholder="Reason (optional)" />
+            </div>
+            <button class="btn btn-danger btn-sm" data-action="add-blacklist" type="button">Block</button>
+            <button class="btn btn-ghost btn-sm" data-action="hide-blacklist-form" type="button">Cancel</button>
+          </div>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr><th scope="col">Type</th><th scope="col">Value</th><th scope="col">Reason</th><th scope="col">Score</th><th scope="col">Added</th><th scope="col" aria-label="Actions"></th></tr></thead>
+            <tbody id="blacklistBody"><tr><td colspan="6" class="table-empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── VIEW: Whitelist ── -->
+      <div class="view" id="view-whitelist">
+        <div class="filter-bar">
+          <button class="btn btn-success btn-sm" data-action="show-whitelist-form" type="button">
+            <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+            Trust Sender / Domain
+          </button>
+        </div>
+        <div id="addWhitelistForm" class="entry-form hidden">
+          <div class="form-row-wrap">
+            <div>
+              <label class="analyser-label" for="wlType">Type</label>
+              <select class="filter-select" id="wlType"><option value="sender">Sender</option><option value="domain">Domain</option></select>
+            </div>
+            <div class="flex-field">
+              <label class="analyser-label" for="wlValue">Value</label>
+              <input class="analyser-input" id="wlValue" placeholder="email@domain.com or domain.com" />
+            </div>
+            <div class="flex-field">
+              <label class="analyser-label" for="wlReason">Reason</label>
+              <input class="analyser-input" id="wlReason" placeholder="Reason (optional)" />
+            </div>
+            <button class="btn btn-success btn-sm" data-action="add-whitelist" type="button">Trust</button>
+            <button class="btn btn-ghost btn-sm" data-action="hide-whitelist-form" type="button">Cancel</button>
+          </div>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr><th scope="col">Type</th><th scope="col">Value</th><th scope="col">Reason</th><th scope="col">Added</th><th scope="col" aria-label="Actions"></th></tr></thead>
+            <tbody id="whitelistBody"><tr><td colspan="5" class="table-empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── VIEW: Audit Log ── -->
+      <div class="view" id="view-audit">
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr><th scope="col">Action</th><th scope="col">Target</th><th scope="col">Value</th><th scope="col">Detail</th><th scope="col">Performed By</th><th scope="col">Time</th></tr></thead>
+            <tbody id="auditBody"><tr><td colspan="6" class="table-empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /content-area -->
+  </div><!-- /threat-main -->
+</div><!-- /threat-shell -->
+
+<script src="/dashboard/scam-panel.js"></script>
+</body>
+</html>

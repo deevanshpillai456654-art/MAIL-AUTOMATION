@@ -1,0 +1,42 @@
+{
+  "app": "INTEMO",
+  "version": "14.0.1B",
+  "scope": "installer, setup, dependency setup, first-run initialization and runtime bootstrap",
+  "network_required_for_setup": false,
+  "online_features_allowed_after_setup": [
+    "email_sync",
+    "cloud_ai_providers_when_configured",
+    "updates",
+    "telemetry",
+    "remote_apis",
+    "online_integrations"
+  ],
+  "runtime_components": [
+    "local-service Python runtime payload",
+    "Electron desktop runtime payload",
+    "dashboard static assets",
+    "browser extension packages",
+    "SQLite schema initialization",
+    "startup scripts",
+    "tray/background service scripts",
+    "offline first-run initializer",
+    "local documentation",
+    "configuration templates",
+    "security key first-run generator",
+    "diagnostics/log/cache directories"
+  ],
+  "blocked_during_setup": [
+    "npm install",
+    "pip install",
+    "yarn install",
+    "pnpm install",
+    "runtime downloads",
+    "internet package fetching",
+    "online setup scripts"
+  ],
+  "native_artifacts_to_build_on_target_os": {
+    "windows": ["Inno Setup exe", "portable zip", "silent install package", "enterprise rollout package"],
+    "macos": ["DMG Apple Silicon", "DMG Intel", "launch agent package"],
+    "linux": ["AppImage", "deb", "rpm", "portable tarball", "systemd user service"]
+  }
+}

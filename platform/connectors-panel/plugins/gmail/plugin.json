@@ -1,0 +1,29 @@
+{
+  "name": "gmail_connector",
+  "version": "2.0.1",
+  "type": "connector",
+  "category": "communication",
+  "description": "Gmail OAuth 2.0 connector for sending, receiving, and processing emails via the Google Gmail API",
+  "author": "MailPilot",
+  "enabled": false,
+  "multiTenant": true,
+  "supports_oauth": true,
+  "supports_api_key": false,
+  "supports_webhook": false,
+  "queue_enabled": true,
+  "oauth_provider": "google",
+  "oauth_scopes": [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/userinfo.email"
+  ],
+  "permissions": ["gmail.read", "gmail.send", "gmail.modify", "contacts.read"],
+  "events": ["email.received", "email.sent", "email.bounced", "email.opened", "email.clicked"],
+  "config_schema": {
+    "client_id": {"type": "string", "required": true, "source": "env:GMAIL_CLIENT_ID"},
+    "client_secret": {"type": "secret", "required": true, "source": "env:GMAIL_CLIENT_SECRET"},
+    "redirect_uri": {"type": "string", "required": true},
+    "poll_interval_seconds": {"type": "integer", "default": 60, "required": false}
+  }
+}

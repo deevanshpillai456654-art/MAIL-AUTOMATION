@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Proton Bridge">
+  <defs>
+    <linearGradient id="protonA" x1="15" x2="49" y1="12" y2="52" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#745cff"/>
+      <stop offset="1" stop-color="#47c7ff"/>
+    </linearGradient>
+  </defs>
+  <path d="M14 19c0-4 3-7 7-7h29L34 52H21c-4 0-7-3-7-7z" fill="url(#protonA)"/>
+  <path d="M22 24h14c5 0 9 4 9 9s-4 9-9 9H22V24zm8 7v4h6a2 2 0 1 0 0-4h-6z" fill="#fff" opacity=".95"/>
+</svg>

@@ -1,0 +1,90 @@
+{
+  "name": "Invoice Processing",
+  "description": "OCR invoice, validate fields, approval gate for large amounts, sync to accounting",
+  "tags": ["invoice", "ocr", "finance", "approval"],
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "trigger_webhook",
+      "label": "Invoice Upload Webhook",
+      "config": {},
+      "position": {"x": 100, "y": 200}
+    },
+    {
+      "id": "n2",
+      "type": "ocr_process",
+      "label": "OCR Invoice",
+      "config": {"document_url": "{{trigger.document_url}}"},
+      "position": {"x": 300, "y": 200}
+    },
+    {
+      "id": "n3",
+      "type": "ai_extract",
+      "label": "Extract Invoice Fields",
+      "config": {
+        "text": "{{node_n2.ocr_result.text}}",
+        "fields": ["invoice_number", "vendor", "amount", "due_date", "line_items", "tax", "currency"]
+      },
+      "position": {"x": 500, "y": 200}
+    },
+    {
+      "id": "n4",
+      "type": "condition",
+      "label": "Validate Fields",
+      "config": {"condition": "bool(node_n3.get('extracted', {}).get('invoice_number')) and bool(node_n3.get('extracted', {}).get('amount'))"},
+      "position": {"x": 700, "y": 200}
+    },
+    {
+      "id": "n5",
+      "type": "condition",
+      "label": "Amount > 10000?",
+      "config": {"condition": "float(node_n3.get('extracted', {}).get('amount', 0) or 0) > 10000"},
+      "position": {"x": 900, "y": 200}
+    },
+    {
+      "id": "n6",
+      "type": "approval_request",
+      "label": "Finance Approval",
+      "config": {
+        "title": "Invoice Approval Required",
+        "description": "Invoice exceeds auto-approval threshold",
+        "risk_level": "high",
+        "assignee_group": "finance_manager"
+      },
+      "position": {"x": 1100, "y": 100}
+    },
+    {
+      "id": "n7",
+      "type": "http_request",
+      "label": "Sync to Accounting",
+      "config": {
+        "url": "{{ACCOUNTING_API_URL}}/invoices",
+        "method": "POST",
+        "body": {"invoice": "{{node_n3.extracted}}"}
+      },
+      "position": {"x": 1300, "y": 200}
+    },
+    {
+      "id": "n8",
+      "type": "send_email",
+      "label": "Confirm Processing",
+      "config": {
+        "to": "{{trigger.submitted_by}}",
+        "subject": "Invoice {{node_n3.extracted.invoice_number}} Processed",
+        "body": "Your invoice has been successfully processed and synced to accounting."
+      },
+      "position": {"x": 1500, "y": 200}
+    }
+  ],
+  "connections": [
+    {"source_id": "n1", "target_id": "n2"},
+    {"source_id": "n2", "target_id": "n3"},
+    {"source_id": "n3", "target_id": "n4"},
+    {"source_id": "n4", "target_id": "n5", "condition": "node_n4.get('condition_result')"},
+    {"source_id": "n5", "target_id": "n6", "condition": "node_n5.get('condition_result')"},
+    {"source_id": "n5", "target_id": "n7", "condition": "not node_n5.get('condition_result')"},
+    {"source_id": "n6", "target_id": "n7"},
+    {"source_id": "n7", "target_id": "n8"}
+  ],
+  "variables": {}
+}

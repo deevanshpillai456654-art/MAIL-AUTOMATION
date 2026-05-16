@@ -1,0 +1,15 @@
+{
+  "plugin_id": "mailpilot.ocr_document_intelligence",
+  "name": "OCR Document Intelligence",
+  "version": "11.0.0",
+  "entrypoint": "module.py",
+  "permissions": [
+    "ocr.view",
+    "ocr.review"
+  ],
+  "hooks": [
+    "document.received",
+    "ocr.completed"
+  ],
+  "enabled_by_default": false
+}

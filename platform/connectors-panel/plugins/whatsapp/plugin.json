@@ -1,0 +1,23 @@
+{
+  "name": "whatsapp_connector",
+  "version": "1.0.0",
+  "type": "connector",
+  "category": "communication",
+  "description": "WhatsApp Business API connector for sending/receiving messages",
+  "author": "MailPilot",
+  "enabled": false,
+  "multiTenant": true,
+  "supports_oauth": false,
+  "supports_api_key": true,
+  "supports_webhook": true,
+  "queue_enabled": true,
+  "permissions": ["messages.read", "messages.send", "contacts.read"],
+  "events": ["whatsapp.message.received", "whatsapp.message.sent", "whatsapp.status.updated"],
+  "webhook_events": ["messages", "message_deliveries", "message_reads"],
+  "config_schema": {
+    "phone_number_id": {"type": "string", "required": true},
+    "whatsapp_business_account_id": {"type": "string", "required": true},
+    "api_key": {"type": "secret", "required": true},
+    "webhook_verify_token": {"type": "secret", "required": true}
+  }
+}

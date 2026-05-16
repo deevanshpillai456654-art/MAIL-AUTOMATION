@@ -1,0 +1,108 @@
+{
+  "name": "Shipping Automation",
+  "description": "Process shipping emails: OCR documents, classify, approve high-value orders, notify via WhatsApp",
+  "tags": ["shipping", "ocr", "approval", "whatsapp"],
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "trigger_email",
+      "label": "Email Trigger",
+      "config": {"folder": "INBOX", "subject_filter": "shipping"},
+      "position": {"x": 100, "y": 200}
+    },
+    {
+      "id": "n2",
+      "type": "ai_classify",
+      "label": "Classify Email",
+      "config": {
+        "text": "{{trigger.subject}} {{trigger.body}}",
+        "categories": ["shipping_order", "return_request", "tracking_inquiry", "other"]
+      },
+      "position": {"x": 300, "y": 200}
+    },
+    {
+      "id": "n3",
+      "type": "condition",
+      "label": "Is Shipping Order?",
+      "config": {"condition": "node_n2.get('classification') == 'shipping_order'"},
+      "position": {"x": 500, "y": 200}
+    },
+    {
+      "id": "n4",
+      "type": "ocr_process",
+      "label": "OCR Document",
+      "config": {"document_url": "{{trigger.attachment_url}}"},
+      "position": {"x": 700, "y": 100}
+    },
+    {
+      "id": "n5",
+      "type": "ai_extract",
+      "label": "Extract Order Details",
+      "config": {
+        "text": "{{node_n4.ocr_result.text}}",
+        "fields": ["order_number", "amount", "recipient", "address", "items"]
+      },
+      "position": {"x": 900, "y": 100}
+    },
+    {
+      "id": "n6",
+      "type": "condition",
+      "label": "High Value Order?",
+      "config": {"condition": "float(node_n5.get('extracted', {}).get('amount', 0) or 0) > 5000"},
+      "position": {"x": 1100, "y": 100}
+    },
+    {
+      "id": "n7",
+      "type": "approval_request",
+      "label": "Manager Approval",
+      "config": {
+        "title": "High-Value Shipping Order Requires Approval",
+        "risk_level": "high",
+        "assignee_group": "manager"
+      },
+      "position": {"x": 1300, "y": 50}
+    },
+    {
+      "id": "n8",
+      "type": "http_request",
+      "label": "Update ERP",
+      "config": {
+        "url": "{{ERP_WEBHOOK_URL}}",
+        "method": "POST",
+        "body": {"order": "{{node_n5.extracted}}"}
+      },
+      "position": {"x": 1500, "y": 100}
+    },
+    {
+      "id": "n9",
+      "type": "send_email",
+      "label": "Notify Customer",
+      "config": {
+        "to": "{{trigger.sender_email}}",
+        "subject": "Your shipping order is confirmed",
+        "body": "Order {{node_n5.extracted.order_number}} has been processed."
+      },
+      "position": {"x": 1700, "y": 100}
+    },
+    {
+      "id": "n10",
+      "type": "log",
+      "label": "Log Completion",
+      "config": {"message": "Shipping order processed: {{node_n5.extracted.order_number}}"},
+      "position": {"x": 1900, "y": 200}
+    }
+  ],
+  "connections": [
+    {"source_id": "n1", "target_id": "n2"},
+    {"source_id": "n2", "target_id": "n3"},
+    {"source_id": "n3", "target_id": "n4", "condition": "node_n3.get('condition_result')"},
+    {"source_id": "n4", "target_id": "n5"},
+    {"source_id": "n5", "target_id": "n6"},
+    {"source_id": "n6", "target_id": "n7", "condition": "node_n6.get('condition_result')"},
+    {"source_id": "n6", "target_id": "n8", "condition": "not node_n6.get('condition_result')"},
+    {"source_id": "n7", "target_id": "n8"},
+    {"source_id": "n8", "target_id": "n9"},
+    {"source_id": "n9", "target_id": "n10"}
+  ],
+  "variables": {}
+}

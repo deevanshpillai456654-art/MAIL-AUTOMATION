@@ -1,0 +1,112 @@
+{
+  "name": "Approval Workflow",
+  "description": "AI risk assessment, tiered approval routing with escalation, notification on decision",
+  "tags": ["approval", "risk", "escalation"],
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "trigger_webhook",
+      "label": "Approval Request",
+      "config": {},
+      "position": {"x": 100, "y": 200}
+    },
+    {
+      "id": "n2",
+      "type": "agent_run",
+      "label": "AI Risk Assessment",
+      "config": {
+        "agent_type": "approval",
+        "task_name": "assess_risk",
+        "context": "{{trigger.context}}",
+        "amount": "{{trigger.amount}}"
+      },
+      "position": {"x": 300, "y": 200}
+    },
+    {
+      "id": "n3",
+      "type": "switch",
+      "label": "Risk Routing",
+      "config": {"value": "{{node_n2.agent_result.risk_level}}"},
+      "position": {"x": 500, "y": 200}
+    },
+    {
+      "id": "n4",
+      "type": "approval_request",
+      "label": "Team Lead Approval",
+      "config": {
+        "title": "Medium Risk: Approval Required",
+        "risk_level": "medium",
+        "assignee_group": "team_lead",
+        "escalate_after_minutes": 120
+      },
+      "position": {"x": 700, "y": 100}
+    },
+    {
+      "id": "n5",
+      "type": "approval_request",
+      "label": "Manager Approval",
+      "config": {
+        "title": "High Risk: Manager Approval Required",
+        "risk_level": "high",
+        "assignee_group": "manager",
+        "escalate_after_minutes": 60
+      },
+      "position": {"x": 700, "y": 250}
+    },
+    {
+      "id": "n6",
+      "type": "approval_request",
+      "label": "Director Approval",
+      "config": {
+        "title": "CRITICAL: Director Sign-Off Required",
+        "risk_level": "critical",
+        "assignee_group": "director",
+        "escalate_after_minutes": 30
+      },
+      "position": {"x": 700, "y": 400}
+    },
+    {
+      "id": "n7",
+      "type": "send_email",
+      "label": "Notify Requester",
+      "config": {
+        "to": "{{trigger.requester_email}}",
+        "subject": "Your request has been processed",
+        "body": "Your request (Risk: {{node_n2.agent_result.risk_level}}) has been reviewed and decided."
+      },
+      "position": {"x": 1100, "y": 200}
+    },
+    {
+      "id": "n8",
+      "type": "http_request",
+      "label": "Update System",
+      "config": {
+        "url": "{{trigger.callback_url}}",
+        "method": "POST",
+        "body": {"approved": true, "risk_level": "{{node_n2.agent_result.risk_level}}"}
+      },
+      "position": {"x": 1300, "y": 200}
+    },
+    {
+      "id": "n9",
+      "type": "log",
+      "label": "Audit Log",
+      "config": {"message": "Approval completed for {{trigger.request_id}} risk={{node_n2.agent_result.risk_level}}"},
+      "position": {"x": 1500, "y": 200}
+    }
+  ],
+  "connections": [
+    {"source_id": "n1", "target_id": "n2"},
+    {"source_id": "n2", "target_id": "n3"},
+    {"source_id": "n3", "target_id": "n4", "condition": "node_n3.get('switch_value') == 'medium'", "label": "medium"},
+    {"source_id": "n3", "target_id": "n5", "condition": "node_n3.get('switch_value') == 'high'", "label": "high"},
+    {"source_id": "n3", "target_id": "n6", "condition": "node_n3.get('switch_value') == 'critical'", "label": "critical"},
+    {"source_id": "n3", "target_id": "n7", "condition": "node_n3.get('switch_value') == 'low'", "label": "low (auto)"},
+    {"source_id": "n4", "target_id": "n7"},
+    {"source_id": "n5", "target_id": "n7"},
+    {"source_id": "n6", "target_id": "n7"},
+    {"source_id": "n7", "target_id": "n8"},
+    {"source_id": "n8", "target_id": "n9"}
+  ],
+  "variables": {}
+}

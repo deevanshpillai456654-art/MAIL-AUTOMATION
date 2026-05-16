@@ -1,0 +1,106 @@
+{
+  "bomFormat": "CycloneDX-lite",
+  "specVersion": "local-1.0",
+  "generated_at": "2026-05-12T23:13:36+00:00",
+  "components": [
+    {
+      "type": "library",
+      "ecosystem": "python",
+      "name": "fastapi",
+      "version": "0.128.2"
+    },
+    {
+      "type": "library",
+      "ecosystem": "python",
+      "name": "uvicorn[standard]",
+      "version": "0.46.0"
+    },
+    {
+      "type": "library",
+      "ecosystem": "python",
+      "name": "pydantic",
+      "version": "2.13.3"
+    },
+    {
+      "type": "library",
+      "ecosystem": "python",
+      "name": "numpy",
+      "version": "2.3.5"
+    },
+    {
+      "type": "library",
+      "ecosystem": "python",
+      "name": "scikit-learn",
+      "version": "1.8.0"
+    },
+    {
+      "type": "library",
+      "ecosystem": "python",
+      "name": "requests",
+      "version": "2.32.5"
+    },
+    {
+      "type": "library",
+      "ecosystem": "python",
+      "name": "python-multipart",
+      "version": "0.0.26"
+    },
+    {
+      "type": "library",
+      "ecosystem": "python",
+      "name": "python-dotenv",
+      "version": "1.2.2"
+    },
+    {
+      "type": "library",
+      "ecosystem": "python",
+      "name": "psutil",
+      "version": "7.2.2"
+    },
+    {
+      "type": "library",
+      "ecosystem": "python",
+      "name": "pillow",
+      "version": "12.2.0"
+    },
+    {
+      "type": "library",
+      "ecosystem": "python",
+      "name": "cryptography",
+      "version": "46.0.4"
+    },
+    {
+      "type": "library",
+      "ecosystem": "python",
+      "name": "prometheus-client",
+      "version": "0.25.0"
+    },
+    {
+      "type": "library",
+      "ecosystem": "python",
+      "name": "opentelemetry-api",
+      "version": "1.41.0"
+    },
+    {
+      "type": "library",
+      "ecosystem": "python",
+      "name": "sentry-sdk",
+      "version": "2.58.0"
+    },
+    {
+      "type": "application",
+      "ecosystem": "node",
+      "name": "ai-email-organizer-local-enterprise",
+      "version": "9.7.0",
+      "dependencies": "none"
+    },
+    {
+      "type": "application",
+      "ecosystem": "electron",
+      "name": "ai-email-organizer-desktop",
+      "version": "9.7.0",
+      "dependency_scope": "desktop dev runtime"
+    }
+  ],
+  "notes": "Generated from local validation manifests; run a full dependency scanner in the target deployment environment for marketplace/cloud certification."
+}
