@@ -2,7 +2,7 @@
 
 > Local-first enterprise email operations workspace for connected inboxes, smart classification, rules automation, scam/threat intelligence, reporting, admin governance, browser extensions, connector/plugin workflows, and Windows desktop/runtime deployment.
 
-![AI Email Organizer Dashboard](docs/screenshots/dashboard.png)
+![AI Email Organizer Dashboard](./docs/screenshots/dashboard.png)
 
 ## Repository summary
 
@@ -26,45 +26,47 @@ email-client, email-automation, inbox-management, fastapi, python, javascript, e
 
 These screenshots are taken from the actual app visual smoke artifacts included in the ZIP package.
 
+> **Image link fix:** keep this `README.md` in the repository root and keep the screenshot files in `./docs/screenshots/`. The package is now flattened so GitHub can render the images directly.
+
 ### Dashboard
 
-![Dashboard](docs/screenshots/dashboard.png)
+![Dashboard](./docs/screenshots/dashboard.png)
 
 ### Connected accounts
 
-![Accounts](docs/screenshots/accounts.png)
+![Accounts](./docs/screenshots/accounts.png)
 
 ### Inbox operations
 
-![Inbox](docs/screenshots/inbox.png)
+![Inbox](./docs/screenshots/inbox.png)
 
 ### AI processing
 
-![AI Processing](docs/screenshots/ai.png)
+![AI Processing](./docs/screenshots/ai.png)
 
 ### Automations
 
-![Automations](docs/screenshots/automations.png)
+![Automations](./docs/screenshots/automations.png)
 
 ### Templates
 
-![Templates](docs/screenshots/templates.png)
+![Templates](./docs/screenshots/templates.png)
 
 ### Reports
 
-![Reports](docs/screenshots/reports.png)
+![Reports](./docs/screenshots/reports.png)
 
 ### Admin governance
 
-![Admin](docs/screenshots/admin.png)
+![Admin](./docs/screenshots/admin.png)
 
 ### Settings
 
-![Settings](docs/screenshots/settings.png)
+![Settings](./docs/screenshots/settings.png)
 
 ### Scam / threat panel
 
-![Scam Panel](docs/screenshots/scam.png)
+![Scam Panel](./docs/screenshots/scam.png)
 
 ## Core capabilities
 
