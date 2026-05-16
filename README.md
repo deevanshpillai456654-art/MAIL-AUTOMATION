@@ -2,7 +2,7 @@
 
 > Local-first enterprise email operations workspace for connected inboxes, smart classification, rules automation, scam/threat intelligence, reporting, admin governance, browser extensions, connector/plugin workflows, and Windows desktop/runtime deployment.
 
-![AI Email Organizer Dashboard](./screenshots/dashboard.png)
+![AI Email Organizer Dashboard](https://raw.githubusercontent.com/deevanshpillai456654-art/MAIL-AUTOMATION/main/docs/screenshots/dashboard.png)
 
 ## Repository summary
 
@@ -26,47 +26,47 @@ email-client, email-automation, inbox-management, fastapi, python, javascript, e
 
 These screenshots are taken from the actual app visual smoke artifacts included in the ZIP package.
 
-> **Image link fix for `/docs/README.md`:** this file must stay inside `/docs`, and images must stay inside `/docs/screenshots/`. Links use `./screenshots/...` because GitHub resolves them relative to the `/docs` folder.
+> **Image link fix for this repository:** screenshots must be uploaded to `docs/screenshots/` in `deevanshpillai456654-art/MAIL-AUTOMATION` on branch `main`. This README uses absolute raw GitHub image URLs so it works from the repository root, `/docs`, GitHub Pages, and external markdown previews.
 
 ### Dashboard
 
-![Dashboard](./screenshots/dashboard.png)
+![Dashboard](https://raw.githubusercontent.com/deevanshpillai456654-art/MAIL-AUTOMATION/main/docs/screenshots/dashboard.png)
 
 ### Connected accounts
 
-![Accounts](./screenshots/accounts.png)
+![Accounts](https://raw.githubusercontent.com/deevanshpillai456654-art/MAIL-AUTOMATION/main/docs/screenshots/accounts.png)
 
 ### Inbox operations
 
-![Inbox](./screenshots/inbox.png)
+![Inbox](https://raw.githubusercontent.com/deevanshpillai456654-art/MAIL-AUTOMATION/main/docs/screenshots/inbox.png)
 
 ### AI processing
 
-![AI Processing](./screenshots/ai.png)
+![AI Processing](https://raw.githubusercontent.com/deevanshpillai456654-art/MAIL-AUTOMATION/main/docs/screenshots/ai.png)
 
 ### Automations
 
-![Automations](./screenshots/automations.png)
+![Automations](https://raw.githubusercontent.com/deevanshpillai456654-art/MAIL-AUTOMATION/main/docs/screenshots/automations.png)
 
 ### Templates
 
-![Templates](./screenshots/templates.png)
+![Templates](https://raw.githubusercontent.com/deevanshpillai456654-art/MAIL-AUTOMATION/main/docs/screenshots/templates.png)
 
 ### Reports
 
-![Reports](./screenshots/reports.png)
+![Reports](https://raw.githubusercontent.com/deevanshpillai456654-art/MAIL-AUTOMATION/main/docs/screenshots/reports.png)
 
 ### Admin governance
 
-![Admin](./screenshots/admin.png)
+![Admin](https://raw.githubusercontent.com/deevanshpillai456654-art/MAIL-AUTOMATION/main/docs/screenshots/admin.png)
 
 ### Settings
 
-![Settings](./screenshots/settings.png)
+![Settings](https://raw.githubusercontent.com/deevanshpillai456654-art/MAIL-AUTOMATION/main/docs/screenshots/settings.png)
 
 ### Scam / threat panel
 
-![Scam Panel](./screenshots/scam.png)
+![Scam Panel](https://raw.githubusercontent.com/deevanshpillai456654-art/MAIL-AUTOMATION/main/docs/screenshots/scam.png)
 
 ## Core capabilities
 
