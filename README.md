@@ -2,7 +2,7 @@
 
 > Local-first enterprise email operations workspace for connected inboxes, smart classification, rules automation, scam/threat intelligence, reporting, admin governance, browser extensions, connector/plugin workflows, and Windows desktop/runtime deployment.
 
-![AI Email Organizer Dashboard](./docs/screenshots/dashboard.png)
+![AI Email Organizer Dashboard](./artifacts/dashboard-visual-smoke/desktop-1440x900/dashboard.png)
 
 ## Repository summary
 
@@ -24,50 +24,50 @@ email-client, email-automation, inbox-management, fastapi, python, javascript, e
 
 ## Screenshots
 
-> Screenshot path note: place this README at the repository root and upload the screenshots to `docs/screenshots/`.
+> Screenshot path note: this README is designed for the repository root and uses the actual GitHub screenshot folder `artifacts/dashboard-visual-smoke/desktop-1440x900/`.
 
 
 These screenshots are taken from the actual app visual smoke artifacts included in the ZIP package.
 
 ### Dashboard
 
-![Dashboard](./docs/screenshots/dashboard.png)
+![Dashboard](./artifacts/dashboard-visual-smoke/desktop-1440x900/dashboard.png)
 
 ### Connected accounts
 
-![Accounts](./docs/screenshots/accounts.png)
+![Accounts](./artifacts/dashboard-visual-smoke/desktop-1440x900/accounts.png)
 
 ### Inbox operations
 
-![Inbox](./docs/screenshots/inbox.png)
+![Inbox](./artifacts/dashboard-visual-smoke/desktop-1440x900/inbox.png)
 
 ### AI processing
 
-![AI Processing](./docs/screenshots/ai.png)
+![AI Processing](./artifacts/dashboard-visual-smoke/desktop-1440x900/ai.png)
 
 ### Automations
 
-![Automations](./docs/screenshots/automations.png)
+![Automations](./artifacts/dashboard-visual-smoke/desktop-1440x900/automations.png)
 
 ### Templates
 
-![Templates](./docs/screenshots/templates.png)
+![Templates](./artifacts/dashboard-visual-smoke/desktop-1440x900/templates.png)
 
 ### Reports
 
-![Reports](./docs/screenshots/reports.png)
+![Reports](./artifacts/dashboard-visual-smoke/desktop-1440x900/reports.png)
 
 ### Admin governance
 
-![Admin](./docs/screenshots/admin.png)
+![Admin](./artifacts/dashboard-visual-smoke/desktop-1440x900/admin.png)
 
 ### Settings
 
-![Settings](./docs/screenshots/settings.png)
+![Settings](./artifacts/dashboard-visual-smoke/desktop-1440x900/settings.png)
 
 ### Scam / threat panel
 
-![Scam Panel](./docs/screenshots/scam.png)
+![Scam Panel](./artifacts/dashboard-visual-smoke/desktop-1440x900/scam.png)
 
 ## Core capabilities
 
@@ -174,7 +174,7 @@ The `/platform` layer provides connector/plugin foundations without rewriting th
 - CSS files: `16`
 - JSON files: `50`
 - Markdown files: `45`
-- PNG screenshots/assets: `49`
+- PNG ./artifacts/dashboard-visual-smoke/desktop-1440x900/assets: `49`
 - Browser/client package ZIP files: `9`
 - TypeScript / TSX / TXS files: `0`
 
@@ -309,7 +309,7 @@ Before pushing this repository publicly or sharing it with clients, review and c
 
 - Keep source code, docs, screenshots, scripts, and examples.
 - Do not commit `.env`, `.env.local`, real OAuth credentials, token keys, `.db` files, logs, private mail data, local attachments, generated caches, or build outputs.
-- Keep actual screenshots under `docs/screenshots/` so GitHub can render them in the README.
+- Keep actual screenshots under `./artifacts/dashboard-visual-smoke/desktop-1440x900/` so GitHub can render them in the README.
 - Keep `.gitignore` active and confirm it excludes local runtime files.
 - Regenerate screenshots after major UI changes.
 - Run `npm test` and `npm run validate` before tagging a release.
