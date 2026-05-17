@@ -159,6 +159,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 # for these so the SPA continues to work while server-rendered pages use nonces.
 _STATIC_SPA_PREFIXES = ("/connectors-panel", "/dashboard", "/outlook", "/icons")
 
+# Paths that are intentionally embedded as iframes by same-origin pages.
+# These must NOT receive X-Frame-Options: DENY or frame-ancestors 'none'.
+_EMBEDDABLE_SPA_PREFIXES = ("/connectors-panel",)
+
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
@@ -176,12 +180,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             or path.endswith("mail-compose.html")
         )
         is_static_spa = any(path.startswith(p) for p in _STATIC_SPA_PREFIXES)
+        is_embeddable = any(path.startswith(p) for p in _EMBEDDABLE_SPA_PREFIXES)
 
-        frame_ancestors = (
-            "'self' https://*.office.com https://*.officeapps.live.com"
-            if is_outlook_surface
-            else "'none'"
-        )
+        if is_outlook_surface:
+            frame_ancestors = "'self' https://*.office.com https://*.officeapps.live.com"
+        elif is_embeddable:
+            frame_ancestors = "'self'"
+        else:
+            frame_ancestors = "'none'"
 
         if is_static_spa:
             # Static SPA files contain inline scripts that cannot carry nonces.
@@ -207,7 +213,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         response.headers["Content-Security-Policy"] = csp
         response.headers["X-Content-Type-Options"] = "nosniff"
-        if not is_outlook_surface:
+        if not is_outlook_surface and not is_embeddable:
             response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"

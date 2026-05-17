@@ -190,7 +190,7 @@
     if (view === 'connectors') {
       const frame = $('connectorFrame');
       if (frame && !frame.dataset.loaded) {
-        frame.src = '/connectors-panel';
+        frame.src = '/connectors-panel?t=' + Date.now();
         frame.dataset.loaded = '1';
       }
     }
