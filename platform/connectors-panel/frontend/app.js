@@ -334,6 +334,8 @@ const CONNECTOR_ICONS = {
 
   dynamics_365: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#002050"/><path d="M12 12h10l6 8-6 8H12l6-8-6-8z" fill="#00BCF2"/></svg>`,
 
+  ms_dynamics: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#002050"/><path d="M12 12h10l6 8-6 8H12l6-8-6-8z" fill="#00BCF2"/></svg>`,
+
   erp_sync: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#1D4ED8"/><path d="M13 16h9M22 16l-3-3M22 16l-3 3M27 24h-9M18 24l3-3M18 24l3 3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="11" cy="16" r="2" fill="#93C5FD"/><circle cx="29" cy="24" r="2" fill="#93C5FD"/></svg>`,
 
   // ── Accounting ──────────────────────────────────────────────────────────────
@@ -408,7 +410,7 @@ function renderConnectorCard(c) {
     </div>
     <div class="connector-desc">${esc(c.description || '')}</div>
     <div class="connector-meta">
-      <span class="badge badge-free">free</span>
+      <span class="badge badge-${esc(tier)}">${esc(tier)}</span>
       <span class="badge badge-info">${esc(c.category)}</span>
       ${c.supports_oauth ? '<span class="badge badge-info">OAuth</span>' : ''}
       ${c.supports_webhook ? '<span class="badge badge-info">Webhook</span>' : ''}

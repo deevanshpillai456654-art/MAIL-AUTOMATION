@@ -121,3 +121,32 @@ async def require_local_auth(
         detail="Authentication required",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+
+async def require_local_auth_or_localhost(
+    request: Request,
+    x_local_token: Optional[str] = Header(None, alias="X-Local-Token"),
+    authorization: Optional[str] = Header(None),
+    local_session: Optional[str] = Cookie(None, alias=LOCAL_SESSION_COOKIE),
+) -> None:
+    """FastAPI dependency for session-bootstrap endpoints.
+
+    Accepts the local token (Electron / CLI) OR a direct loopback connection
+    from 127.0.0.1 / ::1.  This lets the browser open the app without needing
+    to carry a secret — the server only binds to localhost anyway.
+    """
+    if _is_valid_token(x_local_token):
+        return
+    token = _bearer_token(authorization)
+    if _is_valid_token(token):
+        return
+    if _is_valid_token(local_session):
+        return
+    host = (request.client.host if request.client else "") or ""
+    if host in ("127.0.0.1", "::1", "localhost"):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authentication required",
+        headers={"WWW-Authenticate": "Bearer"},
+    )

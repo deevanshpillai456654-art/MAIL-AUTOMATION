@@ -858,7 +858,7 @@ async def get_marketplace_connector(
     status_code=status.HTTP_201_CREATED,
     summary="Install a connector",
 )
-async def install_connector(connector_id: str, body: ConnectorInstallRequest, tenant_id: str = Query(...)):
+async def install_connector(connector_id: str, body: ConnectorInstallRequest):
     raw = _CATALOG_BY_ID.get(connector_id)
     if not raw:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Connector '{connector_id}' not found")
@@ -866,6 +866,7 @@ async def install_connector(connector_id: str, body: ConnectorInstallRequest, te
     if body.connector_id != connector_id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="connector_id in body does not match URL")
 
+    tenant_id = body.tenant_id
     db = get_panel_db()
 
     # Check for duplicate
