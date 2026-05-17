@@ -29,7 +29,6 @@ def run_service(config_module, logger: logging.Logger | None = None) -> None:
         log_level=config_module.LOG_LEVEL.lower(),
         workers=1,
         timeout_keep_alive=5,
-        timeout_notify=10,
         backlog=128,
         access_log=False,
     )
