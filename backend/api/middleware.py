@@ -126,6 +126,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         client_ip = self._resolve_client_ip(request)
+
+        # Never rate-limit local connections — this app binds to 127.0.0.1 only
+        if client_ip in ("127.0.0.1", "::1", "localhost"):
+            return await call_next(request)
+
         now = time.monotonic()
         cutoff = now - self.window_seconds
 
