@@ -208,35 +208,22 @@
 
       <!-- ── DASHBOARD ─────────────────────────────────────────────────── -->
       <div id="sec-dashboard" class="section active">
-        <div class="stats-grid" id="dashStatsGrid">
-          <div class="stat-card"><div class="stat-icon stat-icon--accent"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div class="stat-value" id="statConnectors">—</div><div class="stat-label">Connectors</div></div>
-          <div class="stat-card"><div class="stat-icon stat-icon--success"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="stat-value" id="statVendors">—</div><div class="stat-label">Vendors</div></div>
-          <div class="stat-card"><div class="stat-icon stat-icon--amber"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg></div><div class="stat-value" id="statPOs">—</div><div class="stat-label">Purchase Orders</div></div>
-          <div class="stat-card"><div class="stat-icon stat-icon--accent"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="stat-value" id="statContacts">—</div><div class="stat-label">CRM Contacts</div></div>
-          <div class="stat-card"><div class="stat-icon stat-icon--success"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88 16.24,7.76"/></svg></div><div class="stat-value" id="statShipments">—</div><div class="stat-label">Active Shipments</div></div>
-          <div class="stat-card"><div class="stat-icon stat-icon--red"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="stat-value" id="statTickets">—</div><div class="stat-label">Open Tickets</div></div>
+        <div class="stats-grid" id="dashStatsGrid" style="grid-template-columns:repeat(4,1fr)">
+          <div class="stat-card"><div class="stat-icon stat-icon--accent"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div class="stat-value" id="statTotal">—</div><div class="stat-label">Total Connectors</div></div>
+          <div class="stat-card"><div class="stat-icon stat-icon--success"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg></div><div class="stat-value" id="statActive">—</div><div class="stat-label">Active</div></div>
+          <div class="stat-card"><div class="stat-icon stat-icon--amber"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div><div class="stat-value" id="statQueued">—</div><div class="stat-label">Jobs in Queue</div></div>
+          <div class="stat-card"><div class="stat-icon stat-icon--red"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div class="stat-value" id="statDead">—</div><div class="stat-label">Dead Letters</div></div>
         </div>
 
         <div class="two-col mt-4">
           <div class="card">
             <div class="card-header">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88 16.24,7.76"/></svg>
-              <span class="card-title">Shipment Risk Alerts</span>
-              <button class="btn btn-xs btn-secondary ml-auto" onclick="showSection('tracking')">View all →</button>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              <span class="card-title">Installed Connectors</span>
+              <button class="btn btn-xs btn-secondary ml-auto" onclick="showSection('installed')">Manage →</button>
             </div>
-            <div id="dashRiskShipments"><div class="loading-cell">Loading…</div></div>
+            <div id="dashInstalledList"><div class="loading-cell">Loading…</div></div>
           </div>
-          <div class="card">
-            <div class="card-header">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/></svg>
-              <span class="card-title">Urgent Tickets</span>
-              <button class="btn btn-xs btn-secondary ml-auto" onclick="showSection('support')">View all →</button>
-            </div>
-            <div id="dashUrgentTickets"><div class="loading-cell">Loading…</div></div>
-          </div>
-        </div>
-
-        <div class="two-col mt-16">
           <div class="card">
             <div class="card-header">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
@@ -245,13 +232,16 @@
             </div>
             <div class="log-stream log-stream--sm" id="recentLogs"><div class="loading-cell--lg">Loading…</div></div>
           </div>
-          <div class="card">
-            <div class="card-header"><span class="card-title">Quick Navigation</span></div>
-            <div class="settings-row settings-row--padded"><span class="settings-key">Marketplace</span><button class="btn btn-xs btn-primary" onclick="showSection('marketplace')">Browse →</button></div>
-            <div class="settings-row settings-row--padded"><span class="settings-key">Workflow Builder</span><button class="btn btn-xs btn-secondary" onclick="showSection('workflows')">Build →</button></div>
-            <div class="settings-row settings-row--padded"><span class="settings-key">Pipeline Board</span><button class="btn btn-xs btn-secondary" onclick="showSection('pipeline')">View →</button></div>
-            <div class="settings-row settings-row--padded"><span class="settings-key">Shipment Tracking</span><button class="btn btn-xs btn-secondary" onclick="showSection('tracking')">Track →</button></div>
-            <div class="settings-row settings-row--last"><span class="settings-key">Queue Health</span><button class="btn btn-xs btn-secondary" onclick="showSection('queues')">Monitor →</button></div>
+        </div>
+
+        <div class="card mt-16">
+          <div class="card-header"><span class="card-title">Quick Actions</span></div>
+          <div style="display:flex;gap:8px;padding:12px 16px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="showSection('marketplace')">+ Browse Marketplace</button>
+            <button class="btn btn-secondary btn-sm" onclick="showSection('installed')">Manage Installed</button>
+            <button class="btn btn-secondary btn-sm" onclick="showSection('health')">Health Check</button>
+            <button class="btn btn-secondary btn-sm" onclick="showSection('queues')">Queue Monitor</button>
+            <button class="btn btn-secondary btn-sm" onclick="showSection('logs')">View Logs</button>
           </div>
         </div>
       </div>

@@ -186,36 +186,20 @@ function reloadCurrentSection() {
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 
 async function loadDashboard() {
-  const [healthRes, logsRes, erpRes, crmRes, trkRes, sptRes] = await Promise.all([
+  const [healthRes, logsRes, connRes] = await Promise.all([
     apiFetch('/health'),
     apiFetch(`/logs?tenant_id=${_tenantId}&limit=8`),
-    apiFetch(`/erp/summary?tenant_id=${_tenantId}`),
-    apiFetch(`/crm/summary?tenant_id=${_tenantId}`),
-    apiFetch(`/tracking/stats?tenant_id=${_tenantId}`),
-    apiFetch(`/support/summary?tenant_id=${_tenantId}`),
+    apiFetch(`/connectors?tenant_id=${_tenantId}&limit=10`),
   ]);
 
+  // Stats from health endpoint
   const h = healthRes.ok ? healthRes.data : {};
-  const hs = h.stats || {};
-
-  _setEl('statConnectors', hs.total_connectors ?? '—');
-
-  if (erpRes.ok) {
-    const e = erpRes.data;
-    _setEl('statVendors', e.total_vendors ?? e.vendors ?? '—');
-    _setEl('statPOs', e.total_pos ?? e.purchase_orders ?? '—');
-  }
-  if (crmRes.ok) {
-    _setEl('statContacts', crmRes.data.total_contacts ?? crmRes.data.contacts ?? '—');
-  }
-  if (trkRes.ok) {
-    const t = trkRes.data;
-    _setEl('statShipments', t.in_transit ?? '—');
-  }
-  if (sptRes.ok) {
-    const s = sptRes.data;
-    _setEl('statTickets', s.open ?? '—');
-  }
+  const cs = h.connectors || {};
+  const qs = h.queues || {};
+  _setEl('statTotal',  cs.total ?? '—');
+  _setEl('statActive', cs.by_status?.active ?? 0);
+  _setEl('statQueued', (qs.queued ?? 0) + (qs.processing ?? 0));
+  _setEl('statDead',   qs.dead_letters ?? 0);
 
   // Recent logs
   const logs = logsRes.ok ? (logsRes.data.logs || logsRes.data || []) : [];
@@ -226,35 +210,24 @@ async function loadDashboard() {
       : '<div style="padding:16px;color:var(--text-muted);text-align:center;">No recent logs</div>';
   }
 
-  // Shipments at risk
-  if (trkRes.ok) {
-    const ships = trkRes.data.high_risk_shipments || [];
-    const el = document.getElementById('dashRiskShipments');
-    if (el) {
-      el.innerHTML = ships.length
-        ? ships.slice(0,5).map(s => `
-          <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
-            <span class="badge badge-failed">High Risk</span>
-            <span style="font-size:12px;">${esc(s.tracking_number)} · ${esc(s.carrier)}</span>
-            <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">${esc(s.status)}</span>
-          </div>`).join('')
-        : '<div style="padding:12px;color:var(--text-muted);text-align:center;font-size:13px;">No high-risk shipments</div>';
-    }
-  }
-
-  // Urgent tickets
-  if (sptRes.ok) {
-    const tickets = sptRes.data.urgent_tickets || [];
-    const el = document.getElementById('dashUrgentTickets');
-    if (el) {
-      el.innerHTML = tickets.length
-        ? tickets.slice(0,5).map(t => `
-          <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
-            <span class="badge badge-failed">Urgent</span>
-            <span style="font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.subject)}</span>
-            <span style="font-size:11px;color:var(--text-muted);">${timeAgo(t.created_at)}</span>
-          </div>`).join('')
-        : '<div style="padding:12px;color:var(--text-muted);text-align:center;font-size:13px;">No urgent tickets</div>';
+  // Installed connectors list
+  const conns = connRes.ok ? (connRes.data.connectors || connRes.data || []) : [];
+  const listEl = document.getElementById('dashInstalledList');
+  if (listEl) {
+    if (!conns.length) {
+      listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-muted);">
+        <p style="margin-bottom:12px;">No connectors installed yet.</p>
+        <button class="btn btn-primary btn-sm" onclick="showSection('marketplace')">Browse Marketplace</button>
+      </div>`;
+    } else {
+      listEl.innerHTML = conns.slice(0, 8).map(c => `
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--border);">
+          ${dot(c.status)}
+          <span style="font-size:13px;font-weight:500;flex:1;">${esc(c.name || c.connector_id)}</span>
+          ${statusBadge(c.status)}
+          <span style="font-size:11px;color:var(--text-muted);">${c.version ? 'v'+esc(c.version) : ''}</span>
+          <button class="btn btn-xs btn-secondary" onclick="configureConnector('${esc(c.id||c.connector_id)}')">Config</button>
+        </div>`).join('');
     }
   }
 }
