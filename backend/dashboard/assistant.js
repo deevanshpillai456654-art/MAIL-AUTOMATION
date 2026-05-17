@@ -30,6 +30,17 @@ const IS_ADMIN = (() => {
 // ─── API layer ─────────────────────────────────────────────────────────────────
 
 const AssistantAPI = {
+  _sessionReady: null,
+  async _ensureSession() {
+    if (!this._sessionReady) {
+      this._sessionReady = fetch(`${BASE}/session/bootstrap`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      }).catch(() => null);
+    }
+    await this._sessionReady;
+  },
+
   _headers() {
     const h = { 'Content-Type': 'application/json' };
     if (IS_ADMIN) h['X-Assistant-Mode'] = 'admin';
@@ -37,9 +48,11 @@ const AssistantAPI = {
   },
 
   async _fetch(path, opts = {}) {
+    await this._ensureSession();
     const url = path.startsWith('http') ? path : `${ASST}${path}`;
     const res = await fetch(url, {
       headers: this._headers(),
+      credentials: 'same-origin',
       ...opts,
     });
     if (!res.ok) {

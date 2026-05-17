@@ -169,18 +169,18 @@ class FedExConnector(ConnectorBase):
         shipment_id = f"shp_{uuid.uuid4().hex}"
         now = datetime.now(tz=timezone.utc).isoformat()
         self.db.execute(
-            """INSERT INTO erp_shipments
-               (shipment_id, tenant_id, carrier, tracking_number, status,
-                shipper_name, shipper_address, recipient_name, recipient_address,
-                service_type, label_url, created_at, updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            """INSERT INTO shipments
+               (id, tenant_id, carrier, tracking_number, status,
+                shipper_name, origin_location, consignee_name, destination_location,
+                created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 shipment_id, self.tenant_id, "fedex", tracking_number, "created",
                 shipper.get("contact", {}).get("companyName", ""),
                 shipper.get("address", {}).get("streetLines", [""])[0],
                 recipient.get("contact", {}).get("companyName", ""),
                 recipient.get("address", {}).get("streetLines", [""])[0],
-                service_type, "", now, now,
+                now, now,
             ),
         )
         self._publish_event("shipment.created",
@@ -219,7 +219,7 @@ class FedExConnector(ConnectorBase):
                           events: List) -> None:
         now = datetime.now(tz=timezone.utc).isoformat()
         row = self.db.fetch_one(
-            "SELECT shipment_id FROM erp_shipments WHERE tracking_number=? AND tenant_id=?",
+            "SELECT id FROM shipments WHERE tracking_number=? AND tenant_id=?",
             (tracking_number, self.tenant_id),
         )
         fedex_status_map = {
@@ -229,8 +229,8 @@ class FedExConnector(ConnectorBase):
         mapped = fedex_status_map.get(status, "in_transit")
         if row:
             self.db.execute(
-                "UPDATE erp_shipments SET status=?, updated_at=? WHERE shipment_id=?",
-                (mapped, now, row["shipment_id"]),
+                "UPDATE shipments SET status=?, updated_at=? WHERE id=?",
+                (mapped, now, row["id"]),
             )
             self._publish_event("shipment.tracking_updated",
                                 {"carrier": "fedex",
@@ -241,7 +241,7 @@ class FedExConnector(ConnectorBase):
                    since: Optional[datetime] = None) -> Dict[str, Any]:
         if entity == "shipments":
             rows = self.db.fetch_all(
-                "SELECT tracking_number FROM erp_shipments "
+                "SELECT tracking_number FROM shipments "
                 "WHERE carrier='fedex' AND tenant_id=? AND status NOT IN ('delivered','cancelled')",
                 (self.tenant_id,),
             )

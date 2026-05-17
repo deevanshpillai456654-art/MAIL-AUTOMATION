@@ -18,8 +18,8 @@ from ..shared.utils import utc_now_str
 
 router = APIRouter(prefix="/logs", tags=["logs"])
 
-# In-memory WebSocket log subscribers: {subscription_id: WebSocket}
-_log_subscribers: dict[str, WebSocket] = {}
+# In-memory WebSocket log subscribers: {subscription_id: (WebSocket, tenant_id)}
+_log_subscribers: dict[str, tuple[WebSocket, str]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +61,9 @@ async def _broadcast_log(log: ConnectorLog) -> None:
         "timestamp": log.timestamp.isoformat(),
     })
     dead: list[str] = []
-    for sub_id, ws in list(_log_subscribers.items()):
+    for sub_id, (ws, sub_tenant) in list(_log_subscribers.items()):
+        if log.tenant_id != sub_tenant:
+            continue
         try:
             await ws.send_text(message)
         except Exception:
@@ -168,9 +170,12 @@ async def logs_summary(tenant_id: str = Query(...)):
 
 
 @router.get("/{log_id}", response_model=ConnectorLog, summary="Get specific log entry")
-async def get_log(log_id: str):
+async def get_log(log_id: str, tenant_id: str = Query(...)):
     db = get_panel_db()
-    row = db.fetch_one("SELECT * FROM connector_logs WHERE id = ?", (log_id,))
+    row = db.fetch_one(
+        "SELECT * FROM connector_logs WHERE id = ? AND tenant_id = ?",
+        (log_id, tenant_id),
+    )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Log entry '{log_id}' not found")
     return _row_to_log(row)
@@ -198,16 +203,31 @@ async def clear_logs(
 
 
 @router.websocket("/stream")
-async def stream_logs(websocket: WebSocket, tenant_id: Optional[str] = Query(None)):
+async def stream_logs(
+    websocket: WebSocket,
+    tenant_id: str = Query(...),
+    token: Optional[str] = Query(None),
+):
     """
     WebSocket endpoint for real-time log streaming.
 
-    Connect and receive JSON log entries as they are written.
-    Optionally filter by tenant_id query param.
+    Requires ?tenant_id=<tid>&token=<local_api_token>.
+    Logs are scoped to the specified tenant — no cross-tenant data is delivered.
     """
+    from backend.auth.local_auth import _validate_token
+    from fastapi import HTTPException as _HTTPException
+    try:
+        if not token:
+            await websocket.close(code=4401)
+            return
+        _validate_token(token)
+    except _HTTPException:
+        await websocket.close(code=4401)
+        return
+
     await websocket.accept()
     sub_id = str(uuid.uuid4())
-    _log_subscribers[sub_id] = websocket
+    _log_subscribers[sub_id] = (websocket, tenant_id)
 
     try:
         await websocket.send_json({

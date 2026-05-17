@@ -136,7 +136,7 @@ class QuickBooksConnector(ConnectorBase):
             if since:
                 where = f" WHERE MetaData.LastUpdatedTime >= '{since.strftime('%Y-%m-%d')}'"
             records = await self._qb_query(
-                f"SELECT * FROM Invoice{where} MAXRESULTS 500"
+                f"SELECT * FROM Invoice{where} MAXRESULTS 500"  # nosec B608
             )
             for r in records:
                 self._upsert_invoice(r)
@@ -166,10 +166,6 @@ class QuickBooksConnector(ConnectorBase):
     def _upsert_invoice(self, r: Dict) -> None:
         ext_id = r.get("Id", "")
         now = datetime.now(tz=timezone.utc).isoformat()
-        status_map = {
-            "Draft": "draft", "Pending": "sent",
-            "Voided": "cancelled",
-        }
         # QB status via Balance
         balance = float(r.get("Balance", 0) or 0)
         total = float(r.get("TotalAmt", 0) or 0)
@@ -177,13 +173,13 @@ class QuickBooksConnector(ConnectorBase):
         if r.get("EmailStatus") == "NotSet":
             status = "draft"
         existing = self.db.fetch_one(
-            "SELECT invoice_id FROM erp_invoices WHERE invoice_number=? AND tenant_id=?",
+            "SELECT id FROM erp_invoices WHERE invoice_number=? AND tenant_id=?",
             (r.get("DocNumber", ext_id), self.tenant_id),
         )
         if existing:
             self.db.execute(
-                "UPDATE erp_invoices SET status=?, updated_at=? WHERE invoice_id=?",
-                (status, now, existing["invoice_id"]),
+                "UPDATE erp_invoices SET status=?, updated_at=? WHERE id=?",
+                (status, now, existing["id"]),
             )
         else:
             iid = f"inv_{uuid.uuid4().hex}"
@@ -191,12 +187,15 @@ class QuickBooksConnector(ConnectorBase):
             due = r.get("DueDate", "")
             self.db.execute(
                 """INSERT INTO erp_invoices
-                   (invoice_id, tenant_id, invoice_number, vendor_id, status,
-                    amount, due_date, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                   (id, tenant_id, invoice_number, vendor_id, status,
+                    amount, total_amount, currency, invoice_date, due_date,
+                    created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (iid, self.tenant_id, r.get("DocNumber", ext_id),
                  customer.get("value", ""), status,
-                 total, due or None, now, now),
+                 total, total, "USD",
+                 r.get("TxnDate", now[:10]),
+                 due or None, now, now),
             )
             self._publish_event("invoice.created",
                                 {"source": "quickbooks", "id": ext_id, "amount": total})
@@ -205,14 +204,13 @@ class QuickBooksConnector(ConnectorBase):
         ext_id = r.get("Id", "")
         now = datetime.now(tz=timezone.utc).isoformat()
         if not self.db.fetch_one(
-            "SELECT contact_id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
+            "SELECT id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
             (ext_id, self.tenant_id),
         ):
             cid = f"cnt_{uuid.uuid4().hex}"
-            bill_addr = r.get("BillAddr", {}) or {}
             self.db.execute(
                 """INSERT INTO crm_contacts
-                   (contact_id, tenant_id, first_name, last_name, email, phone,
+                   (id, tenant_id, first_name, last_name, email, phone,
                     company, source, external_id, status, created_at, updated_at)
                    VALUES (?,?,?,?,?,?,?,'quickbooks',?,'active',?,?)""",
                 (cid, self.tenant_id,
@@ -224,7 +222,17 @@ class QuickBooksConnector(ConnectorBase):
             )
 
     async def verify_webhook_signature(self, raw_body: bytes, headers: Dict) -> bool:
-        return True
+        import hmac as _hmac, hashlib as _hashlib
+        verifier_token = self.config.get("webhook_verifier_token", "")
+        if not verifier_token:
+            return False  # fail-closed: configure webhook_verifier_token
+        sig = headers.get("intuit-signature", "")
+        if not sig:
+            return False
+        expected = _hmac.new(verifier_token.encode(), raw_body, _hashlib.sha256).digest()
+        import base64 as _b64
+        expected_b64 = _b64.b64encode(expected).decode()
+        return _hmac.compare_digest(expected_b64, sig)
 
     async def handle_webhook(self, event_type: str, payload: Dict[str, Any],
                              raw_body: bytes, headers: Dict) -> None:

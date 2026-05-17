@@ -26,8 +26,8 @@ from ..shared.utils import generate_event_id, utc_now_str
 
 router = APIRouter(prefix="/events", tags=["events"])
 
-# In-memory WebSocket subscribers: {subscription_id: (WebSocket, set[event_types])}
-_event_ws_subscribers: dict[str, tuple[WebSocket, Optional[set[str]]]] = {}
+# In-memory WebSocket subscribers: {subscription_id: (WebSocket, event_type_filter, tenant_id)}
+_event_ws_subscribers: dict[str, tuple[WebSocket, Optional[set[str]], str]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +77,9 @@ async def _broadcast_event(event: EventRecord) -> None:
         "published_at": event.published_at.isoformat(),
     })
     dead: list[str] = []
-    for sub_id, (ws, event_filter) in list(_event_ws_subscribers.items()):
+    for sub_id, (ws, event_filter, sub_tenant) in list(_event_ws_subscribers.items()):
+        if event.tenant_id != sub_tenant:
+            continue
         if event_filter and event.event_type not in event_filter:
             continue
         try:
@@ -137,12 +139,12 @@ async def list_event_types():
 
 
 @router.post("/publish", response_model=EventRecord, status_code=status.HTTP_201_CREATED, summary="Publish an event (admin)")
-async def publish_event(body: EventPublishRequest):
+async def publish_event(body: EventPublishRequest, tenant_id: str = Query(...)):
     bus = get_event_bus()
     event_id = await bus.publish(
         body.event_type,
         body.source_connector_id,
-        body.tenant_id,
+        tenant_id,
         body.payload,
     )
 
@@ -156,7 +158,7 @@ async def publish_event(body: EventPublishRequest):
             event_id=event_id,
             event_type=body.event_type,
             source_connector_id=body.source_connector_id,
-            tenant_id=body.tenant_id,
+            tenant_id=tenant_id,
             payload=body.payload,
             published_at=datetime.fromisoformat(now),
             processed_by=[],
@@ -181,18 +183,28 @@ async def list_subscriptions():
 @router.websocket("/subscribe")
 async def subscribe_events(
     websocket: WebSocket,
-    tenant_id: Optional[str] = Query(None),
+    tenant_id: str = Query(...),
     event_types: Optional[str] = Query(None, description="Comma-separated list of event types to subscribe to"),
+    token: Optional[str] = Query(None),
 ):
     """
     WebSocket endpoint for real-time event streaming.
 
-    Connect and optionally filter by:
-    - tenant_id query param
-    - event_types comma-separated list (e.g. ?event_types=invoice.created,order.updated)
-
-    Messages are JSON EventRecord objects.
+    Requires ?tenant_id=<tid>&token=<local_api_token>.
+    Optionally filter by ?event_types=invoice.created,order.updated.
+    Events are scoped to the specified tenant — no cross-tenant data is delivered.
     """
+    from backend.auth.local_auth import _validate_token
+    from fastapi import HTTPException as _HTTPException
+    try:
+        if not token:
+            await websocket.close(code=4401)
+            return
+        _validate_token(token)
+    except _HTTPException:
+        await websocket.close(code=4401)
+        return
+
     await websocket.accept()
     sub_id = str(uuid.uuid4())
 
@@ -200,7 +212,7 @@ async def subscribe_events(
     if event_types:
         filter_set = {et.strip() for et in event_types.split(",") if et.strip()}
 
-    _event_ws_subscribers[sub_id] = (websocket, filter_set)
+    _event_ws_subscribers[sub_id] = (websocket, filter_set, tenant_id)
 
     try:
         await websocket.send_json({
@@ -223,7 +235,7 @@ async def subscribe_events(
                             new_types = msg["event_types"]
                             if isinstance(new_types, list) and new_types:
                                 filter_set = set(new_types)
-                                _event_ws_subscribers[sub_id] = (websocket, filter_set)
+                                _event_ws_subscribers[sub_id] = (websocket, filter_set, tenant_id)
                                 await websocket.send_json({"type": "filter_updated", "event_types": list(filter_set)})
                     except Exception:
                         pass

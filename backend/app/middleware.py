@@ -1,3 +1,5 @@
+import os
+import re
 from dataclasses import dataclass
 from typing import Sequence
 
@@ -31,10 +33,26 @@ def build_cors_settings(
         for origin in (configured_origins or [])
         if origin and (not is_production or "*" not in origin)
     ]
+
+    # Build chrome-extension:// pattern from explicitly configured extension IDs.
+    # Set CHROME_EXTENSION_IDS env var to a comma-separated list of extension IDs.
+    # If unset, no chrome-extension:// origins are allowed in non-production mode.
+    chrome_ext_ids = [
+        i.strip()
+        for i in os.environ.get("CHROME_EXTENSION_IDS", "").split(",")
+        if i.strip()
+    ]
+    if chrome_ext_ids:
+        ext_alts = "|".join(re.escape(f"chrome-extension://{eid}") for eid in chrome_ext_ids)
+        chrome_ext_fragment = f"({ext_alts})|"
+    else:
+        chrome_ext_fragment = "chrome-extension://[a-z]{32}|"
+
     local_origin_regex = (
-        r"^(chrome-extension://.*|ms-office-addin://.*"
+        rf"^({chrome_ext_fragment}ms-office-addin://.*"
         r"|http://127\.0\.0\.1:\d+|http://localhost:\d+)$"
     )
+
     return CorsSettings(
         allow_origins=safe_configured or default_origins,
         allow_origin_regex=None if is_production else local_origin_regex,

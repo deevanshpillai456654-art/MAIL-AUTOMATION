@@ -25,7 +25,7 @@ wscript.exe //B //Nologo "%~dp0start_background.vbs"
 for /L %%I in (1,1,45) do (
     call "%~dp0check_service.bat" >nul 2>nul
     if !ERRORLEVEL! EQU 0 goto :open
-    timeout /t 1 /nobreak >nul
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 1" >nul
 )
 
 goto :failed
@@ -36,7 +36,7 @@ echo Opening dashboard: http://127.0.0.1:4597/dashboard
 start "" "http://127.0.0.1:4597/dashboard"
 echo.
 echo Runtime data is stored under %%LOCALAPPDATA%%\AIEmailOrganizer so connected accounts survive restart and upgrades.
-timeout /t 3 /nobreak >nul
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 3" >nul
 exit /b 0
 
 :failed

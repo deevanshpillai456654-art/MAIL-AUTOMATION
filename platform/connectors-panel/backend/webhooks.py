@@ -6,9 +6,12 @@ Webhook secrets are NEVER exposed in API responses.
 """
 from __future__ import annotations
 
+import ipaddress
 import json
+import socket
 from datetime import datetime, timezone
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 
@@ -29,6 +32,48 @@ from ..shared.utils import (
 )
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+
+# Public sub-router: inbound webhook delivery from external providers — no local-auth
+public_router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+
+
+def _assert_safe_webhook_url(url: str) -> None:
+    """Raise 422 if the URL targets a private/internal address (SSRF prevention)."""
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Invalid webhook URL")
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Webhook URL must use http or https")
+    host = parsed.hostname or ""
+    if not host:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Webhook URL must specify a hostname")
+    # Check literal IP addresses first (no DNS needed)
+    try:
+        ip = ipaddress.ip_address(host)
+        if (ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_reserved or ip.is_unspecified):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail="Webhook URL must not target private or reserved addresses")
+        return
+    except ValueError:
+        pass  # Not a literal IP — fall through to DNS check
+    # Resolve hostname and check every returned address
+    try:
+        addrs = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+        for _, _, _, _, sockaddr in addrs:
+            ip = ipaddress.ip_address(sockaddr[0])
+            if (ip.is_private or ip.is_loopback or ip.is_link_local
+                    or ip.is_reserved or ip.is_unspecified):
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail="Webhook URL must not target private or reserved addresses")
+    except HTTPException:
+        raise
+    except OSError:
+        pass  # DNS resolution failed — allow (external host unreachable at config time)
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +142,8 @@ async def list_webhooks(
     status_code=status.HTTP_201_CREATED,
     summary="Create webhook endpoint",
 )
-async def create_webhook(body: WebhookCreateRequest):
+async def create_webhook(body: WebhookCreateRequest, tenant_id: str = Query(...)):
+    _assert_safe_webhook_url(body.url)
     db = get_panel_db()
     webhook_id = generate_webhook_id()
     now = utc_now_str()
@@ -115,7 +161,7 @@ async def create_webhook(body: WebhookCreateRequest):
         (
             webhook_id,
             body.connector_id,
-            body.tenant_id,
+            tenant_id,
             body.url,
             secret_enc,
             json.dumps(body.events),
@@ -126,7 +172,7 @@ async def create_webhook(body: WebhookCreateRequest):
     return WebhookEndpointSafe(
         webhook_id=webhook_id,
         connector_id=body.connector_id,
-        tenant_id=body.tenant_id,
+        tenant_id=tenant_id,
         url=body.url,
         events=body.events,
         is_active=True,
@@ -135,8 +181,10 @@ async def create_webhook(body: WebhookCreateRequest):
 
 
 @router.get("/{webhook_id}", response_model=WebhookEndpointSafe, summary="Get webhook details")
-async def get_webhook(webhook_id: str):
+async def get_webhook(webhook_id: str, tenant_id: str = Query(...)):
     row = _require_webhook(webhook_id)
+    if row["tenant_id"] != tenant_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant mismatch")
     return _row_to_safe_webhook(row)
 
 
@@ -157,6 +205,7 @@ async def update_webhook(
     params: list[Any] = []
 
     if url is not None:
+        _assert_safe_webhook_url(url)
         updates.append("url = ?")
         params.append(url)
     if events is not None:
@@ -170,7 +219,7 @@ async def update_webhook(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No fields to update")
 
     params.append(webhook_id)
-    db.execute(f"UPDATE webhooks SET {', '.join(updates)} WHERE id = ?", params)
+    db.execute(f"UPDATE webhooks SET {', '.join(updates)} WHERE id = ?", params)  # nosec B608
     return _row_to_safe_webhook(_require_webhook(webhook_id))
 
 
@@ -207,6 +256,9 @@ async def test_webhook(webhook_id: str, tenant_id: str = Query(...)):
             signature = compute_hmac(secret, test_payload)
         except Exception:
             pass
+
+    # Guard against SSRF (URL may have been stored before this check existed)
+    _assert_safe_webhook_url(row["url"])
 
     # Deliver
     import httpx
@@ -264,7 +316,7 @@ async def get_webhook_logs(webhook_id: str, tenant_id: str = Query(...)):
     return {"webhook_id": webhook_id, "logs": logs, "count": len(logs)}
 
 
-@router.post("/receive/{connector_id}", summary="Receive inbound webhook (validates HMAC signature)")
+@public_router.post("/receive/{connector_id}", summary="Receive inbound webhook (validates HMAC signature)")
 async def receive_webhook(
     connector_id: str,
     request: Request,

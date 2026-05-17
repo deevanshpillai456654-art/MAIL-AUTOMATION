@@ -1,5 +1,7 @@
 
 const { app, BrowserWindow, ipcMain, shell, crashReporter } = require('electron');
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const LOCAL_DASHBOARD_URL = process.env.AIO_DASHBOARD_URL || 'http://127.0.0.1:4597/dashboard';
@@ -7,6 +9,8 @@ const ALLOWED_APP_ORIGINS = new Set(['http://127.0.0.1:4597', 'http://localhost:
 try { ALLOWED_APP_ORIGINS.add(new URL(LOCAL_DASHBOARD_URL).origin); } catch {}
 const ALLOWED_IPC = new Set(['runtime:getStatus', 'runtime:openExternal']);
 const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['https:', 'mailto:']);
+let cachedLocalToken = '';
+let localTokenReadAt = 0;
 
 crashReporter.start({ submitURL: '', uploadToServer: false, compress: true });
 
@@ -32,6 +36,65 @@ function assertIpc(event, channel) {
   if (!ALLOWED_IPC.has(channel)) throw new Error('Forbidden IPC channel');
   const frameUrl = event.senderFrame && event.senderFrame.url;
   if (!frameUrl || !isAllowedAppUrl(frameUrl)) throw new Error('Forbidden IPC origin');
+}
+
+function platformDataHome() {
+  if (process.env.LOCALAPPDATA || process.env.APPDATA) {
+    return path.join(process.env.LOCALAPPDATA || process.env.APPDATA, 'AIEmailOrganizer');
+  }
+  if (process.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library', 'Application Support', 'AIEmailOrganizer');
+  }
+  return path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'), 'AIEmailOrganizer');
+}
+
+function runtimeDirFromEnv(name) {
+  const value = process.env[name];
+  if (!value) return null;
+  return path.isAbsolute(value) ? value : path.join(platformDataHome(), value);
+}
+
+function localTokenCandidates() {
+  const dirs = [
+    runtimeDirFromEnv('AIO_DATA_DIR'),
+    runtimeDirFromEnv('DATA_DIR'),
+    path.join(platformDataHome(), 'data')
+  ].filter(Boolean);
+  if (process.env.AIO_PORTABLE === '1' || process.env.AIO_USE_PROJECT_DATA === '1') {
+    dirs.push(path.join(path.dirname(process.execPath), 'data'));
+  }
+  return [...new Set(dirs)].map(dir => path.join(dir, 'local_api.key'));
+}
+
+function readLocalToken() {
+  const envToken = process.env.AIO_LOCAL_TOKEN || process.env.AIO_LOCAL_API_TOKEN;
+  if (envToken && envToken.length >= 32) return envToken;
+
+  const now = Date.now();
+  if (cachedLocalToken && now - localTokenReadAt < 1000) return cachedLocalToken;
+  localTokenReadAt = now;
+
+  for (const candidate of localTokenCandidates()) {
+    try {
+      const token = fs.readFileSync(candidate, 'utf8').trim();
+      if (token.length >= 32) {
+        cachedLocalToken = token;
+        return token;
+      }
+    } catch {}
+  }
+  return '';
+}
+
+function installLocalTokenHeader(electronSession) {
+  const urls = Array.from(ALLOWED_APP_ORIGINS, origin => `${origin}/api/*`);
+  electronSession.webRequest.onBeforeSendHeaders({ urls }, (details, callback) => {
+    const token = readLocalToken();
+    if (token && isAllowedAppUrl(details.url)) {
+      details.requestHeaders['X-Local-Token'] = token;
+    }
+    callback({ requestHeaders: details.requestHeaders });
+  });
 }
 
 function createWindow() {
@@ -73,6 +136,7 @@ function createWindow() {
   win.webContents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(['notifications'].includes(permission));
   });
+  installLocalTokenHeader(win.webContents.session);
 
   if (!isAllowedAppUrl(LOCAL_DASHBOARD_URL)) throw new Error('Dashboard URL is not allowlisted');
   win.loadURL(LOCAL_DASHBOARD_URL);

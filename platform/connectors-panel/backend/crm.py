@@ -74,19 +74,19 @@ async def list_contacts(
         conditions.append("(first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR company LIKE ?)")
         like = f"%{search}%"; params.extend([like, like, like, like])
     where = " AND ".join(conditions)
-    rows = db.fetch_all(f"SELECT * FROM crm_contacts WHERE {where} ORDER BY created_at DESC LIMIT ? OFFSET ?", params + [limit, offset])
-    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM crm_contacts WHERE {where}", params)
+    rows = db.fetch_all(f"SELECT * FROM crm_contacts WHERE {where} ORDER BY created_at DESC LIMIT ? OFFSET ?", params + [limit, offset])  # nosec B608
+    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM crm_contacts WHERE {where}", params)  # nosec B608
     return {"contacts": rows, "total": _int(total["c"] if total else 0)}
 
 
 @router.post("/contacts", summary="Create contact", status_code=status.HTTP_201_CREATED)
-async def create_contact(body: dict[str, Any]):
+async def create_contact(body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     cid = str(uuid.uuid4())
     now = utc_now_str()
     db.execute(
         "INSERT INTO crm_contacts (id,tenant_id,first_name,last_name,email,phone,company,job_title,source,status,lead_score,tags_json,custom_fields,assigned_to,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (cid, body.get("tenant_id","default"), body["first_name"], body.get("last_name"),
+        (cid, tenant_id, body["first_name"], body.get("last_name"),
          body.get("email"), body.get("phone"), body.get("company"), body.get("job_title"),
          body.get("source"), body.get("status","active"), body.get("lead_score",0),
          body.get("tags_json","[]"), body.get("custom_fields","{}"), body.get("assigned_to"), now, now),
@@ -100,9 +100,9 @@ async def get_contact(contact_id: str, tenant_id: str = Query(...)):
     row = db.fetch_one("SELECT * FROM crm_contacts WHERE id=? AND tenant_id=?", (contact_id, tenant_id))
     if not row:
         raise HTTPException(status_code=404, detail="Contact not found")
-    leads = db.fetch_all("SELECT id,title,status,score FROM crm_leads WHERE contact_id=? LIMIT 5", (contact_id,))
-    opps = db.fetch_all("SELECT id,title,stage,value,currency FROM crm_opportunities WHERE contact_id=? LIMIT 5", (contact_id,))
-    activities = db.fetch_all("SELECT * FROM crm_activities WHERE contact_id=? ORDER BY created_at DESC LIMIT 10", (contact_id,))
+    leads = db.fetch_all("SELECT id,title,status,score FROM crm_leads WHERE contact_id=? AND tenant_id=? LIMIT 5", (contact_id, tenant_id))
+    opps = db.fetch_all("SELECT id,title,stage,value,currency FROM crm_opportunities WHERE contact_id=? AND tenant_id=? LIMIT 5", (contact_id, tenant_id))
+    activities = db.fetch_all("SELECT * FROM crm_activities WHERE contact_id=? AND tenant_id=? ORDER BY created_at DESC LIMIT 10", (contact_id, tenant_id))
     row["leads"] = leads
     row["opportunities"] = opps
     row["activities"] = activities
@@ -110,13 +110,13 @@ async def get_contact(contact_id: str, tenant_id: str = Query(...)):
 
 
 @router.patch("/contacts/{contact_id}", summary="Update contact")
-async def update_contact(contact_id: str, body: dict[str, Any]):
+async def update_contact(contact_id: str, body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     now = utc_now_str()
     allowed = {"first_name","last_name","email","phone","company","job_title","source","status","lead_score","tags_json","custom_fields","assigned_to"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if updates:
-        db.execute(f"UPDATE crm_contacts SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=?", list(updates.values()) + [now, contact_id])
+        db.execute(f"UPDATE crm_contacts SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=? AND tenant_id=?", list(updates.values()) + [now, contact_id, tenant_id])  # nosec B608
     return {"ok": True}
 
 
@@ -145,21 +145,21 @@ async def list_leads(
         conditions.append("l.status = ?"); params.append(status)
     where = " AND ".join(conditions)
     rows = db.fetch_all(
-        f"SELECT l.*, c.first_name||' '||COALESCE(c.last_name,'') AS contact_name, c.company FROM crm_leads l LEFT JOIN crm_contacts c ON l.contact_id=c.id WHERE {where} ORDER BY l.score DESC, l.created_at DESC LIMIT ? OFFSET ?",
+        f"SELECT l.*, c.first_name||' '||COALESCE(c.last_name,'') AS contact_name, c.company FROM crm_leads l LEFT JOIN crm_contacts c ON l.contact_id=c.id WHERE {where} ORDER BY l.score DESC, l.created_at DESC LIMIT ? OFFSET ?",  # nosec B608
         params + [limit, offset],
     )
-    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM crm_leads l WHERE {where}", params)
+    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM crm_leads l WHERE {where}", params)  # nosec B608
     return {"leads": rows, "total": _int(total["c"] if total else 0)}
 
 
 @router.post("/leads", summary="Create lead", status_code=status.HTTP_201_CREATED)
-async def create_lead(body: dict[str, Any]):
+async def create_lead(body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     lid = str(uuid.uuid4())
     now = utc_now_str()
     db.execute(
         "INSERT INTO crm_leads (id,tenant_id,contact_id,title,source,status,score,estimated_value,currency,assigned_to,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (lid, body.get("tenant_id","default"), body.get("contact_id"), body["title"],
+        (lid, tenant_id, body.get("contact_id"), body["title"],
          body.get("source"), body.get("status","new"), body.get("score",0),
          body.get("estimated_value"), body.get("currency","USD"), body.get("assigned_to"),
          body.get("notes"), now, now),
@@ -168,13 +168,13 @@ async def create_lead(body: dict[str, Any]):
 
 
 @router.patch("/leads/{lead_id}", summary="Update lead")
-async def update_lead(lead_id: str, body: dict[str, Any]):
+async def update_lead(lead_id: str, body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     now = utc_now_str()
     allowed = {"title","source","status","score","estimated_value","assigned_to","notes"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if updates:
-        db.execute(f"UPDATE crm_leads SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=?", list(updates.values()) + [now, lead_id])
+        db.execute(f"UPDATE crm_leads SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=? AND tenant_id=?", list(updates.values()) + [now, lead_id, tenant_id])  # nosec B608
     return {"ok": True}
 
 
@@ -199,10 +199,10 @@ async def list_opportunities(
         conditions.append("o.assigned_to = ?"); params.append(assigned_to)
     where = " AND ".join(conditions)
     rows = db.fetch_all(
-        f"SELECT o.*, c.first_name||' '||COALESCE(c.last_name,'') AS contact_name, c.company FROM crm_opportunities o LEFT JOIN crm_contacts c ON o.contact_id=c.id WHERE {where} ORDER BY o.value DESC LIMIT ? OFFSET ?",
+        f"SELECT o.*, c.first_name||' '||COALESCE(c.last_name,'') AS contact_name, c.company FROM crm_opportunities o LEFT JOIN crm_contacts c ON o.contact_id=c.id WHERE {where} ORDER BY o.value DESC LIMIT ? OFFSET ?",  # nosec B608
         params + [limit, offset],
     )
-    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM crm_opportunities o WHERE {where}", params)
+    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM crm_opportunities o WHERE {where}", params)  # nosec B608
     return {"opportunities": rows, "total": _int(total["c"] if total else 0)}
 
 
@@ -220,13 +220,13 @@ async def get_pipeline(tenant_id: str = Query(...)):
 
 
 @router.post("/opportunities", summary="Create opportunity", status_code=status.HTTP_201_CREATED)
-async def create_opportunity(body: dict[str, Any]):
+async def create_opportunity(body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     oid = str(uuid.uuid4())
     now = utc_now_str()
     db.execute(
         "INSERT INTO crm_opportunities (id,tenant_id,contact_id,lead_id,title,stage,value,currency,probability,close_date,assigned_to,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (oid, body.get("tenant_id","default"), body.get("contact_id"), body.get("lead_id"),
+        (oid, tenant_id, body.get("contact_id"), body.get("lead_id"),
          body["title"], body.get("stage","prospecting"), body.get("value",0),
          body.get("currency","USD"), body.get("probability",0), body.get("close_date"),
          body.get("assigned_to"), body.get("notes"), now, now),
@@ -235,13 +235,13 @@ async def create_opportunity(body: dict[str, Any]):
 
 
 @router.patch("/opportunities/{opp_id}", summary="Update opportunity / move stage")
-async def update_opportunity(opp_id: str, body: dict[str, Any]):
+async def update_opportunity(opp_id: str, body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     now = utc_now_str()
     allowed = {"title","stage","value","probability","close_date","assigned_to","notes","won_at","lost_at","lost_reason"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if updates:
-        db.execute(f"UPDATE crm_opportunities SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=?", list(updates.values()) + [now, opp_id])
+        db.execute(f"UPDATE crm_opportunities SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=? AND tenant_id=?", list(updates.values()) + [now, opp_id, tenant_id])  # nosec B608
     return {"ok": True}
 
 
@@ -265,19 +265,19 @@ async def list_activities(
     if opportunity_id:
         conditions.append("opportunity_id = ?"); params.append(opportunity_id)
     where = " AND ".join(conditions)
-    rows = db.fetch_all(f"SELECT * FROM crm_activities WHERE {where} ORDER BY created_at DESC LIMIT ? OFFSET ?", params + [limit, offset])
-    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM crm_activities WHERE {where}", params)
+    rows = db.fetch_all(f"SELECT * FROM crm_activities WHERE {where} ORDER BY created_at DESC LIMIT ? OFFSET ?", params + [limit, offset])  # nosec B608
+    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM crm_activities WHERE {where}", params)  # nosec B608
     return {"activities": rows, "total": _int(total["c"] if total else 0)}
 
 
 @router.post("/activities", summary="Log activity", status_code=status.HTTP_201_CREATED)
-async def create_activity(body: dict[str, Any]):
+async def create_activity(body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     aid = str(uuid.uuid4())
     now = utc_now_str()
     db.execute(
         "INSERT INTO crm_activities (id,tenant_id,contact_id,opportunity_id,activity_type,subject,description,outcome,scheduled_at,completed_at,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-        (aid, body.get("tenant_id","default"), body.get("contact_id"), body.get("opportunity_id"),
+        (aid, tenant_id, body.get("contact_id"), body.get("opportunity_id"),
          body.get("activity_type","note"), body.get("subject"), body.get("description"),
          body.get("outcome"), body.get("scheduled_at"), body.get("completed_at"),
          body.get("created_by"), now),

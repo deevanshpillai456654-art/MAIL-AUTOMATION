@@ -154,12 +154,14 @@ class ConnectorPanelDB:
                 scopes              TEXT NOT NULL DEFAULT '[]',
                 created_at          TEXT NOT NULL,
                 is_valid            INTEGER NOT NULL DEFAULT 1,
-                FOREIGN KEY (connector_id) REFERENCES connectors(id) ON DELETE CASCADE
+                FOREIGN KEY (connector_id) REFERENCES connectors(id) ON DELETE CASCADE,
+                UNIQUE(connector_id, tenant_id, provider)
             )
             """,
             "CREATE INDEX IF NOT EXISTS idx_oauth_connector  ON oauth_tokens(connector_id)",
             "CREATE INDEX IF NOT EXISTS idx_oauth_tenant     ON oauth_tokens(tenant_id)",
             "CREATE INDEX IF NOT EXISTS idx_oauth_provider   ON oauth_tokens(provider)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_uq ON oauth_tokens(connector_id, tenant_id, provider)",
 
             # ----------------------------------------------------------------
             # webhooks
@@ -475,6 +477,7 @@ class ConnectorPanelDB:
             CREATE TABLE IF NOT EXISTS crm_contacts (
                 id              TEXT PRIMARY KEY,
                 tenant_id       TEXT NOT NULL,
+                external_id     TEXT,
                 first_name      TEXT NOT NULL,
                 last_name       TEXT,
                 email           TEXT,
@@ -491,15 +494,16 @@ class ConnectorPanelDB:
                 updated_at      TEXT NOT NULL
             )
             """,
-            "CREATE INDEX IF NOT EXISTS idx_crmc_tenant  ON crm_contacts(tenant_id)",
-            "CREATE INDEX IF NOT EXISTS idx_crmc_email   ON crm_contacts(email)",
-            "CREATE INDEX IF NOT EXISTS idx_crmc_company ON crm_contacts(company)",
-            "CREATE INDEX IF NOT EXISTS idx_crmc_status  ON crm_contacts(status)",
+            "CREATE INDEX IF NOT EXISTS idx_crmc_tenant   ON crm_contacts(tenant_id)",
+            "CREATE INDEX IF NOT EXISTS idx_crmc_email    ON crm_contacts(email)",
+            "CREATE INDEX IF NOT EXISTS idx_crmc_company  ON crm_contacts(company)",
+            "CREATE INDEX IF NOT EXISTS idx_crmc_status   ON crm_contacts(status)",
 
             """
             CREATE TABLE IF NOT EXISTS crm_leads (
                 id              TEXT PRIMARY KEY,
                 tenant_id       TEXT NOT NULL,
+                external_id     TEXT,
                 contact_id      TEXT,
                 title           TEXT NOT NULL,
                 source          TEXT,
@@ -514,14 +518,15 @@ class ConnectorPanelDB:
                 FOREIGN KEY (contact_id) REFERENCES crm_contacts(id) ON DELETE SET NULL
             )
             """,
-            "CREATE INDEX IF NOT EXISTS idx_crml_tenant  ON crm_leads(tenant_id)",
-            "CREATE INDEX IF NOT EXISTS idx_crml_contact ON crm_leads(contact_id)",
-            "CREATE INDEX IF NOT EXISTS idx_crml_status  ON crm_leads(status)",
+            "CREATE INDEX IF NOT EXISTS idx_crml_tenant   ON crm_leads(tenant_id)",
+            "CREATE INDEX IF NOT EXISTS idx_crml_contact  ON crm_leads(contact_id)",
+            "CREATE INDEX IF NOT EXISTS idx_crml_status   ON crm_leads(status)",
 
             """
             CREATE TABLE IF NOT EXISTS crm_opportunities (
                 id              TEXT PRIMARY KEY,
                 tenant_id       TEXT NOT NULL,
+                external_id     TEXT,
                 contact_id      TEXT,
                 lead_id         TEXT,
                 title           TEXT NOT NULL,
@@ -539,9 +544,9 @@ class ConnectorPanelDB:
                 updated_at      TEXT NOT NULL
             )
             """,
-            "CREATE INDEX IF NOT EXISTS idx_crmo_tenant  ON crm_opportunities(tenant_id)",
-            "CREATE INDEX IF NOT EXISTS idx_crmo_contact ON crm_opportunities(contact_id)",
-            "CREATE INDEX IF NOT EXISTS idx_crmo_stage   ON crm_opportunities(stage)",
+            "CREATE INDEX IF NOT EXISTS idx_crmo_tenant   ON crm_opportunities(tenant_id)",
+            "CREATE INDEX IF NOT EXISTS idx_crmo_contact  ON crm_opportunities(contact_id)",
+            "CREATE INDEX IF NOT EXISTS idx_crmo_stage    ON crm_opportunities(stage)",
 
             """
             CREATE TABLE IF NOT EXISTS crm_activities (
@@ -682,6 +687,32 @@ class ConnectorPanelDB:
         except sqlite3.Error:
             conn.rollback()
             raise
+
+        self._run_column_migrations(conn)
+
+    def _run_column_migrations(self, conn: sqlite3.Connection) -> None:
+        """
+        Add columns that were introduced after the initial schema.
+        SQLite does not support IF NOT EXISTS on ALTER TABLE, so each
+        migration is wrapped in a try/except to be idempotent.
+        """
+        migrations = [
+            # Add external_id to CRM tables (for connector sync deduplication)
+            "ALTER TABLE crm_contacts     ADD COLUMN external_id TEXT",
+            "ALTER TABLE crm_leads        ADD COLUMN external_id TEXT",
+            "ALTER TABLE crm_opportunities ADD COLUMN external_id TEXT",
+            # Indexes for external_id lookups
+            "CREATE INDEX IF NOT EXISTS idx_crmc_external ON crm_contacts(external_id)",
+            "CREATE INDEX IF NOT EXISTS idx_crml_external ON crm_leads(external_id)",
+            "CREATE INDEX IF NOT EXISTS idx_crmo_external ON crm_opportunities(external_id)",
+        ]
+        for stmt in migrations:
+            try:
+                conn.execute(stmt)
+                conn.commit()
+            except sqlite3.OperationalError:
+                # Column already exists or table doesn't exist yet — both are fine
+                pass
 
 
 # ---------------------------------------------------------------------------

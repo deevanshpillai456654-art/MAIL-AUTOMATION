@@ -117,7 +117,7 @@ async def update_workflow(wf_id: str, payload: WorkflowUpdate, tenant_id: str = 
     set_clause = ", ".join(f"{k}=?" for k in updates)
     with tx() as conn:
         conn.execute(
-            f"UPDATE workflows SET {set_clause} WHERE id=? AND tenant_id=?",
+            f"UPDATE workflows SET {set_clause} WHERE id=? AND tenant_id=?",  # nosec B608
             (*updates.values(), wf_id, tenant_id),
         )
     row = get_db().execute("SELECT * FROM workflows WHERE id=?", (wf_id,)).fetchone()

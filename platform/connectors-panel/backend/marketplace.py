@@ -20,7 +20,7 @@ from .models import (
     MarketplaceConnector,
 )
 from ..shared.constants import CONNECTOR_CATEGORIES, FEATURED_CONNECTOR_IDS
-from ..shared.utils import generate_connector_id, utc_now_str
+from ..shared.utils import encrypt_config, generate_connector_id, utc_now_str
 
 router = APIRouter(prefix="/marketplace", tags=["marketplace"])
 
@@ -160,6 +160,28 @@ _CATALOG: list[dict[str, Any]] = [
         "health_endpoint": None,
         "install_count": 11200,
         "rating": 4.8,
+        "is_beta": False,
+        "price_tier": "free",
+    },
+    {
+        "id": "slack_enterprise",
+        "name": "Slack Enterprise",
+        "version": "1.0.0",
+        "category": "communication",
+        "description": "Full Slack Enterprise integration — alerts, approval workflows, interactive buttons, and Event API webhooks with HMAC verification.",
+        "author": "MailPilot",
+        "icon_url": "https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/slack.svg",
+        "status": "inactive",
+        "permissions": ["slack.message.send", "slack.channels.read", "slack.users.read", "slack.files.write"],
+        "events": ["slack.message.received", "slack.mention.received", "slack.approval.completed"],
+        "supports_oauth": True,
+        "supports_webhook": True,
+        "supports_api_key": False,
+        "multiTenant": True,
+        "queue_enabled": True,
+        "health_endpoint": "/health",
+        "install_count": 0,
+        "rating": 0.0,
         "is_beta": False,
         "price_tier": "free",
     },
@@ -776,14 +798,18 @@ def _to_marketplace_model(raw: dict[str, Any], installed_ids: set[str]) -> Marke
 
 def _get_installed_ids(tenant_id: Optional[str] = None) -> set[str]:
     db = get_panel_db()
-    if tenant_id:
-        rows = db.fetch_all(
-            "SELECT manifest_id FROM connectors WHERE tenant_id = ? AND is_active = 1",
-            (tenant_id,),
-        )
-    else:
-        rows = db.fetch_all("SELECT manifest_id FROM connectors WHERE is_active = 1", ())
-    return {r["manifest_id"] for r in rows}
+    try:
+        if tenant_id:
+            rows = db.fetch_all(
+                "SELECT manifest_id FROM connectors WHERE tenant_id = ? AND is_active = 1",
+                (tenant_id,),
+            )
+        else:
+            rows = db.fetch_all("SELECT manifest_id FROM connectors WHERE is_active = 1", ())
+        return {r["manifest_id"] for r in rows if r.get("manifest_id")}
+    except Exception:
+        # manifest_id column may not exist on older schema versions
+        return set()
 
 
 # ---------------------------------------------------------------------------
@@ -832,7 +858,7 @@ async def get_marketplace_connector(
     status_code=status.HTTP_201_CREATED,
     summary="Install a connector",
 )
-async def install_connector(connector_id: str, body: ConnectorInstallRequest):
+async def install_connector(connector_id: str, body: ConnectorInstallRequest, tenant_id: str = Query(...)):
     raw = _CATALOG_BY_ID.get(connector_id)
     if not raw:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Connector '{connector_id}' not found")
@@ -845,12 +871,12 @@ async def install_connector(connector_id: str, body: ConnectorInstallRequest):
     # Check for duplicate
     existing = db.fetch_one(
         "SELECT id FROM connectors WHERE tenant_id = ? AND manifest_id = ? AND is_active = 1",
-        (body.tenant_id, connector_id),
+        (tenant_id, connector_id),
     )
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Connector '{connector_id}' is already installed for tenant '{body.tenant_id}'",
+            detail=f"Connector '{connector_id}' is already installed for tenant '{tenant_id}'",
         )
 
     record_id = generate_connector_id()
@@ -866,20 +892,20 @@ async def install_connector(connector_id: str, body: ConnectorInstallRequest):
         """,
         (
             record_id,
-            body.tenant_id,
+            tenant_id,
             connector_id,
             raw["name"],
             raw["category"],
             ConnectorStatus.INSTALLING.value,
             raw["version"],
-            json.dumps(body.config),
+            encrypt_config(body.config or {}),
             now,
         ),
     )
 
     return InstalledConnector(
         connector_id=record_id,
-        tenant_id=body.tenant_id,
+        tenant_id=tenant_id,
         name=raw["name"],
         category=ConnectorCategory(raw["category"]),
         status=ConnectorStatus.INSTALLING,

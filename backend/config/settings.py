@@ -105,7 +105,8 @@ class Settings(BaseSettings):
     @classmethod
     def validate_host(cls, v):
         v = _strip_quotes(str(v or "127.0.0.1"))
-        return v if v in ("127.0.0.1", "localhost", "0.0.0.0") else "127.0.0.1"
+        # config.py clamps wildcard binds unless explicitly enabled.
+        return v if v in ("127.0.0.1", "localhost", "0.0.0.0") else "127.0.0.1"  # nosec B104
 
     @field_validator("api_port", mode="before")
     @classmethod

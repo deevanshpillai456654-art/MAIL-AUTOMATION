@@ -90,19 +90,19 @@ async def list_vendors(
         conditions.append("(name LIKE ? OR code LIKE ? OR email LIKE ?)")
         like = f"%{search}%"; params.extend([like, like, like])
     where = " AND ".join(conditions)
-    rows = db.fetch_all(f"SELECT * FROM erp_vendors WHERE {where} ORDER BY name LIMIT ? OFFSET ?", params + [limit, offset])
-    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM erp_vendors WHERE {where}", params)
+    rows = db.fetch_all(f"SELECT * FROM erp_vendors WHERE {where} ORDER BY name LIMIT ? OFFSET ?", params + [limit, offset])  # nosec B608
+    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM erp_vendors WHERE {where}", params)  # nosec B608
     return {"vendors": rows, "total": _int(total["c"] if total else 0)}
 
 
 @router.post("/vendors", summary="Create vendor", status_code=status.HTTP_201_CREATED)
-async def create_vendor(body: dict[str, Any]):
+async def create_vendor(body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     vid = str(uuid.uuid4())
     now = utc_now_str()
     db.execute(
         "INSERT INTO erp_vendors (id,tenant_id,name,code,email,phone,address_json,payment_terms,currency,category,status,tags_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (vid, body.get("tenant_id","default"), body["name"], body.get("code"), body.get("email"), body.get("phone"),
+        (vid, tenant_id, body["name"], body.get("code"), body.get("email"), body.get("phone"),
          body.get("address_json","{}"), body.get("payment_terms",30), body.get("currency","USD"),
          body.get("category"), body.get("status","active"), body.get("tags_json","[]"), now, now),
     )
@@ -115,19 +115,19 @@ async def get_vendor(vendor_id: str, tenant_id: str = Query(...)):
     row = db.fetch_one("SELECT * FROM erp_vendors WHERE id=? AND tenant_id=?", (vendor_id, tenant_id))
     if not row:
         raise HTTPException(status_code=404, detail="Vendor not found")
-    pos = db.fetch_all("SELECT id,po_number,status,total_amount,currency,order_date FROM erp_purchase_orders WHERE vendor_id=? ORDER BY order_date DESC LIMIT 10", (vendor_id,))
+    pos = db.fetch_all("SELECT id,po_number,status,total_amount,currency,order_date FROM erp_purchase_orders WHERE vendor_id=? AND tenant_id=? ORDER BY order_date DESC LIMIT 10", (vendor_id, tenant_id))
     row["recent_pos"] = pos
     return row
 
 
 @router.patch("/vendors/{vendor_id}", summary="Update vendor")
-async def update_vendor(vendor_id: str, body: dict[str, Any]):
+async def update_vendor(vendor_id: str, body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     now = utc_now_str()
     allowed = {"name","code","email","phone","address_json","payment_terms","currency","category","status","tags_json"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if updates:
-        db.execute(f"UPDATE erp_vendors SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=?", list(updates.values()) + [now, vendor_id])
+        db.execute(f"UPDATE erp_vendors SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=? AND tenant_id=?", list(updates.values()) + [now, vendor_id, tenant_id])  # nosec B608
     return {"ok": True}
 
 
@@ -159,21 +159,21 @@ async def list_purchase_orders(
         conditions.append("p.vendor_id = ?"); params.append(vendor_id)
     where = " AND ".join(conditions)
     rows = db.fetch_all(
-        f"SELECT p.*, v.name AS vendor_name FROM erp_purchase_orders p LEFT JOIN erp_vendors v ON p.vendor_id=v.id WHERE {where} ORDER BY p.order_date DESC LIMIT ? OFFSET ?",
+        f"SELECT p.*, v.name AS vendor_name FROM erp_purchase_orders p LEFT JOIN erp_vendors v ON p.vendor_id=v.id WHERE {where} ORDER BY p.order_date DESC LIMIT ? OFFSET ?",  # nosec B608
         params + [limit, offset],
     )
-    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM erp_purchase_orders p WHERE {where}", params)
+    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM erp_purchase_orders p WHERE {where}", params)  # nosec B608
     return {"purchase_orders": rows, "total": _int(total["c"] if total else 0)}
 
 
 @router.post("/purchase-orders", summary="Create purchase order", status_code=status.HTTP_201_CREATED)
-async def create_purchase_order(body: dict[str, Any]):
+async def create_purchase_order(body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     pid = str(uuid.uuid4())
     now = utc_now_str()
     db.execute(
         "INSERT INTO erp_purchase_orders (id,tenant_id,vendor_id,po_number,status,items_json,subtotal,tax_amount,total_amount,currency,order_date,delivery_date,delivery_addr,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (pid, body.get("tenant_id","default"), body.get("vendor_id"), body.get("po_number","PO-"+pid[:8].upper()),
+        (pid, tenant_id, body.get("vendor_id"), body.get("po_number","PO-"+pid[:8].upper()),
          body.get("status","draft"), body.get("items_json","[]"), body.get("subtotal",0),
          body.get("tax_amount",0), body.get("total_amount",0), body.get("currency","USD"),
          body.get("order_date", now[:10]), body.get("delivery_date"), body.get("delivery_addr"),
@@ -183,13 +183,13 @@ async def create_purchase_order(body: dict[str, Any]):
 
 
 @router.patch("/purchase-orders/{po_id}", summary="Update purchase order")
-async def update_purchase_order(po_id: str, body: dict[str, Any]):
+async def update_purchase_order(po_id: str, body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     now = utc_now_str()
     allowed = {"status","items_json","subtotal","tax_amount","total_amount","delivery_date","delivery_addr","notes","approved_by","approved_at"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if updates:
-        db.execute(f"UPDATE erp_purchase_orders SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=?", list(updates.values()) + [now, po_id])
+        db.execute(f"UPDATE erp_purchase_orders SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=? AND tenant_id=?", list(updates.values()) + [now, po_id, tenant_id])  # nosec B608
     return {"ok": True}
 
 
@@ -211,21 +211,21 @@ async def list_invoices(
         conditions.append("i.status = ?"); params.append(status)
     where = " AND ".join(conditions)
     rows = db.fetch_all(
-        f"SELECT i.*, v.name AS vendor_name FROM erp_invoices i LEFT JOIN erp_vendors v ON i.vendor_id=v.id WHERE {where} ORDER BY i.invoice_date DESC LIMIT ? OFFSET ?",
+        f"SELECT i.*, v.name AS vendor_name FROM erp_invoices i LEFT JOIN erp_vendors v ON i.vendor_id=v.id WHERE {where} ORDER BY i.invoice_date DESC LIMIT ? OFFSET ?",  # nosec B608
         params + [limit, offset],
     )
-    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM erp_invoices i WHERE {where}", params)
+    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM erp_invoices i WHERE {where}", params)  # nosec B608
     return {"invoices": rows, "total": _int(total["c"] if total else 0)}
 
 
 @router.post("/invoices", summary="Create invoice", status_code=status.HTTP_201_CREATED)
-async def create_invoice(body: dict[str, Any]):
+async def create_invoice(body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     iid = str(uuid.uuid4())
     now = utc_now_str()
     db.execute(
         "INSERT INTO erp_invoices (id,tenant_id,vendor_id,po_id,invoice_number,status,amount,tax_amount,total_amount,currency,invoice_date,due_date,paid_at,payment_method,notes,items_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (iid, body.get("tenant_id","default"), body.get("vendor_id"), body.get("po_id"),
+        (iid, tenant_id, body.get("vendor_id"), body.get("po_id"),
          body.get("invoice_number","INV-"+iid[:8].upper()), body.get("status","draft"),
          body.get("amount",0), body.get("tax_amount",0), body.get("total_amount",0),
          body.get("currency","USD"), body.get("invoice_date", now[:10]), body.get("due_date"),
@@ -236,13 +236,13 @@ async def create_invoice(body: dict[str, Any]):
 
 
 @router.patch("/invoices/{invoice_id}", summary="Update invoice status")
-async def update_invoice(invoice_id: str, body: dict[str, Any]):
+async def update_invoice(invoice_id: str, body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     now = utc_now_str()
     allowed = {"status","paid_at","payment_method","due_date","notes"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if updates:
-        db.execute(f"UPDATE erp_invoices SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=?", list(updates.values()) + [now, invoice_id])
+        db.execute(f"UPDATE erp_invoices SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=? AND tenant_id=?", list(updates.values()) + [now, invoice_id, tenant_id])  # nosec B608
     return {"ok": True}
 
 
@@ -267,21 +267,21 @@ async def list_inventory(
         conditions.append("i.quantity <= i.reorder_level")
     where = " AND ".join(conditions)
     rows = db.fetch_all(
-        f"SELECT i.*, w.name AS warehouse_name FROM erp_inventory i LEFT JOIN erp_warehouses w ON i.warehouse_id=w.id WHERE {where} ORDER BY i.name LIMIT ? OFFSET ?",
+        f"SELECT i.*, w.name AS warehouse_name FROM erp_inventory i LEFT JOIN erp_warehouses w ON i.warehouse_id=w.id WHERE {where} ORDER BY i.name LIMIT ? OFFSET ?",  # nosec B608
         params + [limit, offset],
     )
-    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM erp_inventory i WHERE {where}", params)
+    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM erp_inventory i WHERE {where}", params)  # nosec B608
     return {"items": rows, "total": _int(total["c"] if total else 0)}
 
 
 @router.post("/inventory", summary="Add inventory item", status_code=status.HTTP_201_CREATED)
-async def create_inventory_item(body: dict[str, Any]):
+async def create_inventory_item(body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     iid = str(uuid.uuid4())
     now = utc_now_str()
     db.execute(
         "INSERT INTO erp_inventory (id,tenant_id,warehouse_id,sku,name,category,quantity,reserved,unit,reorder_level,cost_price,sell_price,status,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (iid, body.get("tenant_id","default"), body.get("warehouse_id"), body.get("sku","SKU-"+iid[:8].upper()),
+        (iid, tenant_id, body.get("warehouse_id"), body.get("sku","SKU-"+iid[:8].upper()),
          body["name"], body.get("category"), body.get("quantity",0), body.get("reserved",0),
          body.get("unit","pcs"), body.get("reorder_level",0), body.get("cost_price"),
          body.get("sell_price"), body.get("status","active"), now),
@@ -290,13 +290,13 @@ async def create_inventory_item(body: dict[str, Any]):
 
 
 @router.patch("/inventory/{item_id}", summary="Update inventory item")
-async def update_inventory_item(item_id: str, body: dict[str, Any]):
+async def update_inventory_item(item_id: str, body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     now = utc_now_str()
     allowed = {"quantity","reserved","cost_price","sell_price","reorder_level","status","warehouse_id"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if updates:
-        db.execute(f"UPDATE erp_inventory SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=?", list(updates.values()) + [now, item_id])
+        db.execute(f"UPDATE erp_inventory SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=? AND tenant_id=?", list(updates.values()) + [now, item_id, tenant_id])  # nosec B608
     return {"ok": True}
 
 
@@ -312,13 +312,13 @@ async def list_warehouses(tenant_id: str = Query(...)):
 
 
 @router.post("/warehouses", summary="Create warehouse", status_code=status.HTTP_201_CREATED)
-async def create_warehouse(body: dict[str, Any]):
+async def create_warehouse(body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     wid = str(uuid.uuid4())
     now = utc_now_str()
     db.execute(
         "INSERT INTO erp_warehouses (id,tenant_id,name,code,location,address_json,capacity,current_stock,status,manager,contact_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (wid, body.get("tenant_id","default"), body["name"], body.get("code"),
+        (wid, tenant_id, body["name"], body.get("code"),
          body.get("location"), body.get("address_json","{}"), body.get("capacity"),
          0, body.get("status","active"), body.get("manager"), body.get("contact_json","{}"), now, now),
     )
@@ -326,11 +326,11 @@ async def create_warehouse(body: dict[str, Any]):
 
 
 @router.patch("/warehouses/{warehouse_id}", summary="Update warehouse")
-async def update_warehouse(warehouse_id: str, body: dict[str, Any]):
+async def update_warehouse(warehouse_id: str, body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     now = utc_now_str()
     allowed = {"name","code","location","address_json","capacity","current_stock","status","manager"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if updates:
-        db.execute(f"UPDATE erp_warehouses SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=?", list(updates.values()) + [now, warehouse_id])
+        db.execute(f"UPDATE erp_warehouses SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=? AND tenant_id=?", list(updates.values()) + [now, warehouse_id, tenant_id])  # nosec B608
     return {"ok": True}

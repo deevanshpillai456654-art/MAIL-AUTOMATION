@@ -131,18 +131,17 @@ class SAPConnector(ConnectorBase):
         }
         status = status_map.get(r.get("PurchaseOrderType", ""), "pending")
         existing = self.db.fetch_one(
-            "SELECT po_id FROM erp_purchase_orders WHERE po_number=? AND tenant_id=?",
+            "SELECT id FROM erp_purchase_orders WHERE po_number=? AND tenant_id=?",
             (ext_id, self.tenant_id),
         )
         if not existing:
             po_id = f"po_{uuid.uuid4().hex}"
             self.db.execute(
                 """INSERT INTO erp_purchase_orders
-                   (po_id, tenant_id, po_number, vendor_id, status,
+                   (id, tenant_id, po_number, status,
                     total_amount, currency, order_date, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
                 (po_id, self.tenant_id, ext_id,
-                 r.get("Supplier", ""),
                  status,
                  float(r.get("NetAmount", 0) or 0),
                  r.get("DocumentCurrency", "USD"),
@@ -151,8 +150,8 @@ class SAPConnector(ConnectorBase):
             )
         else:
             self.db.execute(
-                "UPDATE erp_purchase_orders SET status=?, updated_at=? WHERE po_id=?",
-                (status, now, existing["po_id"]),
+                "UPDATE erp_purchase_orders SET status=?, updated_at=? WHERE id=?",
+                (status, now, existing["id"]),
             )
 
     async def _sync_invoices(self, client, since: Optional[datetime]) -> Dict:
@@ -179,23 +178,27 @@ class SAPConnector(ConnectorBase):
         inv_num = r.get("SupplierInvoice", "")
         now = datetime.now(tz=timezone.utc).isoformat()
         existing = self.db.fetch_one(
-            "SELECT invoice_id FROM erp_invoices WHERE invoice_number=? AND tenant_id=?",
+            "SELECT id FROM erp_invoices WHERE invoice_number=? AND tenant_id=?",
             (inv_num, self.tenant_id),
         )
         clear_status = r.get("ClearingStatus", "")
         status = "paid" if clear_status == "C" else "sent"
         if not existing:
             iid = f"inv_{uuid.uuid4().hex}"
+            amount = float(r.get("InvoiceGrossAmount", 0) or 0)
+            inv_date = (r.get("PostingDate") or r.get("DocumentDate") or now)[:10]
             self.db.execute(
                 """INSERT INTO erp_invoices
-                   (invoice_id, tenant_id, invoice_number, vendor_id, status,
-                    amount, currency, due_date, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                   (id, tenant_id, invoice_number, vendor_id, status,
+                    amount, total_amount, currency, invoice_date, due_date,
+                    created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (iid, self.tenant_id, inv_num,
                  r.get("Supplier", ""),
                  status,
-                 float(r.get("InvoiceGrossAmount", 0) or 0),
+                 amount, amount,
                  r.get("DocumentCurrency", "USD"),
+                 inv_date,
                  r.get("PaymentDueDate", "")[:10] if r.get("PaymentDueDate") else None,
                  now, now),
             )
@@ -220,14 +223,14 @@ class SAPConnector(ConnectorBase):
         ext_id = r.get("BusinessPartner", "")
         now = datetime.now(tz=timezone.utc).isoformat()
         existing = self.db.fetch_one(
-            "SELECT vendor_id FROM erp_vendors WHERE vendor_code=? AND tenant_id=?",
+            "SELECT id FROM erp_vendors WHERE code=? AND tenant_id=?",
             (ext_id, self.tenant_id),
         )
         if not existing:
             vid = f"ven_{uuid.uuid4().hex}"
             self.db.execute(
                 """INSERT INTO erp_vendors
-                   (vendor_id, tenant_id, vendor_code, name, status,
+                   (id, tenant_id, code, name, status,
                     category, created_at, updated_at)
                    VALUES (?,?,?,?,'active','supplier',?,?)""",
                 (vid, self.tenant_id, ext_id,
@@ -254,23 +257,23 @@ class SAPConnector(ConnectorBase):
         plant = r.get("Plant", "")
         now = datetime.now(tz=timezone.utc).isoformat()
         existing = self.db.fetch_one(
-            "SELECT inventory_id FROM erp_inventory WHERE sku=? AND warehouse_id=? AND tenant_id=?",
+            "SELECT id FROM erp_inventory WHERE sku=? AND warehouse_id=? AND tenant_id=?",
             (sku, plant, self.tenant_id),
         )
         qty = float(r.get("MatlWrhsStkQtyInMatlBaseUnit", 0) or 0)
         if existing:
             self.db.execute(
-                "UPDATE erp_inventory SET quantity=?, updated_at=? WHERE inventory_id=?",
-                (qty, now, existing["inventory_id"]),
+                "UPDATE erp_inventory SET quantity=?, updated_at=? WHERE id=?",
+                (qty, now, existing["id"]),
             )
         else:
             iid = f"inv_{uuid.uuid4().hex}"
             self.db.execute(
                 """INSERT INTO erp_inventory
-                   (inventory_id, tenant_id, sku, name, warehouse_id,
-                    quantity, reserved_quantity, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,0,?,?)""",
-                (iid, self.tenant_id, sku, sku, plant, qty, now, now),
+                   (id, tenant_id, sku, name, warehouse_id,
+                    quantity, reserved, updated_at)
+                   VALUES (?,?,?,?,?,?,0,?)""",
+                (iid, self.tenant_id, sku, sku, plant, qty, now),
             )
 
     async def verify_webhook_signature(self, raw_body: bytes, headers: Dict) -> bool:

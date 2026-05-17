@@ -80,13 +80,12 @@ class AfterShipConnector(ConnectorBase):
         shipment_id = f"shp_{uuid.uuid4().hex}"
         now = datetime.now(tz=timezone.utc).isoformat()
         self.db.execute(
-            """INSERT OR IGNORE INTO erp_shipments
-               (shipment_id, tenant_id, carrier, tracking_number, status,
-                service_type, created_at, updated_at)
-               VALUES (?,?,?,?,?,?,?,?)""",
+            """INSERT OR IGNORE INTO shipments
+               (id, tenant_id, carrier, tracking_number, status,
+                created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?)""",
             (shipment_id, self.tenant_id, slug, tracking_number,
-             tracking.get("tag", "InfoReceived").lower(),
-             tracking.get("service_type_name", ""), now, now),
+             tracking.get("tag", "InfoReceived").lower(), now, now),
         )
         self._publish_event("shipment.created",
                             {"carrier": slug, "tracking_number": tracking_number,
@@ -156,14 +155,14 @@ class AfterShipConnector(ConnectorBase):
                 tag = t.get("tag", "")
                 mapped = self._map_tag(tag)
                 row = self.db.fetch_one(
-                    "SELECT shipment_id FROM erp_shipments "
+                    "SELECT id FROM shipments "
                     "WHERE tracking_number=? AND carrier=? AND tenant_id=?",
                     (tracking_number, slug, self.tenant_id),
                 )
                 if row:
                     self.db.execute(
-                        "UPDATE erp_shipments SET status=?, updated_at=? WHERE shipment_id=?",
-                        (mapped, now, row["shipment_id"]),
+                        "UPDATE shipments SET status=?, updated_at=? WHERE id=?",
+                        (mapped, now, row["id"]),
                     )
                     updated += 1
                     self._publish_event("shipment.tracking_updated",
@@ -178,7 +177,7 @@ class AfterShipConnector(ConnectorBase):
                                         headers: Dict) -> bool:
         secret = self.config.get("hmac_secret", "")
         if not secret:
-            return True
+            return False  # fail-closed: configure hmac_secret to enable AfterShip webhooks
         sig = headers.get("aftership-hmac-sha256", "")
         expected = hmac.new(
             secret.encode(), raw_body, hashlib.sha256
@@ -199,20 +198,20 @@ class AfterShipConnector(ConnectorBase):
 
         # Upsert
         row = self.db.fetch_one(
-            "SELECT shipment_id FROM erp_shipments "
+            "SELECT id FROM shipments "
             "WHERE tracking_number=? AND carrier=? AND tenant_id=?",
             (tracking_number, slug, self.tenant_id),
         )
         if row:
             self.db.execute(
-                "UPDATE erp_shipments SET status=?, updated_at=? WHERE shipment_id=?",
-                (mapped, now, row["shipment_id"]),
+                "UPDATE shipments SET status=?, updated_at=? WHERE id=?",
+                (mapped, now, row["id"]),
             )
         else:
             shp_id = f"shp_{uuid.uuid4().hex}"
             self.db.execute(
-                """INSERT INTO erp_shipments
-                   (shipment_id, tenant_id, carrier, tracking_number, status, created_at, updated_at)
+                """INSERT INTO shipments
+                   (id, tenant_id, carrier, tracking_number, status, created_at, updated_at)
                    VALUES (?,?,?,?,?,?,?)""",
                 (shp_id, self.tenant_id, slug, tracking_number, mapped, now, now),
             )

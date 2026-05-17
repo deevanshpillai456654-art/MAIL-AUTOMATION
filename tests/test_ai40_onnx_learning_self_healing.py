@@ -1,7 +1,9 @@
 from pathlib import Path
 
+from backend.auth.local_auth import get_local_token
 
-ADMIN_HEADERS = {"X-Intemo-Role": "admin"}
+
+ADMIN_HEADERS = {"X-Local-Token": get_local_token()}
 
 
 def test_onnx_control_plane_classifies_with_local_fallback(tmp_path):
@@ -382,7 +384,7 @@ def test_onnx_ai_backend_endpoints_expose_status_classify_and_learning(tmp_path,
     monkeypatch.setattr(ai_enterprise, "get_onnx_control_plane", lambda: plane)
     client = TestClient(app)
 
-    status = client.get("/api/v1/ai/onnx/status")
+    status = client.get("/api/v1/ai/onnx/status", headers=ADMIN_HEADERS)
     assert status.status_code == 200
     assert status.json()["status"] in {"ready", "degraded"}
 
@@ -394,6 +396,7 @@ def test_onnx_ai_backend_endpoints_expose_status_classify_and_learning(tmp_path,
             "actual_category": "Investor",
             "priority": "High",
         },
+        headers=ADMIN_HEADERS,
     )
     assert feedback.status_code == 200
     assert feedback.json()["status"] == "learned"
@@ -401,6 +404,7 @@ def test_onnx_ai_backend_endpoints_expose_status_classify_and_learning(tmp_path,
     classify = client.post(
         "/api/v1/ai/onnx/classify",
         json={"subject": "Monthly note", "sender_email": "founder@investor-mail.test", "body": "Hello"},
+        headers=ADMIN_HEADERS,
     )
     assert classify.status_code == 200
     assert classify.json()["category"] == "Investor"
@@ -425,8 +429,9 @@ def test_onnx_ai_backend_endpoints_list_and_forget_learning_overrides(tmp_path, 
             "actual_category": "Sales",
             "priority": "High",
         },
+        headers=ADMIN_HEADERS,
     )
-    listed = client.get("/api/v1/ai/learning/overrides")
+    listed = client.get("/api/v1/ai/learning/overrides", headers=ADMIN_HEADERS)
     forgotten = client.delete("/api/v1/ai/learning/overrides/sender%3Avip%40client.test", headers=ADMIN_HEADERS)
 
     assert feedback.status_code == 200
@@ -435,7 +440,7 @@ def test_onnx_ai_backend_endpoints_list_and_forget_learning_overrides(tmp_path, 
     assert listed.json()["items"][0]["key"] == "sender:vip@client.test"
     assert forgotten.status_code == 200
     assert forgotten.json()["status"] == "forgotten"
-    assert client.get("/api/v1/ai/learning/overrides").json()["total"] == 0
+    assert client.get("/api/v1/ai/learning/overrides", headers=ADMIN_HEADERS).json()["total"] == 0
 
 
 def test_onnx_ai_backend_endpoints_export_and_import_learning_memory(tmp_path, monkeypatch):
@@ -457,6 +462,7 @@ def test_onnx_ai_backend_endpoints_export_and_import_learning_memory(tmp_path, m
             "priority": "Medium",
             "scope": "domain",
         },
+        headers=ADMIN_HEADERS,
     )
     exported = client.get("/api/v1/ai/learning/export", headers=ADMIN_HEADERS)
     client.delete("/api/v1/ai/learning/overrides/domain%3Amarket.test", headers=ADMIN_HEADERS)
@@ -466,7 +472,7 @@ def test_onnx_ai_backend_endpoints_export_and_import_learning_memory(tmp_path, m
     assert exported.json()["overrides"]["domain:market.test"]["category"] == "Marketing"
     assert imported.status_code == 200
     assert imported.json()["imported_overrides"] == 1
-    assert client.get("/api/v1/ai/learning/overrides").json()["total"] == 1
+    assert client.get("/api/v1/ai/learning/overrides", headers=ADMIN_HEADERS).json()["total"] == 1
 
 
 def test_onnx_ai_backend_learning_admin_actions_require_admin_role(tmp_path, monkeypatch):
@@ -497,10 +503,10 @@ def test_onnx_ai_backend_learning_admin_actions_require_admin_role(tmp_path, mon
         },
     }
 
-    assert client.get("/api/v1/ai/learning/export").status_code == 403
-    assert client.post("/api/v1/ai/learning/import/preview", json=payload).status_code == 403
-    assert client.post("/api/v1/ai/learning/import", json=payload).status_code == 403
-    assert client.delete("/api/v1/ai/learning/overrides/sender%3Asensitive%40client.test").status_code == 403
+    assert client.get("/api/v1/ai/learning/export").status_code == 401
+    assert client.post("/api/v1/ai/learning/import/preview", json=payload).status_code == 401
+    assert client.post("/api/v1/ai/learning/import", json=payload).status_code == 401
+    assert client.delete("/api/v1/ai/learning/overrides/sender%3Asensitive%40client.test").status_code == 401
 
     assert client.get("/api/v1/ai/learning/export", headers=ADMIN_HEADERS).status_code == 200
     assert client.post("/api/v1/ai/learning/import/preview", json=payload, headers=ADMIN_HEADERS).status_code == 200
@@ -574,8 +580,9 @@ def test_onnx_ai_backend_endpoint_exposes_learning_events(tmp_path, monkeypatch)
             "actual_category": "Support",
             "priority": "High",
         },
+        headers=ADMIN_HEADERS,
     )
-    events = client.get("/api/v1/ai/learning/events")
+    events = client.get("/api/v1/ai/learning/events", headers=ADMIN_HEADERS)
 
     assert events.status_code == 200
     assert events.json()["total"] == 1
@@ -774,18 +781,18 @@ def test_onnx_ai_backend_model_admin_actions_require_admin_role(tmp_path, monkey
         "cases": [{"subject": "Support ticket", "expected_category": "Support"}],
     }
 
-    assert client.post("/api/v1/ai/onnx/evaluate", json=evaluation_body).status_code == 403
+    assert client.post("/api/v1/ai/onnx/evaluate", json=evaluation_body).status_code == 401
     assert plane.status()["active_model"] is None
     assert client.post("/api/v1/ai/onnx/evaluate", json=evaluation_body, headers=ADMIN_HEADERS).status_code == 200
     assert plane.status()["active_model"] == "support-classifier"
 
-    assert client.post("/api/v1/ai/self-healing/models/support-classifier/failure").status_code == 403
+    assert client.post("/api/v1/ai/self-healing/models/support-classifier/failure").status_code == 401
     assert plane.status()["active_model"] == "support-classifier"
     assert client.post(
         "/api/v1/ai/self-healing/models/support-classifier/failure",
         headers=ADMIN_HEADERS,
     ).status_code == 200
-    assert client.post("/api/v1/ai/self-healing/models/support-classifier/recover").status_code == 403
+    assert client.post("/api/v1/ai/self-healing/models/support-classifier/recover").status_code == 401
     assert client.post(
         "/api/v1/ai/self-healing/models/support-classifier/recover",
         headers=ADMIN_HEADERS,
@@ -810,9 +817,9 @@ def test_onnx_ai_backend_backup_restore_requires_admin_and_restores_state(tmp_pa
     monkeypatch.setattr(ai_enterprise, "get_onnx_control_plane", lambda: plane)
     client = TestClient(app)
 
-    assert client.get("/api/v1/ai/backups/status").status_code == 403
-    assert client.post("/api/v1/ai/backups/run").status_code == 403
-    assert client.post("/api/v1/ai/backups/schedule", json={"enabled": True}).status_code == 403
+    assert client.get("/api/v1/ai/backups/status").status_code == 401
+    assert client.post("/api/v1/ai/backups/run").status_code == 401
+    assert client.post("/api/v1/ai/backups/schedule", json={"enabled": True}).status_code == 401
 
     schedule = client.post(
         "/api/v1/ai/backups/schedule",
@@ -827,11 +834,12 @@ def test_onnx_ai_backend_backup_restore_requires_admin_and_restores_state(tmp_pa
     assert schedule.json()["schedule"]["interval_seconds"] == 120
     assert created.status_code == 200
     assert client.get("/api/v1/ai/backups/status", headers=ADMIN_HEADERS).json()["total_backups"] >= 1
-    assert client.post(f"/api/v1/ai/backups/{backup_id}/restore").status_code == 403
+    assert client.post(f"/api/v1/ai/backups/{backup_id}/restore").status_code == 401
     restored = client.post(f"/api/v1/ai/backups/{backup_id}/restore", headers=ADMIN_HEADERS)
     classified = client.post(
         "/api/v1/ai/onnx/classify",
         json={"subject": "Board deck", "sender_email": "board@investor.test", "body": "Investor update"},
+        headers=ADMIN_HEADERS,
     )
 
     assert restored.status_code == 200
@@ -866,8 +874,8 @@ def test_reports_include_learning_accuracy_and_model_health(tmp_path, monkeypatc
     monkeypatch.setattr(enterprise_reports, "get_onnx_control_plane", lambda: plane)
     client = TestClient(app)
 
-    report = client.get("/api/v1/reports/summary")
-    exported = client.get("/api/v1/reports/export.csv")
+    report = client.get("/api/v1/reports/summary", headers=ADMIN_HEADERS)
+    exported = client.get("/api/v1/reports/export.csv", headers=ADMIN_HEADERS)
 
     assert report.status_code == 200
     assert report.json()["learning"]["scam_false_positives"] == 1

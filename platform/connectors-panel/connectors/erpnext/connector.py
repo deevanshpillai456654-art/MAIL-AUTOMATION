@@ -140,7 +140,7 @@ class ERPNextConnector(ConnectorBase):
         ext_id = r.get("name", "")
         now = datetime.now(tz=timezone.utc).isoformat()
         if not self.db.fetch_one(
-            "SELECT contact_id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
+            "SELECT id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
             (ext_id, self.tenant_id),
         ):
             cid = f"cnt_{uuid.uuid4().hex}"
@@ -148,25 +148,26 @@ class ERPNextConnector(ConnectorBase):
             parts = name.split(" ", 1)
             self.db.execute(
                 """INSERT INTO crm_contacts
-                   (contact_id, tenant_id, first_name, last_name, email, phone,
-                    source, external_id, status, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,'erpnext',?,'active',?,?)""",
-                (cid, self.tenant_id, parts[0], parts[1] if len(parts) > 1 else "",
+                   (id, tenant_id, external_id, first_name, last_name, email, phone,
+                    source, status, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,'erpnext','active',?,?)""",
+                (cid, self.tenant_id, ext_id,
+                 parts[0], parts[1] if len(parts) > 1 else "",
                  r.get("email_id", ""), r.get("mobile_no", ""),
-                 ext_id, now, now),
+                 now, now),
             )
 
     def _upsert_vendor(self, r: Dict) -> None:
         ext_id = r.get("name", "")
         now = datetime.now(tz=timezone.utc).isoformat()
         if not self.db.fetch_one(
-            "SELECT vendor_id FROM erp_vendors WHERE vendor_code=? AND tenant_id=?",
+            "SELECT id FROM erp_vendors WHERE code=? AND tenant_id=?",
             (ext_id, self.tenant_id),
         ):
             vid = f"ven_{uuid.uuid4().hex}"
             self.db.execute(
                 """INSERT INTO erp_vendors
-                   (vendor_id, tenant_id, vendor_code, name, status,
+                   (id, tenant_id, code, name, status,
                     category, email, created_at, updated_at)
                    VALUES (?,?,?,?,'active','supplier',?,?,?)""",
                 (vid, self.tenant_id, ext_id,
@@ -183,17 +184,17 @@ class ERPNextConnector(ConnectorBase):
                   "Cancelled": "cancelled"}
         status = st_map.get(r.get("status", ""), "pending")
         if not self.db.fetch_one(
-            "SELECT po_id FROM erp_purchase_orders WHERE po_number=? AND tenant_id=?",
+            "SELECT id FROM erp_purchase_orders WHERE po_number=? AND tenant_id=?",
             (ext_id, self.tenant_id),
         ):
             pid = f"po_{uuid.uuid4().hex}"
             self.db.execute(
                 """INSERT INTO erp_purchase_orders
-                   (po_id, tenant_id, po_number, vendor_id, status,
-                    total_amount, currency, order_date, expected_delivery, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                (pid, self.tenant_id, ext_id, r.get("supplier",""),
-                 status, r.get("grand_total", 0), r.get("currency","USD"),
+                   (id, tenant_id, po_number, status,
+                    total_amount, currency, order_date, delivery_date, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (pid, self.tenant_id, ext_id,
+                 status, r.get("grand_total", 0), r.get("currency", "USD"),
                  r.get("transaction_date"), r.get("schedule_date"),
                  now, now),
             )
@@ -205,43 +206,45 @@ class ERPNextConnector(ConnectorBase):
                   "Overdue": "overdue", "Cancelled": "cancelled"}
         status = st_map.get(r.get("status", ""), "sent")
         if not self.db.fetch_one(
-            "SELECT invoice_id FROM erp_invoices WHERE invoice_number=? AND tenant_id=?",
+            "SELECT id FROM erp_invoices WHERE invoice_number=? AND tenant_id=?",
             (ext_id, self.tenant_id),
         ):
             iid = f"inv_{uuid.uuid4().hex}"
+            amount = r.get("grand_total", 0)
             self.db.execute(
                 """INSERT INTO erp_invoices
-                   (invoice_id, tenant_id, invoice_number, vendor_id,
-                    status, amount, currency, due_date, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                (iid, self.tenant_id, ext_id, r.get("supplier",""),
-                 status, r.get("grand_total",0), r.get("currency","USD"),
+                   (id, tenant_id, invoice_number, status, amount, total_amount,
+                    currency, invoice_date, due_date, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                (iid, self.tenant_id, ext_id,
+                 status, amount, amount,
+                 r.get("currency", "USD"),
+                 r.get("posting_date", now[:10]),
                  r.get("due_date"), now, now),
             )
 
     def _upsert_inventory(self, r: Dict) -> None:
         sku = r.get("item_code", "")
-        wh = r.get("warehouse", "")
         now = datetime.now(tz=timezone.utc).isoformat()
         existing = self.db.fetch_one(
-            "SELECT inventory_id FROM erp_inventory WHERE sku=? AND warehouse_id=? AND tenant_id=?",
-            (sku, wh, self.tenant_id),
+            "SELECT id FROM erp_inventory WHERE sku=? AND tenant_id=?",
+            (sku, self.tenant_id),
         )
         if existing:
             self.db.execute(
-                "UPDATE erp_inventory SET quantity=?, reorder_point=?, updated_at=? WHERE inventory_id=?",
-                (r.get("actual_qty",0), r.get("reorder_level",0), now, existing["inventory_id"]),
+                "UPDATE erp_inventory SET quantity=?, reserved=?, reorder_level=?, updated_at=? WHERE id=?",
+                (r.get("actual_qty", 0), r.get("reserved_qty", 0),
+                 r.get("reorder_level", 0), now, existing["id"]),
             )
         else:
             iid = f"inv_{uuid.uuid4().hex}"
             self.db.execute(
                 """INSERT INTO erp_inventory
-                   (inventory_id, tenant_id, sku, name, warehouse_id,
-                    quantity, reserved_quantity, reorder_point, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                (iid, self.tenant_id, sku, sku, wh,
-                 r.get("actual_qty",0), r.get("reserved_qty",0),
-                 r.get("reorder_level",0), now, now),
+                   (id, tenant_id, sku, name, quantity, reserved, reorder_level, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (iid, self.tenant_id, sku, sku,
+                 r.get("actual_qty", 0), r.get("reserved_qty", 0),
+                 r.get("reorder_level", 0), now),
             )
 
     async def verify_webhook_signature(self, raw_body: bytes, headers: Dict) -> bool:

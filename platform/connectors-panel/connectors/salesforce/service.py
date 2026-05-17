@@ -96,7 +96,7 @@ class SalesforceAPI:
         if since:
             where = f"WHERE LastModifiedDate >= {since.strftime('%Y-%m-%dT%H:%M:%SZ')}"
         soql = (
-            f"SELECT Id,FirstName,LastName,Email,Phone,Account.Name,"
+            f"SELECT Id,FirstName,LastName,Email,Phone,Account.Name,"  # nosec B608
             f"Title,Department,LeadSource,LastModifiedDate "
             f"FROM Contact {where} ORDER BY LastModifiedDate DESC LIMIT 1000"
         )
@@ -109,7 +109,7 @@ class SalesforceAPI:
         if since:
             where = f"WHERE LastModifiedDate >= {since.strftime('%Y-%m-%dT%H:%M:%SZ')}"
         soql = (
-            f"SELECT Id,FirstName,LastName,Email,Phone,Company,Status,"
+            f"SELECT Id,FirstName,LastName,Email,Phone,Company,Status,"  # nosec B608
             f"LeadSource,Rating,LastModifiedDate "
             f"FROM Lead {where} ORDER BY LastModifiedDate DESC LIMIT 1000"
         )
@@ -122,7 +122,7 @@ class SalesforceAPI:
         if since:
             where = f"WHERE LastModifiedDate >= {since.strftime('%Y-%m-%dT%H:%M:%SZ')}"
         soql = (
-            f"SELECT Id,Name,AccountId,Amount,CloseDate,StageName,"
+            f"SELECT Id,Name,AccountId,Amount,CloseDate,StageName,"  # nosec B608
             f"Probability,LeadSource,LastModifiedDate "
             f"FROM Opportunity {where} ORDER BY LastModifiedDate DESC LIMIT 1000"
         )
@@ -135,7 +135,7 @@ class SalesforceAPI:
         if since:
             where = f"WHERE LastModifiedDate >= {since.strftime('%Y-%m-%dT%H:%M:%SZ')}"
         soql = (
-            f"SELECT Id,Name,Website,Industry,AnnualRevenue,"
+            f"SELECT Id,Name,Website,Industry,AnnualRevenue,"  # nosec B608
             f"NumberOfEmployees,Phone,LastModifiedDate "
             f"FROM Account {where} ORDER BY LastModifiedDate DESC LIMIT 1000"
         )
@@ -173,7 +173,7 @@ class SalesforceAPI:
                 headers={**SalesforceAPI._auth_headers(access_token), "Content-Type": "application/json"},
                 json={
                     "Name": topic.replace("/", "_"),
-                    "Query": f"SELECT Id FROM {topic.split('/')[-1]}",
+                    "Query": f"SELECT Id FROM {topic.split('/')[-1]}",  # nosec B608
                     "ApiVersion": 58.0,
                     "NotifyForOperationCreate": True,
                     "NotifyForOperationUpdate": True,

@@ -726,9 +726,12 @@ class OnnxAIControlPlane:
             return manifest
 
     def restore_ai_state_backup(self, backup_id: str) -> Dict[str, Any]:
+        import re as _re
         backup_id = str(backup_id or "").strip()
         if not backup_id:
             return {"status": "ignored", "reason": "backup_id_required"}
+        if not _re.match(r'^[a-zA-Z0-9_\-]+$', backup_id):
+            return {"status": "error", "reason": "invalid_backup_id_format"}
         with self._lock:
             backup = self._find_ai_state_backup(backup_id)
             if not backup:

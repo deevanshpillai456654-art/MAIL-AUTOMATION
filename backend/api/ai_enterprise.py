@@ -24,6 +24,7 @@ from backend.ai.local_first import (
     get_vector_db,
 )
 from backend.ai.onnx_control_plane import get_onnx_control_plane
+from backend.auth.local_auth import request_has_valid_local_auth
 from backend.runtime_version import APP_VERSION, DISPLAY_VERSION, VERSION_INFO
 
 router = APIRouter()
@@ -37,29 +38,12 @@ def _model_to_dict(model: BaseModel) -> Dict[str, Any]:
 
 
 def _request_has_ai_admin(request: Request, permission: str) -> bool:
-    role_values = {
-        request.headers.get("x-intemo-role", ""),
-        request.headers.get("x-user-role", ""),
-        request.headers.get("x-assistant-mode", ""),
-        request.query_params.get("role", ""),
-        request.query_params.get("mode", ""),
-    }
-    normalized_roles = {str(value).strip().lower() for value in role_values if value}
-    if normalized_roles & {"admin", "owner", "super_admin", "super-admin"}:
-        return True
-
-    raw_permissions = request.headers.get("x-intemo-permissions", "")
-    permissions = {
-        item.strip().lower()
-        for item in raw_permissions.replace(";", ",").split(",")
-        if item.strip()
-    }
-    return bool(permissions & {"ai:admin", permission.lower()})
+    return request_has_valid_local_auth(request)
 
 
 def _require_ai_admin(request: Request, permission: str) -> None:
     if not _request_has_ai_admin(request, permission):
-        raise HTTPException(status_code=403, detail=f"Admin permission required: {permission}")
+        raise HTTPException(status_code=401, detail="Authentication required")
 
 
 class InferRequest(BaseModel):

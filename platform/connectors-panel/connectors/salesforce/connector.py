@@ -104,9 +104,10 @@ class SalesforceConnector(ConnectorBase):
         )
         # Store instance_url in config
         self.config["instance_url"] = data.get("instance_url", "")
+        from ...shared.utils import encrypt_config
         self.db.execute(
             "UPDATE connectors SET config_json=? WHERE id=?",
-            (json.dumps(self.config), self.instance_id),
+            (encrypt_config(self.config), self.instance_id),
         )
         return data
 
@@ -169,7 +170,7 @@ class SalesforceConnector(ConnectorBase):
         import uuid as _uuid
         for rec in records:
             existing = self.db.fetch_one(
-                "SELECT contact_id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
+                "SELECT id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
                 (rec["Id"], self.tenant_id),
             )
             now = datetime.now(tz=timezone.utc).isoformat()
@@ -178,17 +179,17 @@ class SalesforceConnector(ConnectorBase):
                     """UPDATE crm_contacts SET
                        first_name=?, last_name=?, email=?, phone=?,
                        company=?, job_title=?, updated_at=?
-                       WHERE contact_id=?""",
+                       WHERE id=?""",
                     (rec.get("FirstName", ""), rec.get("LastName", ""),
                      rec.get("Email", ""), rec.get("Phone", ""),
                      (rec.get("Account") or {}).get("Name", ""),
-                     rec.get("Title", ""), now, existing["contact_id"]),
+                     rec.get("Title", ""), now, existing["id"]),
                 )
             else:
                 cid = f"cnt_{_uuid.uuid4().hex}"
                 self.db.execute(
                     """INSERT INTO crm_contacts
-                       (contact_id, tenant_id, first_name, last_name, email, phone,
+                       (id, tenant_id, first_name, last_name, email, phone,
                         company, job_title, source, external_id, status, created_at, updated_at)
                        VALUES (?,?,?,?,?,?,?,?,'salesforce',?,?,?,?)""",
                     (cid, self.tenant_id,
@@ -202,7 +203,7 @@ class SalesforceConnector(ConnectorBase):
         import uuid as _uuid
         for rec in records:
             existing = self.db.fetch_one(
-                "SELECT lead_id FROM crm_leads WHERE external_id=? AND tenant_id=?",
+                "SELECT id FROM crm_leads WHERE external_id=? AND tenant_id=?",
                 (rec["Id"], self.tenant_id),
             )
             now = datetime.now(tz=timezone.utc).isoformat()
@@ -211,20 +212,19 @@ class SalesforceConnector(ConnectorBase):
             status = status_map.get(rec.get("Status", ""), "new")
             if existing:
                 self.db.execute(
-                    "UPDATE crm_leads SET status=?, updated_at=? WHERE lead_id=?",
-                    (status, now, existing["lead_id"]),
+                    "UPDATE crm_leads SET status=?, updated_at=? WHERE id=?",
+                    (status, now, existing["id"]),
                 )
             else:
                 lid = f"ld_{_uuid.uuid4().hex}"
                 self.db.execute(
                     """INSERT INTO crm_leads
-                       (lead_id, tenant_id, title, contact_name, email, source,
+                       (id, tenant_id, title, source,
                         status, score, external_id, created_at, updated_at)
-                       VALUES (?,?,?,?,?,'salesforce',?,50,?,?,?)""",
+                       VALUES (?,?,?,'salesforce',?,50,?,?,?)""",
                     (lid, self.tenant_id,
                      f"{rec.get('FirstName','')} {rec.get('LastName','')}".strip(),
-                     f"{rec.get('FirstName','')} {rec.get('LastName','')}".strip(),
-                     rec.get("Email", ""), status, rec["Id"], now, now),
+                     status, rec["Id"], now, now),
                 )
 
     def _upsert_crm_opportunities(self, records: List[Dict]) -> None:
@@ -238,7 +238,7 @@ class SalesforceConnector(ConnectorBase):
         }
         for rec in records:
             existing = self.db.fetch_one(
-                "SELECT opportunity_id FROM crm_opportunities WHERE external_id=? AND tenant_id=?",
+                "SELECT id FROM crm_opportunities WHERE external_id=? AND tenant_id=?",
                 (rec["Id"], self.tenant_id),
             )
             now = datetime.now(tz=timezone.utc).isoformat()
@@ -247,20 +247,21 @@ class SalesforceConnector(ConnectorBase):
                 self.db.execute(
                     """UPDATE crm_opportunities SET
                        stage=?, value=?, probability=?, updated_at=?
-                       WHERE opportunity_id=?""",
-                    (stage, rec.get("Amount"), rec.get("Probability"), now,
-                     existing["opportunity_id"]),
+                       WHERE id=?""",
+                    (stage, float(rec.get("Amount") or 0),
+                     int(rec.get("Probability") or 0), now, existing["id"]),
                 )
             else:
                 oid = f"opp_{_uuid.uuid4().hex}"
                 close = rec.get("CloseDate", "")
                 self.db.execute(
                     """INSERT INTO crm_opportunities
-                       (opportunity_id, tenant_id, title, stage, value, probability,
+                       (id, tenant_id, title, stage, value, probability,
                         close_date, external_id, created_at, updated_at)
                        VALUES (?,?,?,?,?,?,?,?,?,?)""",
                     (oid, self.tenant_id, rec.get("Name", ""),
-                     stage, rec.get("Amount"), rec.get("Probability"),
+                     stage, float(rec.get("Amount") or 0),
+                     int(rec.get("Probability") or 0),
                      close or None, rec["Id"], now, now),
                 )
 
@@ -268,7 +269,7 @@ class SalesforceConnector(ConnectorBase):
                                        headers: Dict[str, str]) -> bool:
         secret = self.config.get("webhook_secret", "")
         if not secret:
-            return True
+            return False  # fail-closed: no secret means no verified webhooks
         sig = headers.get("X-Salesforce-Signature", "")
         expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, sig)

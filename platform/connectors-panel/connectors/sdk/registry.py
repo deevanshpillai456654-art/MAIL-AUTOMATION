@@ -92,11 +92,8 @@ class ConnectorRegistry:
         return self._classes.get(connector_id)
 
     def _load_config(self, row: dict) -> dict:
-        import json
-        try:
-            return json.loads(row.get("config_json", "{}"))
-        except Exception:
-            return {}
+        from ...shared.utils import decrypt_config
+        return decrypt_config(row.get("config_json", "") or "")
 
     def instantiate(self, instance_id: str, connector_id: str,
                     tenant_id: str, config: dict) -> Optional[ConnectorBase]:
@@ -118,16 +115,16 @@ class ConnectorRegistry:
         manifest = cls.MANIFEST
         instance_id = f"con_{uuid.uuid4().hex}"
         now = _utc()
-        import json
+        from ...shared.utils import encrypt_config
         self._db.execute(
             """INSERT INTO connectors
-               (id, tenant_id, name, category, status, version,
+               (id, tenant_id, manifest_id, name, category, status, version,
                 config_json, is_active, installed_at, last_heartbeat,
                 health_score, failure_count, retry_count)
-               VALUES (?,?,?,?,'active',?,?,1,?,?,1.0,0,0)""",
-            (instance_id, tenant_id, name or manifest.name,
-             manifest.category, manifest.version,
-             json.dumps(config), now, now),
+               VALUES (?,?,?,?,?,'active',?,?,1,?,?,1.0,0,0)""",
+            (instance_id, tenant_id, connector_id,
+             name or manifest.name, manifest.category, manifest.version,
+             encrypt_config(config), now, now),
         )
         connector = cls(instance_id=instance_id, tenant_id=tenant_id,
                         config=config, db=self._db)
@@ -135,19 +132,30 @@ class ConnectorRegistry:
         log.info("Installed connector %s (%s) for tenant %s", connector_id, instance_id, tenant_id)
         return instance_id
 
-    async def uninstall(self, instance_id: str) -> None:
-        row = self._db.fetch_one("SELECT * FROM connectors WHERE id=?", (instance_id,))
+    async def uninstall(self, instance_id: str, tenant_id: Optional[str] = None) -> None:
+        if tenant_id:
+            row = self._db.fetch_one(
+                "SELECT * FROM connectors WHERE id=? AND tenant_id=?",
+                (instance_id, tenant_id),
+            )
+        else:
+            row = self._db.fetch_one("SELECT * FROM connectors WHERE id=?", (instance_id,))
         if not row:
             return
-        import json
-        config = json.loads(row.get("config_json") or "{}")
-        connector_id = row.get("category", "")  # fallback; ideally store connector_id
-        cls = self._find_class_by_instance(instance_id)
+        config = self._load_config(row)
+        connector_id = row.get("manifest_id") or row.get("category", "")
+        cls = self._classes.get(connector_id) or self._find_class_by_instance(instance_id)
         if cls:
             c = cls(instance_id=instance_id, tenant_id=row["tenant_id"],
                     config=config, db=self._db)
             await c.on_uninstall()
-        self._db.execute("DELETE FROM connectors WHERE id=?", (instance_id,))
+        if tenant_id:
+            self._db.execute(
+                "DELETE FROM connectors WHERE id=? AND tenant_id=?",
+                (instance_id, tenant_id),
+            )
+        else:
+            self._db.execute("DELETE FROM connectors WHERE id=?", (instance_id,))
         log.info("Uninstalled connector instance %s", instance_id)
 
     def _find_class_by_instance(self, instance_id: str) -> Optional[Type[ConnectorBase]]:

@@ -49,13 +49,43 @@
     return true;
   }
 
+  const MESSAGE_SCHEMAS = {
+    AIO_CLASSIFY_EMAIL:     ['subject', 'sender', 'senderEmail', 'body'],
+    AIO_SEND_FEEDBACK:      ['emailId', 'category', 'correct'],
+    AIO_GET_STATUS:         [],
+    AIO_GET_PROVIDERS:      [],
+    AIO_OPEN_DASHBOARD:     ['tab'],
+    AIO_RUNTIME_TELEMETRY:  ['event', 'data'],
+    AIO_GET_THREAT_STATS:   [],
+    AIO_GET_RECENT_THREATS: ['limit'],
+    AIO_ANALYZE_DOMAIN:     ['domain'],
+    AIO_REPORT_SCAM:        ['emailId', 'senderEmail'],
+    AIO_MARK_SAFE:          ['emailId'],
+    AIO_BLACKLIST_SENDER:   ['senderEmail'],
+    AIO_WHITELIST_SENDER:   ['senderEmail'],
+    AIO_SHOW_NOTIFICATION:  ['title', 'message'],
+    AIO_UPDATE_BADGE:       ['count', 'color'],
+    AIO_GET_SETTINGS:       [],
+    AIO_SAVE_SETTINGS:      ['autoClassify', 'notifications', 'syncInterval']
+  };
+
+  function validatePayloadSchema(type, payload) {
+    const allowedFields = MESSAGE_SCHEMAS[type];
+    if (!allowedFields) return false;
+    const payloadKeys = Object.keys(payload || {});
+    for (const key of payloadKeys) {
+      if (!allowedFields.includes(key)) return false;
+    }
+    return true;
+  }
+
   function validateMessage(message) {
     const msg = safeJson(message);
     if (!allowedMessageTypes.has(msg.type)) return { ok: false, reason: 'unsupported_message_type' };
     if (!msg.nonce || !rememberNonce(String(msg.nonce))) return { ok: false, reason: 'nonce_replay_or_missing' };
     if (payloadBytes(msg.payload) > MAX_PAYLOAD_BYTES) return { ok: false, reason: 'payload_too_large' };
-    if (/token|password|secret|credential/i.test(JSON.stringify(msg.payload || {}))) {
-      return { ok: false, reason: 'plaintext_secret_blocked' };
+    if (!validatePayloadSchema(msg.type, msg.payload)) {
+      return { ok: false, reason: 'payload_schema_violation' };
     }
     return { ok: true, message: msg };
   }

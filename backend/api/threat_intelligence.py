@@ -332,7 +332,7 @@ async def get_threat_feed(
             where = "WHERE " + " AND ".join(where_parts)
 
             rows = conn.execute(
-                f"SELECT id, detected_domain, impersonated_brand, impersonated_domain, "
+                f"SELECT id, detected_domain, impersonated_brand, impersonated_domain, "  # nosec B608
                 f"threat_type, confidence_score, reasons, sender_email, email_subject, "
                 f"status, created_at FROM threat_lookalike_alerts {where} "
                 f"ORDER BY created_at DESC LIMIT ? OFFSET ?",
@@ -376,7 +376,7 @@ async def list_blacklist(
         where = "WHERE " + " AND ".join(where_parts)
 
         rows = conn.execute(
-            f"SELECT id, entry_type, value, reason, threat_type, score, auto_block, "
+            f"SELECT id, entry_type, value, reason, threat_type, score, auto_block, "  # nosec B608
             f"created_at, updated_at FROM threat_blacklist {where} "
             f"ORDER BY created_at DESC LIMIT ? OFFSET ?",
             params + [limit, offset],
@@ -521,7 +521,7 @@ async def get_audit_log(
         where = "WHERE " + " AND ".join(where_parts)
 
         rows = conn.execute(
-            f"SELECT id, action, target_type, target_value, detail, performed_by, created_at "
+            f"SELECT id, action, target_type, target_value, detail, performed_by, created_at "  # nosec B608
             f"FROM threat_audit_log {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
             params + [limit, offset],
         ).fetchall()
@@ -593,7 +593,7 @@ async def get_all_emails(
             where = "WHERE " + " AND ".join(where_parts)
 
             rows = conn.execute(
-                f"SELECT id, subject, sender, sender_email, category, confidence, "
+                f"SELECT id, subject, sender, sender_email, category, confidence, "  # nosec B608
                 f"metadata, created_at, account_id "
                 f"FROM emails {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
                 params + [limit, offset],
@@ -612,7 +612,7 @@ async def get_all_emails(
             } for r in rows]
 
             total = conn.execute(
-                f"SELECT COUNT(*) FROM emails {where}", params
+                f"SELECT COUNT(*) FROM emails {where}", params  # nosec B608
             ).fetchone()[0]
 
             return {"ok": True, "emails": items, "total": total}
@@ -737,7 +737,7 @@ async def get_lookalike_monitor(
         where = "WHERE " + " AND ".join(where_parts)
 
         rows = conn.execute(
-            f"SELECT id, detected_domain, impersonated_brand, impersonated_domain, "
+            f"SELECT id, detected_domain, impersonated_brand, impersonated_domain, "  # nosec B608
             f"threat_type, confidence_score, reasons, sender_email, email_subject, "
             f"status, created_at FROM threat_lookalike_alerts {where} "
             f"ORDER BY confidence_score DESC, created_at DESC LIMIT ?",

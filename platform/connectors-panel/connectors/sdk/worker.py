@@ -51,8 +51,13 @@ class ConnectorWorker:
 
     def start(self) -> None:
         if not self._running:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                log.warning("ConnectorWorker start skipped: no running asyncio loop")
+                return
             self._running = True
-            self._task = asyncio.create_task(self._loop(), name="connector-worker")
+            self._task = loop.create_task(self._loop(), name="connector-worker")
             log.info("ConnectorWorker started")
 
     def stop(self) -> None:
@@ -108,16 +113,18 @@ class ConnectorWorker:
                 if not row:
                     raise ValueError(f"Connector instance {connector_id_installed} not found")
 
-                # Find connector class by name match
-                cls = self._registry._find_class_by_instance(connector_id_installed)
+                # Resolve connector class: manifest_id > name match > payload hint
+                cls = self._registry.get_class(row.get("manifest_id", ""))
                 if not cls:
-                    # Try by connector_id field if present in payload
+                    cls = self._registry._find_class_by_instance(connector_id_installed)
+                if not cls:
                     cid = payload.get("connector_id", "")
                     cls = self._registry.get_class(cid)
                 if not cls:
                     raise ValueError(f"No connector class for {connector_id_installed}")
 
-                config = json.loads(row.get("config_json") or "{}")
+                from ...shared.utils import decrypt_config
+                config = decrypt_config(row.get("config_json") or "")
                 connector = cls(
                     instance_id=connector_id_installed,
                     tenant_id=tenant_id,
@@ -156,7 +163,7 @@ class ConnectorWorker:
                 log.error("Job %s failed: %s", job_id, exc)
                 attempts = job.get("attempts", 0) + 1
                 max_attempts = job.get("max_attempts", 3)
-                new_status = "dead_letter" if attempts >= max_attempts else "failed"
+                new_status = "dead" if attempts >= max_attempts else "failed"
                 self._db.execute(
                     """UPDATE queue_jobs
                        SET status=?, attempts=?, error=?, updated_at=?

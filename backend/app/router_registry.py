@@ -28,6 +28,7 @@ from backend.api.routes import router as core_router
 from backend.api.rules import router as rules_router
 from backend.api.scheduler import router as scheduler_router
 from backend.api.security import router as security_router
+from backend.api.session import router as session_router
 from backend.api.system import router as system_router
 from backend.api.threat_intelligence import router as threat_intelligence_router
 from backend.api.ws_alerts import router as ws_alerts_router
@@ -52,6 +53,7 @@ API_ROUTER_SPECS: tuple[RouterSpec, ...] = (
     RouterSpec("rules", rules_router),
     RouterSpec("export", export_router),
     RouterSpec("health", health_router),
+    RouterSpec("session", session_router),
     RouterSpec("scheduler", scheduler_router),
     RouterSpec("port", port_router),
     RouterSpec("connection", connection_router),

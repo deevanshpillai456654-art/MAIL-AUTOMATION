@@ -158,23 +158,23 @@ class HubSpotConnector(ConnectorBase):
         ext_id = r["id"]
         now = datetime.now(tz=timezone.utc).isoformat()
         existing = self.db.fetch_one(
-            "SELECT contact_id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
+            "SELECT id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
             (ext_id, self.tenant_id),
         )
         if existing:
             self.db.execute(
                 """UPDATE crm_contacts SET
                    first_name=?, last_name=?, email=?, company=?, job_title=?, updated_at=?
-                   WHERE contact_id=?""",
+                   WHERE id=?""",
                 (props.get("firstname", ""), props.get("lastname", ""),
                  props.get("email", ""), props.get("company", ""),
-                 props.get("jobtitle", ""), now, existing["contact_id"]),
+                 props.get("jobtitle", ""), now, existing["id"]),
             )
         else:
             cid = f"cnt_{uuid.uuid4().hex}"
             self.db.execute(
                 """INSERT INTO crm_contacts
-                   (contact_id, tenant_id, first_name, last_name, email, company, job_title,
+                   (id, tenant_id, first_name, last_name, email, company, job_title,
                     source, external_id, status, created_at, updated_at)
                    VALUES (?,?,?,?,?,?,?,'hubspot',?,'active',?,?)""",
                 (cid, self.tenant_id,
@@ -198,23 +198,23 @@ class HubSpotConnector(ConnectorBase):
         }
         stage = stage_map.get(props.get("dealstage", "").lower(), "prospecting")
         existing = self.db.fetch_one(
-            "SELECT opportunity_id FROM crm_opportunities WHERE external_id=? AND tenant_id=?",
+            "SELECT id FROM crm_opportunities WHERE external_id=? AND tenant_id=?",
             (ext_id, self.tenant_id),
         )
         if existing:
             self.db.execute(
-                "UPDATE crm_opportunities SET stage=?, value=?, updated_at=? WHERE opportunity_id=?",
-                (stage, props.get("amount"), now, existing["opportunity_id"]),
+                "UPDATE crm_opportunities SET stage=?, value=?, updated_at=? WHERE id=?",
+                (stage, float(props.get("amount") or 0), now, existing["id"]),
             )
         else:
             oid = f"opp_{uuid.uuid4().hex}"
             self.db.execute(
                 """INSERT INTO crm_opportunities
-                   (opportunity_id, tenant_id, title, stage, value, close_date,
+                   (id, tenant_id, title, stage, value, close_date,
                     external_id, created_at, updated_at)
                    VALUES (?,?,?,?,?,?,?,?,?)""",
                 (oid, self.tenant_id, props.get("dealname", ""),
-                 stage, props.get("amount"),
+                 stage, float(props.get("amount") or 0),
                  props.get("closedate", "")[:10] if props.get("closedate") else None,
                  ext_id, now, now),
             )
@@ -223,7 +223,7 @@ class HubSpotConnector(ConnectorBase):
                                        headers: Dict[str, str]) -> bool:
         secret = self.config.get("webhook_secret", "")
         if not secret:
-            return True
+            return False  # fail-closed: configure webhook_secret to enable HubSpot webhooks
         sig = headers.get("X-HubSpot-Signature", "")
         return HubSpotAPI.verify_webhook(secret, raw_body, sig)
 

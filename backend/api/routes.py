@@ -4,7 +4,7 @@ from pathlib import Path
 
 # Add parent directory to path
 
-from fastapi import APIRouter, HTTPException, Request, BackgroundTasks, Body
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, Body
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator, AliasChoices, ConfigDict
 from typing import Optional, List, Dict, Union, Any
@@ -19,6 +19,7 @@ from html import escape
 
 from backend.ai.classifier import EmailClassifier
 from backend.db.database import Database
+from backend.auth.local_auth import require_local_auth
 from backend.auth.gmail_auth import GmailOAuth
 from backend.auth.outlook_auth import OutlookOAuth
 from backend.auth.universal_oauth import UniversalOAuth
@@ -211,7 +212,7 @@ def callback_url(request: Request, provider: str) -> str:
 
 def ensure_local_request(request: Request):
     client_host = request.client.host if request.client else "127.0.0.1"
-    if client_host not in ("127.0.0.1", "::1", "localhost", "testclient"):
+    if client_host not in ("127.0.0.1", "::1", "localhost"):
         raise HTTPException(status_code=403, detail="OAuth callbacks are only accepted from localhost")
 
 
@@ -1517,17 +1518,20 @@ async def get_emails(limit: int = 50, category: str = None, folder: str = None, 
 
 
 @router.get("/attachments/{attachment_id}/download")
-async def download_attachment(attachment_id: str):
+async def download_attachment(attachment_id: str, _auth=Depends(require_local_auth)):
     meta = attachment_storage.get_metadata(attachment_id)
     if not meta:
         raise HTTPException(status_code=404, detail="Attachment not found")
     data = attachment_storage.retrieve(attachment_id)
     if data is None:
         raise HTTPException(status_code=404, detail="Attachment data not found")
-    filename = meta.filename or "attachment"
-    quoted = quote(filename)
-    headers = {"Content-Disposition": f'attachment; filename="{filename}"; filename*=UTF-8\'\'{quoted}'}
-    return StreamingResponse(iter([data]), media_type=meta.content_type or "application/octet-stream", headers=headers)
+    # Strip CRLF and quotes from filename to prevent HTTP header injection
+    raw_name = (meta.filename or "attachment").replace("\r", "").replace("\n", "").replace('"', "")
+    quoted = quote(raw_name)
+    # Use only RFC 5987 encoded form; omit bare filename="" to avoid injection vectors
+    headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quoted}"}
+    content_type = (meta.content_type or "application/octet-stream").replace("\r", "").replace("\n", "")
+    return StreamingResponse(iter([data]), media_type=content_type, headers=headers)
 
 
 @router.delete("/emails")

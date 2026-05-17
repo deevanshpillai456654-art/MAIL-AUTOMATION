@@ -23,6 +23,11 @@ def create_lifespan(project_root: Path, logger: logging.Logger | None = None):
 
         app_logger.info("Starting AI Email Organizer on %s:%s", config.API_HOST, config.API_PORT)
         os.makedirs(os.path.dirname(config.DB_PATH), exist_ok=True)
+        try:
+            from backend.auth.local_auth import get_local_token
+            get_local_token()
+        except Exception as e:
+            app_logger.warning("Local API token bootstrap failed: %s", e)
 
         try:
             from backend.core.offline_first_run import initialize_offline_first_run

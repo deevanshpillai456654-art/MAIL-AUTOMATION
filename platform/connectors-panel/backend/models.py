@@ -34,6 +34,9 @@ class ConnectorCategory(str, Enum):
     ECOMMERCE = "ecommerce"
     WEBHOOK = "webhook"
     INTERNAL = "internal"
+    ACCOUNTING = "accounting"
+    SUPPORT = "support"
+    SHIPPING = "shipping"
 
 
 class PluginPermissionLevel(str, Enum):

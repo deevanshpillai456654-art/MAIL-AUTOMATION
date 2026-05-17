@@ -65,15 +65,9 @@ def _require_job(job_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @router.get("/stats", response_model=list[QueueStats], summary="Get queue stats")
-async def get_queue_stats(tenant_id: Optional[str] = Query(None)):
+async def get_queue_stats(tenant_id: str = Query(...)):
     db = get_panel_db()
-
-    if tenant_id:
-        tenant_ids = [tenant_id]
-    else:
-        rows = db.fetch_all("SELECT DISTINCT tenant_id FROM queue_jobs", ())
-        tenant_ids = [r["tenant_id"] for r in rows]
-
+    tenant_ids = [tenant_id]
     stats: list[QueueStats] = []
     for tid in tenant_ids:
         row = db.fetch_one(
@@ -105,7 +99,7 @@ async def get_queue_stats(tenant_id: Optional[str] = Query(None)):
 
 @router.get("/jobs", response_model=list[QueueJob], summary="List queue jobs")
 async def list_jobs(
-    tenant_id: Optional[str] = Query(None),
+    tenant_id: str = Query(...),
     connector_id: Optional[str] = Query(None),
     job_status: Optional[str] = Query(None, alias="status"),
     job_type: Optional[str] = Query(None),
@@ -113,12 +107,9 @@ async def list_jobs(
     offset: int = Query(0, ge=0),
 ):
     db = get_panel_db()
-    sql = "SELECT * FROM queue_jobs WHERE 1=1"
-    params: list[Any] = []
+    sql = "SELECT * FROM queue_jobs WHERE tenant_id = ?"
+    params: list[Any] = [tenant_id]
 
-    if tenant_id:
-        sql += " AND tenant_id = ?"
-        params.append(tenant_id)
     if connector_id:
         sql += " AND connector_id = ?"
         params.append(connector_id)
@@ -138,15 +129,12 @@ async def list_jobs(
 
 @router.get("/dead-letters", response_model=list[QueueJob], summary="List dead-letter queue items")
 async def list_dead_letters(
-    tenant_id: Optional[str] = Query(None),
+    tenant_id: str = Query(...),
     limit: int = Query(50, ge=1, le=500),
 ):
     db = get_panel_db()
-    sql = "SELECT * FROM queue_jobs WHERE status = 'dead'"
-    params: list[Any] = []
-    if tenant_id:
-        sql += " AND tenant_id = ?"
-        params.append(tenant_id)
+    sql = "SELECT * FROM queue_jobs WHERE status = 'dead' AND tenant_id = ?"
+    params: list[Any] = [tenant_id]
     sql += " ORDER BY updated_at DESC LIMIT ?"
     params.append(limit)
     rows = db.fetch_all(sql, params)
@@ -184,13 +172,18 @@ async def clear_dead_letters(tenant_id: str = Query(...)):
 
 
 @router.get("/jobs/{job_id}", response_model=QueueJob, summary="Get job details")
-async def get_job(job_id: str):
-    return _row_to_job(_require_job(job_id))
+async def get_job(job_id: str, tenant_id: str = Query(...)):
+    row = _require_job(job_id)
+    if row["tenant_id"] != tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job '{job_id}' not found")
+    return _row_to_job(row)
 
 
 @router.post("/jobs/{job_id}/retry", response_model=QueueJob, summary="Retry a failed job")
-async def retry_job(job_id: str):
+async def retry_job(job_id: str, tenant_id: str = Query(...)):
     row = _require_job(job_id)
+    if row["tenant_id"] != tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job '{job_id}' not found")
     if row["status"] not in (JobStatus.FAILED.value, JobStatus.DEAD.value):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -206,8 +199,10 @@ async def retry_job(job_id: str):
 
 
 @router.delete("/jobs/{job_id}", response_model=APIResponse, summary="Cancel/delete a job")
-async def cancel_job(job_id: str):
+async def cancel_job(job_id: str, tenant_id: str = Query(...)):
     row = _require_job(job_id)
+    if row["tenant_id"] != tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job '{job_id}' not found")
     if row["status"] == JobStatus.PROCESSING.value:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -228,7 +223,7 @@ async def cancel_job(job_id: str):
     status_code=status.HTTP_201_CREATED,
     summary="Create a new queue job (admin/testing)",
 )
-async def create_job(body: QueueJobCreateRequest):
+async def create_job(body: QueueJobCreateRequest, tenant_id: str = Query(...)):
     db = get_panel_db()
     job_id = generate_job_id()
     now = utc_now_str()
@@ -243,7 +238,7 @@ async def create_job(body: QueueJobCreateRequest):
         (
             job_id,
             body.connector_id,
-            body.tenant_id,
+            tenant_id,
             body.job_type,
             json.dumps(body.payload),
             body.max_attempts,
@@ -255,7 +250,7 @@ async def create_job(body: QueueJobCreateRequest):
     return QueueJob(
         job_id=job_id,
         connector_id=body.connector_id,
-        tenant_id=body.tenant_id,
+        tenant_id=tenant_id,
         job_type=body.job_type,
         status=JobStatus.QUEUED,
         payload=body.payload,

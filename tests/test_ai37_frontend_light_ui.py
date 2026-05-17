@@ -43,11 +43,12 @@ class _DuplicateAttributeParser(HTMLParser):
 def _asset_path_for(page: Path, ref: str) -> Path | None:
     if not ref or ref.startswith(("#", "data:", "mailto:", "javascript:", "http://", "https://")):
         return None
-    if ref.startswith("/dashboard/"):
-        return DASHBOARD / ref.removeprefix("/dashboard/")
-    if ref.startswith("/"):
+    clean = ref.split("?")[0]
+    if clean.startswith("/dashboard/"):
+        return DASHBOARD / clean.removeprefix("/dashboard/")
+    if clean.startswith("/"):
         return None
-    return page.parent / ref
+    return page.parent / clean
 
 
 def test_dashboard_defaults_to_light_theme():

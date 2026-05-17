@@ -2,14 +2,35 @@
 from __future__ import annotations
 
 import asyncio
+import ast
 import json
 import logging
+import operator
 import time
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 log = logging.getLogger(__name__)
+
+_BIN_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+}
+_CMP_OPS = {
+    ast.Eq: operator.eq,
+    ast.NotEq: operator.ne,
+    ast.Lt: operator.lt,
+    ast.LtE: operator.le,
+    ast.Gt: operator.gt,
+    ast.GtE: operator.ge,
+    ast.In: lambda a, b: a in b,
+    ast.NotIn: lambda a, b: a not in b,
+}
 
 
 class WorkflowExecutor:
@@ -229,10 +250,68 @@ class WorkflowExecutor:
         return output
 
     def _eval_condition(self, condition: str, context: Dict) -> bool:
+        result = self._safe_eval(condition, context)
+        return bool(result) if result is not None else False
+
+    def _safe_eval(self, expression: str, context: Dict) -> Any:
+        """Evaluate a small expression language without calls or attributes."""
         try:
-            return bool(eval(condition, {"__builtins__": {}}, context))  # noqa: S307
+            tree = ast.parse(str(expression), mode="eval")
+            return self._eval_ast(tree.body, context)
         except Exception:
-            return False
+            return None
+
+    def _eval_ast(self, node: ast.AST, context: Dict) -> Any:
+        if isinstance(node, ast.Constant):
+            return node.value
+        if isinstance(node, ast.Name):
+            return context.get(node.id)
+        if isinstance(node, ast.List):
+            return [self._eval_ast(item, context) for item in node.elts]
+        if isinstance(node, ast.Tuple):
+            return tuple(self._eval_ast(item, context) for item in node.elts)
+        if isinstance(node, ast.Dict):
+            return {
+                self._eval_ast(key, context): self._eval_ast(value, context)
+                for key, value in zip(node.keys, node.values)
+            }
+        if isinstance(node, ast.Subscript):
+            value = self._eval_ast(node.value, context)
+            key = self._eval_ast(node.slice, context)
+            if isinstance(value, dict):
+                return value.get(key)
+            if isinstance(value, (list, tuple)) and isinstance(key, int):
+                return value[key]
+            raise ValueError("Unsupported subscript")
+        if isinstance(node, ast.UnaryOp):
+            operand = self._eval_ast(node.operand, context)
+            if isinstance(node.op, ast.Not):
+                return not operand
+            if isinstance(node.op, ast.USub):
+                return -operand
+            raise ValueError("Unsupported unary operator")
+        if isinstance(node, ast.BoolOp):
+            values = [self._eval_ast(value, context) for value in node.values]
+            if isinstance(node.op, ast.And):
+                return all(values)
+            if isinstance(node.op, ast.Or):
+                return any(values)
+            raise ValueError("Unsupported boolean operator")
+        if isinstance(node, ast.BinOp):
+            op = _BIN_OPS.get(type(node.op))
+            if not op:
+                raise ValueError("Unsupported binary operator")
+            return op(self._eval_ast(node.left, context), self._eval_ast(node.right, context))
+        if isinstance(node, ast.Compare):
+            left = self._eval_ast(node.left, context)
+            for op_node, comparator in zip(node.ops, node.comparators):
+                right = self._eval_ast(comparator, context)
+                op = _CMP_OPS.get(type(op_node))
+                if not op or not op(left, right):
+                    return False
+                left = right
+            return True
+        raise ValueError("Unsupported expression")
 
     # ---------------------------------------------------------------------------
     # Node runners
@@ -377,10 +456,11 @@ class WorkflowExecutor:
         mapping = config.get("mapping", {})
         result = {}
         for key, expr in mapping.items():
-            try:
-                result[key] = eval(str(expr), {"__builtins__": {}}, context)  # noqa: S307
-            except Exception:
+            value = self._safe_eval(str(expr), context)
+            if value is None:
                 result[key] = self._resolve(str(expr), context)
+            else:
+                result[key] = value
         return {"transformed": result}
 
     async def _run_delay(self, node: Dict, context: Dict, tenant_id: str) -> Dict:

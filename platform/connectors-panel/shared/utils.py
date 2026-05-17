@@ -7,19 +7,31 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import os
 import secrets
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+_logger = logging.getLogger("connectors_panel.utils")
+
 
 # ---------------------------------------------------------------------------
 # Encryption — Fernet symmetric encryption
 # ---------------------------------------------------------------------------
 
+def _key_file_path():
+    from pathlib import Path
+    try:
+        from backend import config as _cfg
+        return Path(_cfg.DATA_DIR) / "connector_panel.key"
+    except Exception:
+        return Path.home() / ".mailpilot" / "connector_panel.key"
+
+
 def _get_fernet():
-    """Lazily import cryptography and build a Fernet instance."""
+    """Build a Fernet instance backed by a persistent on-disk key."""
     try:
         from cryptography.fernet import Fernet
     except ImportError as exc:  # pragma: no cover
@@ -28,20 +40,41 @@ def _get_fernet():
             "Install it with: pip install cryptography"
         ) from exc
 
-    key = os.environ.get("CONNECTOR_PANEL_ENCRYPTION_KEY", "")
-    if not key:
-        # Auto-generate a key if not configured; warn in production
-        key = Fernet.generate_key().decode()
-        os.environ["CONNECTOR_PANEL_ENCRYPTION_KEY"] = key
-    key_bytes = key.encode() if isinstance(key, str) else key
-    # Fernet requires a 32-byte URL-safe base64-encoded key
-    # If the stored key is raw, derive a proper Fernet key
+    # 1. Env var takes priority (explicit production config).
+    env_key = os.environ.get("CONNECTOR_PANEL_ENCRYPTION_KEY", "")
+    if env_key:
+        key_bytes = env_key.encode() if isinstance(env_key, str) else env_key
+        try:
+            return Fernet(key_bytes)
+        except Exception:
+            import base64
+            derived = base64.urlsafe_b64encode(hashlib.sha256(key_bytes).digest())
+            return Fernet(derived)
+
+    # 2. Key file — generate once, persist for lifetime of the installation.
+    key_file = _key_file_path()
+    if key_file.exists():
+        try:
+            raw = key_file.read_bytes().strip()
+            f = Fernet(raw)
+            os.environ["CONNECTOR_PANEL_ENCRYPTION_KEY"] = raw.decode()
+            return f
+        except Exception:
+            pass  # Corrupt file — fall through to regenerate
+
+    generated = Fernet.generate_key()
+    key_file.parent.mkdir(parents=True, exist_ok=True)
+    key_file.write_bytes(generated)
     try:
-        return Fernet(key_bytes)
-    except Exception:
-        import base64
-        derived = base64.urlsafe_b64encode(hashlib.sha256(key_bytes).digest())
-        return Fernet(derived)
+        os.chmod(key_file, 0o600)
+    except OSError:
+        pass
+    os.environ["CONNECTOR_PANEL_ENCRYPTION_KEY"] = generated.decode()
+    _logger.warning(
+        "CONNECTOR_PANEL_ENCRYPTION_KEY not set — generated persistent key at %s. "
+        "Set the env var explicitly in production.", key_file,
+    )
+    return Fernet(generated)
 
 
 def encrypt_secret(value: str) -> str:
@@ -54,6 +87,28 @@ def decrypt_secret(encrypted: str) -> str:
     """Decrypt a ciphertext string previously encrypted with encrypt_secret."""
     f = _get_fernet()
     return f.decrypt(encrypted.encode()).decode()
+
+
+def encrypt_config(config: dict) -> str:
+    """Encrypt a connector config dict as a JSON string. Secrets at rest are opaque."""
+    return encrypt_secret(json.dumps(config))
+
+
+def decrypt_config(raw: str) -> dict:
+    """Decrypt a stored connector config string.
+
+    Falls back to plain JSON parsing for unencrypted records written before this
+    change so that existing installations continue to work during migration.
+    """
+    if not raw:
+        return {}
+    try:
+        return json.loads(decrypt_secret(raw))
+    except Exception:
+        try:
+            return json.loads(raw)
+        except Exception:
+            return {}
 
 
 # ---------------------------------------------------------------------------
@@ -124,10 +179,13 @@ def verify_hmac(secret: str, payload: bytes, signature: str) -> bool:
 # Config sanitisation
 # ---------------------------------------------------------------------------
 
+_SECRET_KEY_FRAGMENTS = frozenset({"password", "secret", "token"})
+
+
 def sanitize_config(config: dict[str, Any], max_depth: int = 5, _depth: int = 0) -> dict[str, Any]:
     """
     Recursively remove None values and limit nesting depth.
-    Also removes keys containing 'password', 'secret', or 'token'
+    Also removes keys containing 'password', 'secret', 'token', 'key', or 'credential'
     from nested structures (top-level secrets are allowed, they are
     stored encrypted separately).
     """
@@ -136,6 +194,9 @@ def sanitize_config(config: dict[str, Any], max_depth: int = 5, _depth: int = 0)
     result: dict[str, Any] = {}
     for k, v in config.items():
         if v is None:
+            continue
+        k_lower = k.lower()
+        if _depth > 0 and any(frag in k_lower for frag in _SECRET_KEY_FRAGMENTS):
             continue
         if isinstance(v, dict):
             result[k] = sanitize_config(v, max_depth, _depth + 1)

@@ -43,6 +43,7 @@ MANIFEST = ConnectorManifest(
 )
 
 ZOHO_BASE = "https://www.zohoapis.{dc}/crm/v5"
+_VALID_ZOHO_DCS = frozenset({"com", "eu", "in", "au", "jp"})
 
 
 class ZohoCRMConnector(ConnectorBase):
@@ -51,7 +52,10 @@ class ZohoCRMConnector(ConnectorBase):
     RATE_BURST = 15.0
 
     def _dc(self) -> str:
-        return self.config.get("data_center", "com")
+        dc = self.config.get("data_center", "com")
+        if dc not in _VALID_ZOHO_DCS:
+            raise ValueError(f"Invalid Zoho data_center '{dc}'; must be one of {sorted(_VALID_ZOHO_DCS)}")
+        return dc
 
     def _base(self) -> str:
         return f"https://www.zohoapis.{self._dc()}/crm/v5"
@@ -162,38 +166,37 @@ class ZohoCRMConnector(ConnectorBase):
                      "Not Contacted": "new", "Junk Lead": "unqualified"}
         status = stage_map.get(r.get("Lead_Status", ""), "new")
         existing = self.db.fetch_one(
-            "SELECT lead_id FROM crm_leads WHERE external_id=? AND tenant_id=?",
+            "SELECT id FROM crm_leads WHERE external_id=? AND tenant_id=?",
             (ext_id, self.tenant_id),
         )
         if existing:
             self.db.execute(
-                "UPDATE crm_leads SET status=?, updated_at=? WHERE lead_id=?",
-                (status, now, existing["lead_id"]),
+                "UPDATE crm_leads SET status=?, updated_at=? WHERE id=?",
+                (status, now, existing["id"]),
             )
         else:
             lid = f"ld_{uuid.uuid4().hex}"
             name = f"{r.get('First_Name','')} {r.get('Last_Name','')}".strip()
             self.db.execute(
                 """INSERT INTO crm_leads
-                   (lead_id, tenant_id, title, contact_name, email, source,
+                   (id, tenant_id, title, source,
                     status, score, external_id, created_at, updated_at)
-                   VALUES (?,?,?,?,?,'zoho_crm',?,50,?,?,?)""",
-                (lid, self.tenant_id, name, name, r.get("Email",""),
-                 status, ext_id, now, now),
+                   VALUES (?,?,?,'zoho_crm',?,50,?,?,?)""",
+                (lid, self.tenant_id, name, status, ext_id, now, now),
             )
 
     def _upsert_contact(self, r: Dict) -> None:
         ext_id = r.get("id", "")
         now = datetime.now(tz=timezone.utc).isoformat()
         existing = self.db.fetch_one(
-            "SELECT contact_id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
+            "SELECT id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
             (ext_id, self.tenant_id),
         )
         if not existing:
             cid = f"cnt_{uuid.uuid4().hex}"
             self.db.execute(
                 """INSERT INTO crm_contacts
-                   (contact_id, tenant_id, first_name, last_name, email, phone,
+                   (id, tenant_id, first_name, last_name, email, phone,
                     company, job_title, source, external_id, status, created_at, updated_at)
                    VALUES (?,?,?,?,?,?,?,?,'zoho_crm',?,'active',?,?)""",
                 (cid, self.tenant_id, r.get("First_Name",""), r.get("Last_Name",""),
@@ -213,23 +216,23 @@ class ZohoCRMConnector(ConnectorBase):
         }
         stage = stage_map.get(r.get("Stage", ""), "prospecting")
         existing = self.db.fetch_one(
-            "SELECT opportunity_id FROM crm_opportunities WHERE external_id=? AND tenant_id=?",
+            "SELECT id FROM crm_opportunities WHERE external_id=? AND tenant_id=?",
             (ext_id, self.tenant_id),
         )
         if existing:
             self.db.execute(
-                "UPDATE crm_opportunities SET stage=?, value=?, updated_at=? WHERE opportunity_id=?",
-                (stage, r.get("Amount"), now, existing["opportunity_id"]),
+                "UPDATE crm_opportunities SET stage=?, value=?, updated_at=? WHERE id=?",
+                (stage, float(r.get("Amount") or 0), now, existing["id"]),
             )
         else:
             oid = f"opp_{uuid.uuid4().hex}"
             self.db.execute(
                 """INSERT INTO crm_opportunities
-                   (opportunity_id, tenant_id, title, stage, value,
+                   (id, tenant_id, title, stage, value,
                     close_date, external_id, created_at, updated_at)
                    VALUES (?,?,?,?,?,?,?,?,?)""",
                 (oid, self.tenant_id, r.get("Deal_Name",""),
-                 stage, r.get("Amount"),
+                 stage, float(r.get("Amount") or 0),
                  r.get("Closing_Date"), ext_id, now, now),
             )
 

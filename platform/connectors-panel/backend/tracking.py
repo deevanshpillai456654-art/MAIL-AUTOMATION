@@ -96,10 +96,10 @@ async def list_shipments(
 
     where = " AND ".join(conditions)
     rows = db.fetch_all(
-        f"SELECT * FROM shipments WHERE {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        f"SELECT * FROM shipments WHERE {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",  # nosec B608
         params + [limit, offset],
     )
-    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM shipments WHERE {where}", params)
+    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM shipments WHERE {where}", params)  # nosec B608
     return {
         "shipments": [_row_to_shipment(r) for r in rows],
         "total": total["c"] if total else 0,
@@ -109,7 +109,7 @@ async def list_shipments(
 
 
 @router.post("", summary="Create / add shipment to track", status_code=status.HTTP_201_CREATED)
-async def create_shipment(body: dict[str, Any]):
+async def create_shipment(body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     sid = str(uuid.uuid4())
     now = utc_now_str()
@@ -123,7 +123,7 @@ async def create_shipment(body: dict[str, Any]):
         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         (
-            sid, body.get("tenant_id", "default"), body.get("tracking_number", ""),
+            sid, tenant_id, body.get("tracking_number", ""),
             body.get("reference_number"), body.get("carrier", "other"),
             body.get("tracking_type", "awb"), body.get("status", "pending"),
             body.get("origin_location"), body.get("destination_location"),
@@ -178,9 +178,9 @@ async def get_shipment(shipment_id: str, tenant_id: str = Query(...)):
 
 
 @router.post("/{shipment_id}/events", summary="Add tracking event")
-async def add_tracking_event(shipment_id: str, body: dict[str, Any]):
+async def add_tracking_event(shipment_id: str, body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
-    shipment = db.fetch_one("SELECT * FROM shipments WHERE id = ?", (shipment_id,))
+    shipment = db.fetch_one("SELECT * FROM shipments WHERE id = ? AND tenant_id = ?", (shipment_id, tenant_id))
     if not shipment:
         raise HTTPException(status_code=404, detail="Shipment not found")
     eid = str(uuid.uuid4())
@@ -202,9 +202,9 @@ async def add_tracking_event(shipment_id: str, body: dict[str, Any]):
 
 
 @router.patch("/{shipment_id}", summary="Update shipment")
-async def update_shipment(shipment_id: str, body: dict[str, Any]):
+async def update_shipment(shipment_id: str, body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
-    shipment = db.fetch_one("SELECT * FROM shipments WHERE id = ?", (shipment_id,))
+    shipment = db.fetch_one("SELECT * FROM shipments WHERE id = ? AND tenant_id = ?", (shipment_id, tenant_id))
     if not shipment:
         raise HTTPException(status_code=404, detail="Shipment not found")
     now = utc_now_str()
@@ -212,7 +212,7 @@ async def update_shipment(shipment_id: str, body: dict[str, Any]):
     updates = {k: v for k, v in body.items() if k in allowed}
     if updates:
         set_clause = ", ".join(f"{k}=?" for k in updates)
-        db.execute(f"UPDATE shipments SET {set_clause}, updated_at=? WHERE id=?", list(updates.values()) + [now, shipment_id])
+        db.execute(f"UPDATE shipments SET {set_clause}, updated_at=? WHERE id=? AND tenant_id=?", list(updates.values()) + [now, shipment_id, tenant_id])  # nosec B608
     return {"ok": True}
 
 

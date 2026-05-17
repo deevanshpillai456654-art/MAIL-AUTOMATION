@@ -1,4 +1,26 @@
 from types import SimpleNamespace
+from pathlib import Path
+import sys
+
+
+def test_start_service_runs_backend_main_from_project_root(monkeypatch):
+    import backend.run as runner
+
+    calls = {}
+    fake_process = object()
+
+    def fake_popen(args, cwd, stdout, stderr):
+        calls["args"] = args
+        calls["cwd"] = cwd
+        calls["stdout"] = stdout
+        calls["stderr"] = stderr
+        return fake_process
+
+    monkeypatch.setattr(runner.subprocess, "Popen", fake_popen)
+
+    assert runner.start_service() is fake_process
+    assert calls["args"] == [sys.executable, "-m", "backend.main"]
+    assert Path(calls["cwd"]) == Path(runner.__file__).resolve().parent.parent
 
 
 def test_stop_service_terminates_listener_on_api_port(monkeypatch):

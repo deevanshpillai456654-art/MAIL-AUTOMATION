@@ -56,9 +56,15 @@ def _row_to_safe_token(row: dict[str, Any]) -> OAuthTokenSafe:
     )
 
 
-def _require_token(token_id: str) -> dict[str, Any]:
+def _require_token(token_id: str, tenant_id: Optional[str] = None) -> dict[str, Any]:
     db = get_panel_db()
-    row = db.fetch_one("SELECT * FROM oauth_tokens WHERE id = ?", (token_id,))
+    if tenant_id:
+        row = db.fetch_one(
+            "SELECT * FROM oauth_tokens WHERE id = ? AND tenant_id = ?",
+            (token_id, tenant_id),
+        )
+    else:
+        row = db.fetch_one("SELECT * FROM oauth_tokens WHERE id = ?", (token_id,))
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Token '{token_id}' not found")
     return row
@@ -111,7 +117,7 @@ async def list_tokens(
     status_code=status.HTTP_201_CREATED,
     summary="Store new OAuth token (encrypted)",
 )
-async def create_token(body: OAuthTokenCreateRequest):
+async def create_token(body: OAuthTokenCreateRequest, tenant_id: str = Query(...)):
     db = get_panel_db()
     token_id = generate_token_id()
     now = utc_now_str()
@@ -125,11 +131,17 @@ async def create_token(body: OAuthTokenCreateRequest):
             (id, connector_id, tenant_id, provider, access_token_enc,
              refresh_token_enc, expires_at, scopes, created_at, is_valid)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        ON CONFLICT(connector_id, tenant_id, provider) DO UPDATE SET
+            access_token_enc=excluded.access_token_enc,
+            refresh_token_enc=excluded.refresh_token_enc,
+            expires_at=excluded.expires_at,
+            scopes=excluded.scopes,
+            is_valid=1
         """,
         (
             token_id,
             body.connector_id,
-            body.tenant_id,
+            tenant_id,
             body.provider,
             access_enc,
             refresh_enc,
@@ -138,33 +150,29 @@ async def create_token(body: OAuthTokenCreateRequest):
             now,
         ),
     )
-
-    return OAuthTokenSafe(
-        token_id=token_id,
-        connector_id=body.connector_id,
-        tenant_id=body.tenant_id,
-        provider=body.provider,
-        expires_at=body.expires_at,
-        scopes=body.scopes,
-        created_at=datetime.fromisoformat(now),
-        is_valid=True,
+    # Re-fetch the actual stored row (id may differ on conflict update)
+    actual_row = db.fetch_one(
+        "SELECT * FROM oauth_tokens WHERE connector_id=? AND tenant_id=? AND provider=?",
+        (body.connector_id, tenant_id, body.provider),
     )
+
+    return _row_to_safe_token(actual_row)
 
 
 @router.delete("/tokens/{token_id}", response_model=APIResponse, summary="Revoke OAuth token")
-async def revoke_token(token_id: str):
-    _require_token(token_id)
+async def revoke_token(token_id: str, tenant_id: str = Query(...)):
+    _require_token(token_id, tenant_id)
     db = get_panel_db()
     db.execute(
-        "UPDATE oauth_tokens SET is_valid = 0 WHERE id = ?",
-        (token_id,),
+        "UPDATE oauth_tokens SET is_valid = 0 WHERE id = ? AND tenant_id = ?",
+        (token_id, tenant_id),
     )
     return APIResponse(message=f"Token '{token_id}' revoked")
 
 
 @router.get("/tokens/{token_id}/status", summary="Check token validity")
-async def check_token_status(token_id: str):
-    row = _require_token(token_id)
+async def check_token_status(token_id: str, tenant_id: str = Query(...)):
+    row = _require_token(token_id, tenant_id)
     is_valid = bool(row.get("is_valid", 1))
 
     # Check expiry
@@ -191,8 +199,8 @@ async def check_token_status(token_id: str):
 
 
 @router.post("/tokens/{token_id}/refresh", response_model=OAuthTokenSafe, summary="Refresh OAuth token")
-async def refresh_token(token_id: str):
-    row = _require_token(token_id)
+async def refresh_token(token_id: str, tenant_id: str = Query(...)):
+    row = _require_token(token_id, tenant_id)
     provider_id = row["provider"]
     provider = OAUTH_PROVIDERS.get(provider_id)
 
@@ -224,6 +232,18 @@ async def refresh_token(token_id: str):
             detail=f"Failed to decrypt refresh token: {exc}",
         )
 
+    # Read client credentials from environment using the provider's env-var prefix
+    import os
+    provider_env = provider_id.upper()
+    client_id = os.environ.get(f"{provider_env}_CLIENT_ID", "")
+    client_secret = os.environ.get(f"{provider_env}_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"OAuth client credentials not configured for provider '{provider_id}'. "
+                   f"Set {provider_env}_CLIENT_ID and {provider_env}_CLIENT_SECRET.",
+        )
+
     # Perform the actual token refresh
     import httpx
     try:
@@ -233,6 +253,8 @@ async def refresh_token(token_id: str):
                 data={
                     "grant_type": "refresh_token",
                     "refresh_token": refresh_token_val,
+                    "client_id": client_id,
+                    "client_secret": client_secret,
                 },
                 headers={"Accept": "application/json"},
             )
@@ -287,6 +309,15 @@ async def authorize(
             detail=f"Provider '{provider}' not supported",
         )
 
+    # Validate redirect_uri to prevent open redirect abuse
+    from urllib.parse import urlparse as _urlparse
+    _parsed_redir = _urlparse(redirect_uri)
+    if _parsed_redir.scheme not in ("https", "http") or not _parsed_redir.netloc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="redirect_uri must be an absolute http/https URL",
+        )
+
     import os
     client_id = os.environ.get(f"{provider.upper()}_CLIENT_ID", "")
     if not client_id:
@@ -305,8 +336,9 @@ async def authorize(
             )
         base_url = base_url.replace("{shop}", shop)
 
+    import secrets as _secrets
     scopes = " ".join(provider_config.get("scopes", []))
-    state = f"{tenant_id}:{connector_id}"
+    state = _secrets.token_urlsafe(24)
 
     params: dict[str, str] = {
         "client_id": client_id,

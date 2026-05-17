@@ -17,10 +17,11 @@ Middleware execution order (outermost → innermost, i.e. first in list = first 
 import asyncio
 import logging
 import os
+import secrets as _secrets
 import time
+from collections import deque
 from datetime import datetime
 from typing import Callable, Dict, Deque
-from collections import deque
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -29,6 +30,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend import config
+from backend.auth.local_auth import request_has_valid_local_auth
 from backend.security.audit import record_security_event
 from backend.security.redaction import redact_text
 from backend.security.request_signing import RequestSigner
@@ -50,19 +52,13 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
             process_time = (datetime.now() - start_time).total_seconds()
             logger.error(
                 "Unhandled request error request_id=%s method=%s path=%s duration=%.3fs",
-                request_id,
-                request.method,
-                request.url.path,
-                process_time,
+                request_id, request.method, request.url.path, process_time,
                 exc_info=True,
             )
             record_security_event(
-                "unhandled_exception",
-                severity="error",
-                request=request,
+                "unhandled_exception", severity="error", request=request,
                 details={"request_id": request_id, "error_type": type(e).__name__},
             )
-
             return JSONResponse(
                 status_code=500,
                 content={
@@ -70,7 +66,7 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
                     "message": "Request failed. Check server logs with the returned request_id.",
                     "request_id": request_id,
                     "path": request.url.path,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": datetime.now().isoformat(),
                 },
                 headers={"X-Request-ID": request_id},
             )
@@ -79,34 +75,27 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         start_time = datetime.now()
-
         logger.info("Request: %s %s request_id=%s", request.method, request.url.path, getattr(request.state, "request_id", ""))
-
         response = await call_next(request)
-
         process_time = (datetime.now() - start_time).total_seconds()
         logger.info(
             "Response: %s %s status=%s duration=%.3fs request_id=%s",
-            request.method,
-            request.url.path,
-            response.status_code,
-            process_time,
+            request.method, request.url.path, response.status_code, process_time,
             getattr(request.state, "request_id", ""),
         )
-
         return response
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Sliding-window rate limiter.
+    """Sliding-window rate limiter with trusted-proxy X-Forwarded-For support.
 
-    Uses a deque per client IP to store request timestamps.  Old entries are
-    pruned on each request for that IP, and a periodic sweep removes IPs that
-    have been idle for more than 2× the window (preventing unbounded growth
-    under churn of unique IPs).
+    When the direct connection arrives from a loopback address (127.0.0.1 / ::1),
+    the request is coming through a local reverse proxy, so X-Forwarded-For and
+    X-Real-IP headers are trusted for rate-limit keying. Otherwise, the raw
+    socket peer address is used to prevent IP spoofing via forged headers.
     """
 
-    _SWEEP_INTERVAL = 300  # seconds between full cleanup sweeps
+    _SWEEP_INTERVAL = 300
 
     def __init__(self, app, max_requests: int = 100, window_seconds: int = 60):
         super().__init__(app)
@@ -116,15 +105,27 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._last_sweep: float = time.monotonic()
 
     def _sweep(self, now: float) -> None:
-        """Remove idle client entries to prevent unbounded memory growth."""
         cutoff = now - self.window_seconds * 2
         idle = [ip for ip, dq in self._buckets.items() if not dq or dq[-1] < cutoff]
         for ip in idle:
             del self._buckets[ip]
         self._last_sweep = now
 
+    @staticmethod
+    def _resolve_client_ip(request: Request) -> str:
+        direct = (request.client.host if request.client else None) or "unknown"
+        # Trust forwarded headers only when the direct connection is a local proxy
+        if direct in ("127.0.0.1", "::1", "localhost"):
+            xff = request.headers.get("x-forwarded-for", "")
+            if xff:
+                return xff.split(",")[0].strip() or direct
+            real_ip = request.headers.get("x-real-ip", "").strip()
+            if real_ip:
+                return real_ip
+        return direct
+
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = self._resolve_client_ip(request)
         now = time.monotonic()
         cutoff = now - self.window_seconds
 
@@ -135,7 +136,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             self._buckets[client_ip] = deque()
         bucket = self._buckets[client_ip]
 
-        # Drop timestamps outside the current window
         while bucket and bucket[0] < cutoff:
             bucket.popleft()
 
@@ -155,24 +155,56 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+# Paths served by static file mounts that contain inline scripts — keep unsafe-inline
+# for these so the SPA continues to work while server-rendered pages use nonces.
+_STATIC_SPA_PREFIXES = ("/connectors-panel", "/dashboard", "/outlook", "/icons")
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        # Generate a per-request nonce for CSP (used by server-rendered HTML pages)
+        nonce = _secrets.token_urlsafe(16)
+        request.state.csp_nonce = nonce
+
         response = await call_next(request)
 
         path = request.url.path
-        is_outlook_surface = path.startswith("/outlook") or path.endswith("taskpane.html") or path.endswith("mail-read.html") or path.endswith("mail-compose.html")
-        frame_ancestors = "'self' https://*.office.com https://*.officeapps.live.com" if is_outlook_surface else "'none'"
+        is_outlook_surface = (
+            path.startswith("/outlook")
+            or path.endswith("taskpane.html")
+            or path.endswith("mail-read.html")
+            or path.endswith("mail-compose.html")
+        )
+        is_static_spa = any(path.startswith(p) for p in _STATIC_SPA_PREFIXES)
+
+        frame_ancestors = (
+            "'self' https://*.office.com https://*.officeapps.live.com"
+            if is_outlook_surface
+            else "'none'"
+        )
+
+        if is_static_spa:
+            # Static SPA files contain inline scripts that cannot carry nonces.
+            # Keep 'unsafe-inline' only for these paths; all other responses use nonces.
+            script_src = "'self' 'unsafe-inline'"
+        else:
+            script_src = f"'self' 'nonce-{nonce}'"
+
+        if is_outlook_surface:
+            script_src += " https://appsforoffice.microsoft.com"
+
         csp = (
             "default-src 'self'; "
             "base-uri 'none'; "
             "object-src 'none'; "
-            "img-src 'self' data: blob:; "
+            f"img-src 'self' data: blob:; "
             "font-src 'self' data:; "
             "style-src 'self' 'unsafe-inline'; "
-            "script-src 'self' 'unsafe-inline' https://appsforoffice.microsoft.com; "
+            f"script-src {script_src}; "
             "connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; "
             f"frame-ancestors {frame_ancestors}"
         )
+
         response.headers["Content-Security-Policy"] = csp
         response.headers["X-Content-Type-Options"] = "nosniff"
         if not is_outlook_surface:
@@ -194,11 +226,15 @@ class OriginValidationMiddleware(BaseHTTPMiddleware):
     ]
 
     def _configured_origins(self):
-        return [self._normalize_origin(origin) for origin in (getattr(config, "CORS_ALLOWED_ORIGINS", []) or []) if origin and origin != "*"]
+        return [
+            self._normalize_origin(origin)
+            for origin in (getattr(config, "CORS_ALLOWED_ORIGINS", []) or [])
+            if origin and origin != "*"
+        ]
 
     @staticmethod
     def _normalize_origin(value: str) -> str:
-        value = (value or "").strip().rstrip('/')
+        value = (value or "").strip().rstrip("/")
         if not value:
             return ""
         try:
@@ -215,8 +251,6 @@ class OriginValidationMiddleware(BaseHTTPMiddleware):
         value = self._normalize_origin(value)
         configured = self._configured_origins()
         if getattr(config, "IS_PRODUCTION", False):
-            # Production must be exact allowlist based. Do not accept arbitrary
-            # browser-extension origins; the deployed extension ID must be listed.
             return value in configured
         return any(value.startswith(prefix) for prefix in self.LOCAL_PREFIXES) or value in configured
 
@@ -232,6 +266,95 @@ class OriginValidationMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class LocalAPIAuthMiddleware(BaseHTTPMiddleware):
+    """Require the local API credential for sensitive local-control surfaces."""
+
+    PROTECTED_PREFIXES = (
+        "/api/v1/accounts",
+        "/api/v1/admin",
+        "/api/v1/ai",
+        "/api/v1/analysis",
+        "/api/v1/assistant",
+        "/api/v1/auth",
+        "/api/v1/cache",
+        "/api/v1/categories",
+        "/api/v1/classify",
+        "/api/v1/crm",
+        "/api/v1/data",
+        "/api/v1/discovery",
+        "/api/v1/email",
+        "/api/v1/emails",
+        "/api/v1/enterprise",
+        "/api/v1/events",
+        "/api/v1/extension",
+        "/api/v1/export",
+        "/api/v1/feedback",
+        "/api/v1/governance",
+        "/api/v1/health/",
+        "/api/v1/import",
+        "/api/v1/learning",
+        "/api/v1/mailbox",
+        "/api/v1/metrics",
+        "/api/v1/notifications",
+        "/api/v1/operations",
+        "/api/v1/orchestrator",
+        "/api/v1/port",
+        "/api/v1/production",
+        "/api/v1/provider-config",
+        "/api/v1/providers",
+        "/api/v1/queue",
+        "/api/v1/readiness",
+        "/api/v1/reports",
+        "/api/v1/rules",
+        "/api/v1/scheduler",
+        "/api/v1/scam-filter",
+        "/api/v1/search",
+        "/api/v1/security",
+        "/api/v1/settings",
+        "/api/v1/smart-views",
+        "/api/v1/sync",
+        "/api/v1/system",
+        "/api/v1/templates",
+        "/api/v1/threat",
+        "/api/v1/updates",
+        "/api/connector-panel",
+    )
+    PUBLIC_EXACT_PATHS = {
+        "/api/v1/health",
+        "/api/v1/session/bootstrap",
+        "/api/connector-panel/session",
+    }
+    PUBLIC_PREFIXES = (
+        "/api/v1/oauth/",
+        "/api/v1/frontend/telemetry",
+        "/api/connector-panel/engine/oauth/callback/",
+        "/api/connector-panel/engine/webhooks/",
+        "/api/connector-panel/webhooks/receive/",
+    )
+
+    def _requires_auth(self, path: str) -> bool:
+        if path in self.PUBLIC_EXACT_PATHS:
+            return False
+        if any(path.startswith(prefix) for prefix in self.PUBLIC_PREFIXES):
+            return False
+        return any(path.startswith(prefix) for prefix in self.PROTECTED_PREFIXES)
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        if not self._requires_auth(request.url.path):
+            return await call_next(request)
+        if request_has_valid_local_auth(request):
+            return await call_next(request)
+        record_security_event(
+            "local_api_auth_required",
+            severity="warning",
+            request=request,
+            details={"path": request.url.path},
+        )
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Authentication required"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
@@ -245,6 +368,13 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 
 class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
+    """Enforce request body size limit against both Content-Length and chunked encoding.
+
+    Chunked transfer encoding does not carry a Content-Length header, so a
+    header-only check can be bypassed. This middleware wraps the ASGI receive
+    callable to count actual bytes received and aborts when the limit is hit.
+    """
+
     def __init__(self, app, max_bytes: int = None):
         super().__init__(app)
         configured = os.environ.get("MAX_REQUEST_BODY_BYTES", "")
@@ -254,60 +384,109 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
             self.max_bytes = max_bytes or 1024 * 1024
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        length = request.headers.get("content-length")
-        if length:
+        # Fast-path: reject via Content-Length header if present and over limit
+        cl_header = request.headers.get("content-length")
+        if cl_header:
             try:
-                if int(length) > self.max_bytes:
-                    record_security_event("request_body_too_large", severity="warning", request=request, details={"content_length": length, "max_bytes": self.max_bytes})
+                if int(cl_header) > self.max_bytes:
+                    record_security_event(
+                        "request_body_too_large", severity="warning", request=request,
+                        details={"content_length": cl_header, "max_bytes": self.max_bytes},
+                    )
                     return JSONResponse(status_code=413, content={"error": "Payload too large", "max_bytes": self.max_bytes})
             except ValueError:
                 return JSONResponse(status_code=400, content={"error": "Invalid Content-Length"})
-        return await call_next(request)
+
+        # Guard chunked / missing Content-Length by wrapping receive and counting bytes
+        total_received = 0
+        limit_exceeded = False
+        original_receive = request._receive
+
+        async def _bounded_receive():
+            nonlocal total_received, limit_exceeded
+            message = await original_receive()
+            if message.get("type") == "http.request":
+                chunk = message.get("body", b"")
+                total_received += len(chunk)
+                if total_received > self.max_bytes:
+                    limit_exceeded = True
+                    # Truncate the chunk so the handler processes an empty/incomplete body
+                    return {"type": "http.request", "body": b"", "more_body": False}
+            return message
+
+        request._receive = _bounded_receive
+        response = await call_next(request)
+
+        if limit_exceeded:
+            record_security_event(
+                "request_body_too_large", severity="warning", request=request,
+                details={"received_bytes": total_received, "max_bytes": self.max_bytes},
+            )
+            return JSONResponse(status_code=413, content={"error": "Payload too large", "max_bytes": self.max_bytes})
+
+        return response
 
 
 class RequestSigningMiddleware(BaseHTTPMiddleware):
+    """HMAC-SHA256 request signing for non-browser API clients.
+
+    Signing is enforced automatically when REQUEST_SIGNING_SECRET is configured.
+    No separate REQUIRE_REQUEST_SIGNATURES env var is needed — the presence of
+    the secret is the enable signal.
+
+    Browser requests carrying an Origin or Referer header bypass signing because:
+    1. CORS (OriginValidationMiddleware) already validates browser origins.
+    2. Browsers cannot attach HMAC signatures to cross-origin requests.
+
+    Non-browser clients (CLI tools, automation, other services) must sign all
+    non-exempt POST/PUT/PATCH/DELETE requests when the secret is set.
+    """
+
     EXACT_EXEMPT_PATHS = {"/", "/favicon.ico", "/taskpane.html", "/mail-read.html", "/mail-compose.html"}
     EXEMPT_PREFIXES = (
         "/dashboard", "/admin", "/setup", "/outlook", "/icons",
-        "/api/v1/health", "/api/health", "/api/v1/readiness", "/api/v1/frontend/telemetry", "/api/v1/security/status", "/api/v1/security/request-signing",
+        "/api/v1/health", "/api/health", "/api/v1/readiness",
+        "/api/v1/frontend/telemetry", "/api/v1/security/status",
+        "/api/v1/security/request-signing",
         "/api/oauth/", "/api/v1/oauth/",
     )
 
     def __init__(self, app):
         super().__init__(app)
         self.signer = RequestSigner()
-        self.enforced = str(os.environ.get("REQUIRE_REQUEST_SIGNATURES", "")).lower() in {"1", "true", "yes", "on"}
 
     def _is_exempt(self, path: str, method: str) -> bool:
         if method.upper() in {"GET", "HEAD", "OPTIONS"}:
             return True
-        return path in self.EXACT_EXEMPT_PATHS or any(path.startswith(prefix) for prefix in self.EXEMPT_PREFIXES)
+        return path in self.EXACT_EXEMPT_PATHS or any(path.startswith(p) for p in self.EXEMPT_PREFIXES)
 
     def _browser_origin_present(self, request: Request) -> bool:
         return bool(request.headers.get("origin") or request.headers.get("referer"))
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Browser/extension requests are governed by origin validation and CSP.
-        # HMAC request signing is for non-browser API clients and automation, so
-        # the dashboard never needs to own a signing secret.
-        if not self.enforced or self._is_exempt(request.url.path, request.method) or self._browser_origin_present(request):
+        # Signing is only enforced when REQUEST_SIGNING_SECRET is configured
+        if not self.signer.secret:
+            return await call_next(request)
+        if self._is_exempt(request.url.path, request.method):
+            return await call_next(request)
+        # Browser/extension requests are governed by CORS — signing is for API clients only
+        if self._browser_origin_present(request):
             return await call_next(request)
         body = await request.body()
         headers = {k.lower(): v for k, v in request.headers.items()}
         decision = self.signer.verify(request.method, request.url.path, headers, body)
         if not decision.ok:
-            record_security_event("request_signature_rejected", severity="warning", request=request, details={"reason": decision.reason})
+            record_security_event(
+                "request_signature_rejected", severity="warning", request=request,
+                details={"reason": decision.reason},
+            )
             return JSONResponse(status_code=401, content={"error": "Invalid request signature", "reason": decision.reason})
         request._body = body
         return await call_next(request)
 
-class RequestTimeoutMiddleware(BaseHTTPMiddleware):
-    """Abort requests that exceed a configurable wall-clock timeout.
 
-    Uses asyncio.wait_for so the event loop slot is released immediately on
-    timeout rather than waiting for the blocked handler to eventually return.
-    WebSocket upgrade paths are exempt (they are long-lived by design).
-    """
+class RequestTimeoutMiddleware(BaseHTTPMiddleware):
+    """Abort requests that exceed a configurable wall-clock timeout."""
 
     def __init__(self, app, timeout_seconds: float = 30.0):
         super().__init__(app)
@@ -318,36 +497,28 @@ class RequestTimeoutMiddleware(BaseHTTPMiddleware):
             self.timeout = timeout_seconds
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # WebSocket connections are exempt — they are long-lived by design
         if request.headers.get("upgrade", "").lower() == "websocket":
             return await call_next(request)
         try:
             return await asyncio.wait_for(call_next(request), timeout=self.timeout)
         except asyncio.TimeoutError:
-            logger.warning(
-                "Request timeout (%.1fs) method=%s path=%s",
-                self.timeout, request.method, request.url.path,
-            )
+            logger.warning("Request timeout (%.1fs) method=%s path=%s", self.timeout, request.method, request.url.path)
             return JSONResponse(
                 status_code=504,
-                content={
-                    "error": "Gateway timeout",
-                    "message": f"Request exceeded the {self.timeout}s server limit.",
-                },
+                content={"error": "Gateway timeout", "message": f"Request exceeded the {self.timeout}s server limit."},
             )
 
 
 def setup_middlewares(app) -> None:
     """Apply all middlewares to the FastAPI app.
 
-    Note: Starlette adds middleware in LIFO order, so the last add_middleware()
-    call here becomes the outermost layer (first to handle a request).
-    The GZipMiddleware is added separately in main.py via
-    app.add_middleware(GZipMiddleware) to ensure it wraps everything.
+    Starlette adds middleware in LIFO order — the last add_middleware() call
+    becomes the outermost layer (first to handle a request).
     """
     app.add_middleware(RateLimitMiddleware, max_requests=config.RATE_LIMIT_REQUESTS, window_seconds=config.RATE_LIMIT_WINDOW)
     app.add_middleware(ErrorLoggingMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
+    app.add_middleware(LocalAPIAuthMiddleware)
     app.add_middleware(OriginValidationMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestSigningMiddleware)

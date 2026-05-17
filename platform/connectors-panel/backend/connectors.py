@@ -18,7 +18,7 @@ from .models import (
     ConnectorStatus,
     InstalledConnector,
 )
-from ..shared.utils import utc_now_str
+from ..shared.utils import decrypt_config, encrypt_config, utc_now_str
 
 router = APIRouter(prefix="/connectors", tags=["connectors"])
 
@@ -40,7 +40,7 @@ def _row_to_connector(row: dict[str, Any]) -> InstalledConnector:
         last_heartbeat=datetime.fromisoformat(row["last_heartbeat"]) if row.get("last_heartbeat") else None,
         failure_count=row.get("failure_count", 0),
         retry_count=row.get("retry_count", 0),
-        config=json.loads(row.get("config_json", "{}")),
+        config=decrypt_config(row.get("config_json", "") or ""),
         health_score=row.get("health_score", 1.0),
     )
 
@@ -90,7 +90,7 @@ async def list_connectors(
 
 
 @router.get("/{connector_id}", response_model=InstalledConnector, summary="Get connector details")
-async def get_connector(connector_id: str, tenant_id: Optional[str] = Query(None)):
+async def get_connector(connector_id: str, tenant_id: str = Query(...)):
     row = _require_connector(connector_id, tenant_id)
     return _row_to_connector(row)
 
@@ -109,7 +109,7 @@ async def update_connector(
 
     if body.config is not None:
         updates.append("config_json = ?")
-        params.append(json.dumps(body.config))
+        params.append(encrypt_config(body.config))
     if body.is_active is not None:
         updates.append("is_active = ?")
         params.append(1 if body.is_active else 0)
@@ -121,7 +121,7 @@ async def update_connector(
 
     params.extend([connector_id, tenant_id])
     db.execute(
-        f"UPDATE connectors SET {', '.join(updates)} WHERE id = ? AND tenant_id = ?",
+        f"UPDATE connectors SET {', '.join(updates)} WHERE id = ? AND tenant_id = ?",  # nosec B608
         params,
     )
 
@@ -190,7 +190,7 @@ async def trigger_sync(connector_id: str, tenant_id: str = Query(...)):
 @router.get("/{connector_id}/config", summary="Get connector configuration (sanitised)")
 async def get_connector_config(connector_id: str, tenant_id: str = Query(...)):
     row = _require_connector(connector_id, tenant_id)
-    config = json.loads(row.get("config_json", "{}"))
+    config = decrypt_config(row.get("config_json", "") or "")
     # Mask secret-like keys
     sanitised: dict[str, Any] = {}
     for k, v in config.items():
@@ -210,6 +210,14 @@ async def test_connector(connector_id: str, tenant_id: str = Query(...)):
     # Attempt to dynamically load the connector plugin and call test_connection
     try:
         import importlib
+        import re as _re
+        # Reject manifest_id values that could escape the expected package path
+        if not _re.fullmatch(r'[A-Za-z0-9_]+', manifest_id):
+            return APIResponse(
+                success=False,
+                message="Connection test skipped (invalid manifest ID)",
+                data={"connector_id": connector_id, "tested": False},
+            )
         module_path = f"platform.connectors_panel.plugins.{manifest_id}.module"
         try:
             mod = importlib.import_module(module_path)
@@ -227,7 +235,7 @@ async def test_connector(connector_id: str, tenant_id: str = Query(...)):
             obj = getattr(mod, attr_name)
             if isinstance(obj, type) and hasattr(obj, "test_connection"):
                 instance = obj()
-                config = json.loads(row.get("config_json", "{}"))
+                config = decrypt_config(row.get("config_json", "") or "")
                 result = instance.test_connection(tenant_id, config)
                 return APIResponse(
                     success=result,

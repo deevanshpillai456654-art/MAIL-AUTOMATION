@@ -313,9 +313,9 @@ class SnapshotStore:
         if expired_ids:
             with self._get_conn() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
-                    DELETE FROM snapshots WHERE snapshot_id IN ({})
-                """.format(",".join("?" * len(expired_ids))), expired_ids)
+                placeholders = ",".join("?" * len(expired_ids))
+                query = f"DELETE FROM snapshots WHERE snapshot_id IN ({placeholders})"  # nosec B608
+                cursor.execute(query, expired_ids)
                 conn.commit()
         
         return len(expired_ids)

@@ -31,11 +31,13 @@ def test_security_local_runtime_hardening_status_flags_external_bind(monkeypatch
 
 def test_security_local_runtime_endpoint_and_setup_page_expose_check_flow(monkeypatch):
     from fastapi.testclient import TestClient
+    from backend.auth.local_auth import get_local_token
     from backend.api import security
     from backend.main import app
 
     monkeypatch.setattr(security.config, "API_HOST", "127.0.0.1", raising=False)
     client = TestClient(app)
+    client.post("/api/v1/session/bootstrap", headers={"X-Local-Token": get_local_token()})
     response = client.get("/api/v1/security/local-runtime")
     html = (Path(__file__).resolve().parents[1] / "backend" / "dashboard" / "setup.html").read_text(encoding="utf-8")
 

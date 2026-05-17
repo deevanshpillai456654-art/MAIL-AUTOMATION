@@ -112,7 +112,7 @@ class ConnectorBase(ABC):
         token_id = f"tok_{uuid.uuid4().hex}"
         now = _utc()
         self.db.execute(
-            """INSERT OR REPLACE INTO oauth_tokens
+            """INSERT INTO oauth_tokens
                (id, connector_id, tenant_id, provider,
                 access_token_enc, refresh_token_enc,
                 expires_at, scopes, is_valid, created_at)
@@ -182,7 +182,7 @@ class ConnectorBase(ABC):
         if increment_attempts:
             self.db.execute(
                 """UPDATE queue_jobs
-                   SET status=CASE WHEN attempts+1>=max_attempts THEN 'dead_letter' ELSE 'failed' END,
+                   SET status=CASE WHEN attempts+1>=max_attempts THEN 'dead' ELSE 'failed' END,
                        attempts=attempts+1, error=?, updated_at=?
                    WHERE id=?""",
                 (error[:500], _utc(), job_id),
@@ -194,13 +194,13 @@ class ConnectorBase(ABC):
             )
 
     # ------------------------------------------------------------------
-    # Event publishing (uses existing connector_events table)
+    # Event publishing (uses the 'events' table)
     # ------------------------------------------------------------------
 
     def _publish_event(self, event_type: str, payload: Dict[str, Any]) -> None:
         event_id = f"evt_{uuid.uuid4().hex}"
         self.db.execute(
-            """INSERT INTO connector_events
+            """INSERT INTO events
                (id, event_type, source_connector_id, tenant_id, payload_json, published_at)
                VALUES (?,?,?,?,?,?)""",
             (event_id, event_type, self.instance_id,
@@ -208,14 +208,14 @@ class ConnectorBase(ABC):
         )
 
     # ------------------------------------------------------------------
-    # Logging (uses existing connector_logs table)
+    # Logging (uses the 'connector_logs' table; column is 'timestamp')
     # ------------------------------------------------------------------
 
     def _log(self, level: str, message: str, extra: Optional[Dict] = None) -> None:
         log_id = f"log_{uuid.uuid4().hex}"
         self.db.execute(
             """INSERT INTO connector_logs
-               (id, connector_id, tenant_id, level, message, metadata_json, created_at)
+               (id, connector_id, tenant_id, level, message, metadata_json, timestamp)
                VALUES (?,?,?,?,?,?,?)""",
             (log_id, self.instance_id, self.tenant_id, level, message[:1000],
              json.dumps(extra or {}), _utc()),
@@ -308,8 +308,8 @@ class ConnectorBase(ABC):
 
     async def verify_webhook_signature(self, raw_body: bytes,
                                        headers: Dict[str, str]) -> bool:
-        """Return True if the webhook signature is valid."""
-        return True  # Override in subclass
+        """Return True if the webhook signature is valid. Subclasses MUST override."""
+        return False  # fail-closed: reject all webhooks unless connector verifies them
 
     @abstractmethod
     async def health_check(self) -> Dict[str, Any]:

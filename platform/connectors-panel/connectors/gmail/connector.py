@@ -58,6 +58,7 @@ MANIFEST = ConnectorManifest(
         "ai_classify": {"type": "boolean", "default": True},
         "ocr_attachments": {"type": "boolean", "default": False},
         "link_crm": {"type": "boolean", "default": True},
+        "pubsub_audience": {"type": "string", "default": "", "description": "Expected Pub/Sub push subscription URL for JWT audience verification"},
     },
     emits_events=[
         "email.received", "email.sent", "email.bounced",
@@ -67,6 +68,29 @@ MANIFEST = ConnectorManifest(
 
 GMAIL_BASE = "https://gmail.googleapis.com/gmail/v1"
 OAUTH_BASE = "https://oauth2.googleapis.com"
+_GOOGLE_JWKS_URI = "https://www.googleapis.com/oauth2/v3/certs"
+_JWKS_CACHE: Dict[str, Any] = {}  # {kid: jwk}
+_JWKS_CACHED_AT: float = 0.0
+_JWKS_TTL = 3600.0  # refresh at most once per hour
+
+
+async def _get_google_jwk(http_client, kid: str) -> Optional[Dict[str, Any]]:
+    """Return the JWK matching `kid` from Google's JWKS; module-level cached."""
+    global _JWKS_CACHED_AT
+    import time as _time
+    now = _time.monotonic()
+    if now - _JWKS_CACHED_AT > _JWKS_TTL:
+        try:
+            resp = await http_client.get(_GOOGLE_JWKS_URI)
+            if resp.status_code == 200:
+                keys = resp.json().get("keys", [])
+                _JWKS_CACHE.clear()
+                for k in keys:
+                    _JWKS_CACHE[k.get("kid", "")] = k
+                _JWKS_CACHED_AT = now
+        except Exception:
+            pass  # use stale cache on network failure; key lookup below handles miss
+    return _JWKS_CACHE.get(kid)
 
 
 class GmailConnector(ConnectorBase):
@@ -200,12 +224,12 @@ class GmailConnector(ConnectorBase):
         if self.config.get("link_crm", True) and sender:
             email_addr = sender.split("<")[-1].rstrip(">").strip()
             contact = self.db.fetch_one(
-                "SELECT contact_id FROM crm_contacts WHERE email=? AND tenant_id=?",
+                "SELECT id FROM crm_contacts WHERE email=? AND tenant_id=?",
                 (email_addr, self.tenant_id),
             )
             if contact:
                 self._publish_event("crm.activity.email",
-                                    {"contact_id": contact["contact_id"],
+                                    {"contact_id": contact["id"],
                                      "message_id": msg["id"],
                                      "subject": subject})
 
@@ -220,9 +244,84 @@ class GmailConnector(ConnectorBase):
 
     async def verify_webhook_signature(self, raw_body: bytes,
                                        headers: Dict[str, str]) -> bool:
-        # Google Pub/Sub push notifications use JWT verification
-        # For simplicity, accept all from trusted Google IPs (implement JWT check in prod)
-        return True
+        """
+        Verify Google Pub/Sub JWT push notification.
+
+        Google signs each push message with a JWT in Authorization: Bearer.
+        We verify the RSA-SHA256 signature against Google's JWKS and check
+        standard claims (exp, iss, optional aud).
+        """
+        import base64 as _b64
+        import json as _json
+        import time as _time
+
+        auth = headers.get("authorization", "") or headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            return False
+        jwt_token = auth[len("Bearer "):]
+
+        try:
+            parts = jwt_token.split(".")
+            if len(parts) != 3:
+                return False
+            header_b64, payload_b64, sig_b64 = parts
+
+            def _decode_b64url(s: str) -> bytes:
+                rem = len(s) % 4
+                if rem:
+                    s += "=" * (4 - rem)
+                return _b64.urlsafe_b64decode(s)
+
+            header = _json.loads(_decode_b64url(header_b64))
+            if header.get("alg") != "RS256":
+                return False
+            kid = header.get("kid", "")
+
+            payload = _json.loads(_decode_b64url(payload_b64))
+
+            # Reject expired tokens
+            if _time.time() > payload.get("exp", 0):
+                return False
+
+            # Verify issuer
+            if payload.get("iss", "") not in (
+                "accounts.google.com", "https://accounts.google.com"
+            ):
+                return False
+
+            # Optional audience check — set pubsub_audience in connector config
+            audience = self.config.get("pubsub_audience", "")
+            if audience:
+                aud = payload.get("aud", "")
+                token_auds = aud if isinstance(aud, list) else [aud]
+                if audience not in token_auds:
+                    return False
+
+            # Fetch Google JWKS (cached at module level to avoid per-request calls)
+            jwk = await _get_google_jwk(self._get_http(), kid)
+            if not jwk:
+                return False
+
+            # Build RSA public key from JWK components
+            from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicNumbers
+            from cryptography.hazmat.backends import default_backend
+            from cryptography.hazmat.primitives.asymmetric import padding as _pad
+            from cryptography.hazmat.primitives import hashes as _hashes
+
+            def _big_int(b64url: str) -> int:
+                return int.from_bytes(_decode_b64url(b64url), "big")
+
+            pub_key = RSAPublicNumbers(
+                _big_int(jwk["e"]), _big_int(jwk["n"])
+            ).public_key(default_backend())
+
+            sig = _decode_b64url(sig_b64)
+            message = f"{header_b64}.{payload_b64}".encode("ascii")
+            pub_key.verify(sig, message, _pad.PKCS1v15(), _hashes.SHA256())
+            return True
+
+        except Exception:
+            return False
 
     async def handle_webhook(self, event_type: str, payload: Dict[str, Any],
                              raw_body: bytes, headers: Dict[str, str]) -> None:

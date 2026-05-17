@@ -5,9 +5,15 @@ Extended API routes for Gmail and Outlook integrations
 import sys
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+import re as _re
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
+
+from backend.auth.local_auth import require_local_auth
+
+_AUTH = [Depends(require_local_auth)]
 from datetime import datetime
 import json
 import requests
@@ -41,11 +47,25 @@ class GmailLabelInput(BaseModel):
     label_name: str
     message_id: str
 
+    @field_validator('message_id')
+    @classmethod
+    def _validate_message_id(cls, v: str) -> str:
+        if not v or len(v) > 512 or not _re.match(r'^[A-Za-z0-9_\-=]+$', v):
+            raise ValueError('message_id contains invalid characters')
+        return v
+
 
 class OutlookFolderInput(BaseModel):
     email: str
     folder_name: str
     message_id: str
+
+    @field_validator('message_id')
+    @classmethod
+    def _validate_message_id(cls, v: str) -> str:
+        if not v or len(v) > 512 or not _re.match(r'^[A-Za-z0-9_\-=]+$', v):
+            raise ValueError('message_id contains invalid characters')
+        return v
 
 
 class SyncStatusResponse(BaseModel):
@@ -66,7 +86,7 @@ async def add_outlook_account(account: OutlookAccountInput):
     raise HTTPException(status_code=400, detail="Connect Outlook through /api/oauth/microsoft/start so OAuth tokens are stored securely")
 
 
-@router.post("/gmail/label")
+@router.post("/gmail/label", dependencies=_AUTH)
 async def apply_gmail_label(label_input: GmailLabelInput):
     account = db.get_account_by_email(label_input.email)
     if not account or account["provider"] != "gmail":
@@ -106,7 +126,7 @@ async def apply_gmail_label(label_input: GmailLabelInput):
     return {"status": "success", "provider": "gmail", "label": label, "message_id": label_input.message_id}
 
 
-@router.get("/gmail/labels/{email}")
+@router.get("/gmail/labels/{email}", dependencies=_AUTH)
 async def get_gmail_labels(email: str):
     account = db.get_account_by_email(email)
     if not account or account["provider"] != "gmail":
@@ -124,7 +144,7 @@ async def get_gmail_labels(email: str):
     return {"labels": response.json().get("labels", [])}
 
 
-@router.post("/outlook/folder")
+@router.post("/outlook/folder", dependencies=_AUTH)
 async def move_to_outlook_folder(folder_input: OutlookFolderInput):
     account = db.get_account_by_email(folder_input.email)
     if not account or account["provider"] != "outlook":
@@ -164,7 +184,7 @@ async def move_to_outlook_folder(folder_input: OutlookFolderInput):
     return {"status": "success", "provider": "outlook", "folder": folder, "message": move_response.json()}
 
 
-@router.get("/outlook/folders/{email}")
+@router.get("/outlook/folders/{email}", dependencies=_AUTH)
 async def get_outlook_folders(email: str):
     account = db.get_account_by_email(email)
     if not account or account["provider"] != "outlook":
@@ -182,7 +202,7 @@ async def get_outlook_folders(email: str):
     return {"folders": response.json().get("value", [])}
 
 
-@router.get("/sync/status/{provider}")
+@router.get("/sync/status/{provider}", dependencies=_AUTH)
 async def get_sync_status(provider: str, email: str):
     account = db.fetch_one("SELECT * FROM accounts WHERE provider = ? AND email = ?", (provider, email))
     if not account:
@@ -200,7 +220,7 @@ async def get_sync_status(provider: str, email: str):
     )
 
 
-@router.post("/sync/stop")
+@router.post("/sync/stop", dependencies=_AUTH)
 async def stop_sync(email: str):
     account = db.get_account_by_email(email)
     if not account:
@@ -212,7 +232,7 @@ async def stop_sync(email: str):
     return {"status": "idle"}
 
 
-@router.get("/settings/{user_id}")
+@router.get("/settings/{user_id}", dependencies=_AUTH)
 async def get_user_settings(user_id: int):
     user = db.fetch_one("SELECT settings FROM users WHERE id = ?", (user_id,))
     if user and user.get("settings"):
@@ -232,7 +252,7 @@ async def get_user_settings(user_id: int):
     return {"settings": settings}
 
 
-@router.put("/settings/{user_id}")
+@router.put("/settings/{user_id}", dependencies=_AUTH)
 async def update_user_settings(user_id: int, settings: dict):
     db.execute(
         "UPDATE users SET settings = ? WHERE id = ?",
@@ -241,7 +261,7 @@ async def update_user_settings(user_id: int, settings: dict):
     return {"status": "success", "message": "Settings updated"}
 
 
-@router.get("/stats/{user_id}")
+@router.get("/stats/{user_id}", dependencies=_AUTH)
 async def get_user_stats(user_id: int):
     stats = db.fetch_one("""
         SELECT
@@ -263,7 +283,7 @@ async def get_user_stats(user_id: int):
     }
 
 
-@router.get("/gmail/status")
+@router.get("/gmail/status", dependencies=_AUTH)
 async def gmail_status():
     accounts = db.fetch_all("SELECT * FROM accounts WHERE provider = 'gmail'")
     return {
@@ -274,7 +294,7 @@ async def gmail_status():
     }
 
 
-@router.get("/outlook/status")
+@router.get("/outlook/status", dependencies=_AUTH)
 async def outlook_status():
     accounts = db.fetch_all("SELECT * FROM accounts WHERE provider = 'outlook'")
     return {
@@ -285,7 +305,7 @@ async def outlook_status():
     }
 
 
-@router.get("/imap/status")
+@router.get("/imap/status", dependencies=_AUTH)
 async def imap_status():
     accounts = db.fetch_all("SELECT * FROM accounts WHERE provider IN ('imap', 'yahoo', 'zoho')")
     return {

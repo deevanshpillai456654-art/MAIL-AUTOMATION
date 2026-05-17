@@ -91,15 +91,15 @@ async def list_tickets(
         like = f"%{search}%"; params.extend([like, like])
     where = " AND ".join(conditions)
     rows = db.fetch_all(
-        f"SELECT t.*, c.first_name||' '||COALESCE(c.last_name,'') AS contact_name FROM support_tickets t LEFT JOIN crm_contacts c ON t.contact_id=c.id WHERE {where} ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END, t.created_at DESC LIMIT ? OFFSET ?",
+        f"SELECT t.*, c.first_name||' '||COALESCE(c.last_name,'') AS contact_name FROM support_tickets t LEFT JOIN crm_contacts c ON t.contact_id=c.id WHERE {where} ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END, t.created_at DESC LIMIT ? OFFSET ?",  # nosec B608
         params + [limit, offset],
     )
-    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM support_tickets t WHERE {where}", params)
+    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM support_tickets t WHERE {where}", params)  # nosec B608
     return {"tickets": rows, "total": _int(total["c"] if total else 0)}
 
 
 @router.post("/tickets", summary="Create ticket", status_code=status.HTTP_201_CREATED)
-async def create_ticket(body: dict[str, Any]):
+async def create_ticket(body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     tid = str(uuid.uuid4())
     now = utc_now_str()
@@ -108,7 +108,7 @@ async def create_ticket(body: dict[str, Any]):
     sla_due = _sla_due(priority, now)
     db.execute(
         "INSERT INTO support_tickets (id,tenant_id,contact_id,ticket_number,subject,description,status,priority,channel,assigned_to,tags_json,sla_due_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (tid, body.get("tenant_id","default"), body.get("contact_id"), ticket_number,
+        (tid, tenant_id, body.get("contact_id"), ticket_number,
          body["subject"], body.get("description"), body.get("status","open"),
          priority, body.get("channel","email"), body.get("assigned_to"),
          body.get("tags_json","[]"), sla_due, now, now),
@@ -118,7 +118,7 @@ async def create_ticket(body: dict[str, Any]):
         mid = str(uuid.uuid4())
         db.execute(
             "INSERT INTO support_messages (id,ticket_id,tenant_id,sender_type,sender_id,content,is_internal,attachments,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-            (mid, tid, body.get("tenant_id","default"), "customer", body.get("contact_id",""), body["description"], 0, "[]", now),
+            (mid, tid, tenant_id, "customer", body.get("contact_id",""), body["description"], 0, "[]", now),
         )
     return db.fetch_one("SELECT * FROM support_tickets WHERE id=?", (tid,))
 
@@ -135,13 +135,16 @@ async def get_ticket(ticket_id: str, tenant_id: str = Query(...)):
 
 
 @router.patch("/tickets/{ticket_id}", summary="Update ticket")
-async def update_ticket(ticket_id: str, body: dict[str, Any]):
+async def update_ticket(ticket_id: str, body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
+    existing = db.fetch_one("SELECT id FROM support_tickets WHERE id=? AND tenant_id=?", (ticket_id, tenant_id))
+    if not existing:
+        raise HTTPException(status_code=404, detail="Ticket not found")
     now = utc_now_str()
     allowed = {"status","priority","assigned_to","tags_json","resolved_at","first_response"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if updates:
-        db.execute(f"UPDATE support_tickets SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=?", list(updates.values()) + [now, ticket_id])
+        db.execute(f"UPDATE support_tickets SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=? AND tenant_id=?", list(updates.values()) + [now, ticket_id, tenant_id])  # nosec B608
     return {"ok": True}
 
 
@@ -157,16 +160,19 @@ async def delete_ticket(ticket_id: str, tenant_id: str = Query(...)):
 # ---------------------------------------------------------------------------
 
 @router.get("/tickets/{ticket_id}/messages", summary="Get ticket messages")
-async def get_messages(ticket_id: str):
+async def get_messages(ticket_id: str, tenant_id: str = Query(...)):
     db = get_panel_db()
+    ticket = db.fetch_one("SELECT id FROM support_tickets WHERE id=? AND tenant_id=?", (ticket_id, tenant_id))
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
     rows = db.fetch_all("SELECT * FROM support_messages WHERE ticket_id=? ORDER BY created_at ASC", (ticket_id,))
     return {"messages": rows, "total": len(rows)}
 
 
 @router.post("/tickets/{ticket_id}/messages", summary="Add message to ticket", status_code=status.HTTP_201_CREATED)
-async def add_message(ticket_id: str, body: dict[str, Any]):
+async def add_message(ticket_id: str, body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
-    ticket = db.fetch_one("SELECT * FROM support_tickets WHERE id=?", (ticket_id,))
+    ticket = db.fetch_one("SELECT * FROM support_tickets WHERE id=? AND tenant_id=?", (ticket_id, tenant_id))
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
     mid = str(uuid.uuid4())

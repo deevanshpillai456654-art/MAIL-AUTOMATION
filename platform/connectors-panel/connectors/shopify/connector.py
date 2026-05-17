@@ -163,16 +163,15 @@ class ShopifyConnector(ConnectorBase):
         ext_id = str(c["id"])
         now = datetime.now(tz=timezone.utc).isoformat()
         existing = self.db.fetch_one(
-            "SELECT contact_id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
+            "SELECT id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
             (ext_id, self.tenant_id),
         )
         if existing:
             return
         cid = f"cnt_{uuid.uuid4().hex}"
-        name = c.get("default_address", {}) or {}
         self.db.execute(
             """INSERT INTO crm_contacts
-               (contact_id, tenant_id, first_name, last_name, email, phone,
+               (id, tenant_id, first_name, last_name, email, phone,
                 source, external_id, status, created_at, updated_at)
                VALUES (?,?,?,?,?,?,'shopify',?,'active',?,?)""",
             (cid, self.tenant_id,
@@ -184,7 +183,11 @@ class ShopifyConnector(ConnectorBase):
     async def verify_webhook_signature(self, raw_body: bytes,
                                        headers: Dict[str, str]) -> bool:
         secret = self.config.get("api_secret", "")
+        if not secret:
+            return False
         hmac_header = headers.get("X-Shopify-Hmac-Sha256", "")
+        if not hmac_header:
+            return False
         return ShopifyAPI.verify_webhook(secret, raw_body, hmac_header)
 
     async def handle_webhook(self, event_type: str, payload: Dict[str, Any],

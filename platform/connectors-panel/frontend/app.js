@@ -3,20 +3,37 @@
 
 const API = '/api/connector-panel';
 let _tenantId = 'default';
+let _localToken = '';
+let _sessionReady = null;
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
 async function apiFetch(path, opts = {}) {
+  await ensureSession();
   const url = `${API}${path}`;
-  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(_localToken ? { 'X-Local-Token': _localToken } : {}),
+    ...(opts.headers || {}),
+  };
   try {
-    const res = await fetch(url, { ...opts, headers });
+    const res = await fetch(url, { ...opts, credentials: 'same-origin', headers });
     const text = await res.text();
     const data = text ? JSON.parse(text) : {};
     return res.ok ? { ok: true, data } : { ok: false, error: data.detail || data.message || 'Request failed', status: res.status };
   } catch (e) {
     return { ok: false, error: e.message || 'Network error', status: 0 };
   }
+}
+
+async function ensureSession() {
+  if (!_sessionReady) {
+    _sessionReady = fetch(`${API}/session`, {
+      method: 'POST',
+      credentials: 'same-origin',
+    }).catch(() => null);
+  }
+  await _sessionReady;
 }
 
 function esc(v) {
@@ -163,6 +180,7 @@ let _currentSection = 'dashboard';
 
 function reloadCurrentSection() {
   sectionLoaders[_currentSection]?.();
+  if (_currentSection !== 'installed') loadInstalled();
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
@@ -273,27 +291,104 @@ function renderMarketplace(items) {
 }
 
 const CONNECTOR_ICONS = {
-  whatsapp:'💬', gmail:'📧', openai:'🤖', ocr_engine:'📄',
-  shopify:'🛍️', slack:'💼', webhook_listener:'🔗', erp_sync:'🏭',
-  zoho_crm:'👥', shipping_tracker:'🚢',
-  // ERP
-  sap:'🏗️', oracle_erp:'🔷', netsuite:'🟠', odoo:'🟣', erpnext:'🟢',
-  ms_dynamics_365:'🔵', dynamics_365:'🔵',
-  // CRM
-  salesforce:'☁️', hubspot:'🟠', freshsales:'🌿', pipedrive:'🔴',
-  // Shipping
-  fedex:'📦', ups:'🟤', dhl:'🟡', delhivery:'🚛', shiprocket:'🚀',
-  aftership:'📍', maersk:'🚢', msc:'⚓',
-  // Ecommerce
-  woocommerce:'🛒', magento:'🔮', amazon_seller:'📦',
-  // Comms
-  outlook:'📩', teams:'💻', telegram:'✈️', discord:'🎮',
-  // Accounting
-  quickbooks:'💰', xero:'💵', zoho_books:'📊',
-  // Support
-  zendesk:'🎫', freshdesk:'🌊', intercom:'💬',
-  // AI
-  anthropic:'🤖', google_gemini:'✨',
+  // ── Communication ───────────────────────────────────────────────────────────
+  whatsapp: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#25D366"/><path fill="#fff" d="M20 8C13.4 8 8 13.4 8 20c0 2.2.6 4.3 1.7 6.1L8 32l6.1-1.7C15.7 31.4 17.8 32 20 32c6.6 0 12-5.4 12-12S26.6 8 20 8zm5.8 16.6c-.3.8-1.6 1.5-2.2 1.6-.6.1-1.3.1-2-.1-.7-.2-1.8-.7-3.5-1.8-2.5-1.6-4-4-4.2-4.2-.2-.3-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5.3.7.9 2.1 1 2.3.1.2.1.4 0 .6-.1.2-.2.4-.3.5-.2.2-.3.4-.1.7.2.3.8 1.1 1.6 1.9 1.1 1 2 1.3 2.2 1.4.2.1.4 0 .6-.1.2-.2.6-.7.9-1 .2-.3.4-.2.7-.1l2.1 1c.2.1.4.2.5.4.1.3 0 1.1-.3 1.5z"/></svg>`,
+
+  gmail: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#fff" stroke="#E2E8F0"/><path d="M8 28V14l12 9 12-9v14a1 1 0 01-1 1H9a1 1 0 01-1-1z" fill="#4285F4"/><path d="M8 14l12 9 12-9" stroke="#EA4335" stroke-width="0"/><path d="M9 13h22a1 1 0 011 1v.5L20 22.5 8 14.5V14a1 1 0 011-1z" fill="#EA4335"/><path d="M8 14.5L20 23l12-8.5" fill="none"/><path d="M8 14v14h5V19l7 5.5L27 19v9h5V14L20 23 8 14z" fill="#fff"/><path d="M8 14v14h5V19l7 5.5L27 19v9h5V14L20 23 8 14z" fill="none"/><rect x="8" y="13" width="24" height="15" rx="1" fill="none" stroke="#E2E8F0" stroke-width=".5"/><path d="M8 14l12 8.8L32 14" stroke="#EA4335" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+
+  slack: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#fff"/><path d="M15 10a3 3 0 00-3 3 3 3 0 003 3h3v-3a3 3 0 00-3-3z" fill="#E01E5A"/><path d="M15 16h-3a3 3 0 000 6h3v-6z" fill="#E01E5A"/><path d="M22 10a3 3 0 00-3 3v3h3a3 3 0 000-6z" fill="#36C5F0"/><path d="M28 13a3 3 0 00-6 0v3h3a3 3 0 003-3z" fill="#36C5F0"/><path d="M25 22h-3v3a3 3 0 003 3 3 3 0 003-3 3 3 0 00-3-3z" fill="#2EB67D"/><path d="M25 16h3a3 3 0 000-6 3 3 0 00-3 3v3z" fill="#2EB67D"/><path d="M18 25a3 3 0 003 3 3 3 0 003-3h-3v-3h-3v3z" fill="#ECB22E"/><path d="M15 22a3 3 0 003 3v-3h3v-3h-3a3 3 0 00-3 3z" fill="#ECB22E"/></svg>`,
+
+  slack_enterprise: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#fff"/><path d="M15 10a3 3 0 00-3 3 3 3 0 003 3h3v-3a3 3 0 00-3-3z" fill="#E01E5A"/><path d="M15 16h-3a3 3 0 000 6h3v-6z" fill="#E01E5A"/><path d="M22 10a3 3 0 00-3 3v3h3a3 3 0 000-6z" fill="#36C5F0"/><path d="M28 13a3 3 0 00-6 0v3h3a3 3 0 003-3z" fill="#36C5F0"/><path d="M25 22h-3v3a3 3 0 003 3 3 3 0 003-3 3 3 0 00-3-3z" fill="#2EB67D"/><path d="M25 16h3a3 3 0 000-6 3 3 0 00-3 3v3z" fill="#2EB67D"/><path d="M18 25a3 3 0 003 3 3 3 0 003-3h-3v-3h-3v3z" fill="#ECB22E"/><path d="M15 22a3 3 0 003 3v-3h3v-3h-3a3 3 0 00-3 3z" fill="#ECB22E"/></svg>`,
+
+  teams: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#5558AF"/><path d="M23 14h5a2 2 0 012 2v8a2 2 0 01-2 2h-5v2l-5-2H13a2 2 0 01-2-2v-8a2 2 0 012-2h10z" fill="#fff" opacity=".15"/><rect x="11" y="15" width="14" height="12" rx="2" fill="#fff"/><text x="18" y="24" font-family="Arial" font-size="8" font-weight="700" fill="#5558AF" text-anchor="middle">T</text><circle cx="25" cy="14" r="4" fill="#7B83EB"/><text x="25" y="17" font-family="Arial" font-size="5" font-weight="700" fill="#fff" text-anchor="middle">T</text></svg>`,
+
+  outlook: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#0078D4"/><rect x="8" y="13" width="16" height="14" rx="2" fill="#fff"/><rect x="8" y="13" width="16" height="5" rx="0" fill="#0078D4" opacity=".3"/><path d="M8 18l8 5 8-5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><path d="M21 16h11v11H21" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/><path d="M21 16l6 5-5 5" stroke="#fff" stroke-width="0" fill="none"/></svg>`,
+
+  telegram: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#2AABEE"/><path d="M9 19.5l4 1.5 2 5 3-3.5 5 4 4-14-18 7z" fill="#fff"/><path d="M13 21l2 5 3-3.5" fill="none" stroke="#C8DAEA" stroke-width="1.5" stroke-linejoin="round"/><path d="M13 21l14-9-12 10z" fill="#A9C9DD"/></svg>`,
+
+  discord: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#5865F2"/><path d="M27 13s-3-1-6-1-6 1-6 1l-3 14s3 2 9 2 9-2 9-2l-3-14z" fill="#fff" opacity=".15"/><path d="M25.3 13.5c-1.5-.7-3.4-1.1-5.3-1.1s-3.8.4-5.3 1.1c-2.2 1-3.7 3-3.7 5.3 0 2.5 1.2 4.7 3.2 6 .5.3 1.4.7 1.4.7s.4-1.2.6-2.2c1 .4 2.4.7 3.8.7s2.8-.3 3.8-.7c.2 1 .6 2.2.6 2.2s.9-.4 1.4-.7c2-1.3 3.2-3.5 3.2-6 0-2.3-1.5-4.3-3.7-5.3zm-8.3 7c-.8 0-1.5-.7-1.5-1.5S16.2 17.5 17 17.5s1.5.7 1.5 1.5-.7 1.5-1.5 1.5zm6 0c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5z" fill="#fff"/></svg>`,
+
+  // ── CRM ─────────────────────────────────────────────────────────────────────
+  salesforce: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#00A1E0"/><path d="M16 15c0-2.2 1.8-4 4-4 1.4 0 2.6.7 3.3 1.8.5-.3 1-.4 1.7-.4 1.9 0 3.5 1.6 3.5 3.5 0 .3 0 .6-.1.8C29.4 17.3 30 18.4 30 19.6c0 2-1.6 3.6-3.5 3.6H14c-1.7 0-3-1.3-3-3s1-2.8 2.4-3c-.3-.5-.4-1-.4-1.6 0-1.9 1.5-3.4 3-3.6z" fill="#fff"/></svg>`,
+
+  hubspot: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#FF7A59"/><circle cx="24" cy="14" r="4" fill="#fff"/><circle cx="24" cy="14" r="2" fill="#FF7A59"/><path d="M20 14h-4v5H9v3h7v5h4v-5h11v-3H20v-5z" fill="#fff" opacity=".2"/><path d="M22 17v-3h-4v5H10v3h8v5h4v-5h8v-3h-8z" fill="#fff"/></svg>`,
+
+  zoho_crm: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#C9222B"/><text x="20" y="27" font-family="Arial" font-size="22" font-weight="900" fill="#fff" text-anchor="middle">Z</text></svg>`,
+
+  freshsales: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#4CA542"/><text x="20" y="27" font-family="Arial" font-size="22" font-weight="900" fill="#fff" text-anchor="middle">F</text></svg>`,
+
+  pipedrive: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#1A1A2E"/><circle cx="20" cy="17" r="5" fill="#26C6DA" opacity=".9"/><rect x="17" y="22" width="6" height="10" rx="3" fill="#26C6DA" opacity=".9"/></svg>`,
+
+  // ── ERP ─────────────────────────────────────────────────────────────────────
+  sap: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#0070B1"/><text x="20" y="26" font-family="Arial" font-size="13" font-weight="900" fill="#fff" text-anchor="middle">SAP</text></svg>`,
+
+  oracle_erp: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#C74634"/><text x="20" y="26" font-family="Arial" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">ORACLE</text></svg>`,
+
+  odoo: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#714B67"/><circle cx="14" cy="20" r="4" fill="#fff"/><circle cx="20" cy="20" r="4" fill="#fff"/><circle cx="26" cy="20" r="4" fill="#fff"/></svg>`,
+
+  erpnext: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#0089C6"/><text x="20" y="26" font-family="Arial" font-size="11" font-weight="900" fill="#fff" text-anchor="middle">ERPNext</text></svg>`,
+
+  netsuite: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#2F8BCC"/><text x="20" y="26" font-family="Arial" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">NetSuite</text></svg>`,
+
+  ms_dynamics_365: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#002050"/><path d="M12 12h10l6 8-6 8H12l6-8-6-8z" fill="#00BCF2"/></svg>`,
+
+  dynamics_365: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#002050"/><path d="M12 12h10l6 8-6 8H12l6-8-6-8z" fill="#00BCF2"/></svg>`,
+
+  erp_sync: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#1D4ED8"/><path d="M13 16h9M22 16l-3-3M22 16l-3 3M27 24h-9M18 24l3-3M18 24l3 3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="11" cy="16" r="2" fill="#93C5FD"/><circle cx="29" cy="24" r="2" fill="#93C5FD"/></svg>`,
+
+  // ── Accounting ──────────────────────────────────────────────────────────────
+  quickbooks: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#2CA01C"/><circle cx="20" cy="20" r="9" fill="#fff"/><path d="M16 16h5a3 3 0 010 6h-3v2h-2v-8zm2 2v2h3a1 1 0 000-2h-3z" fill="#2CA01C"/><circle cx="23" cy="25" r="2" fill="#2CA01C"/></svg>`,
+
+  xero: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#13B5EA"/><path d="M13 15l5 5-5 5M27 15l-5 5 5 5" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+
+  zoho_books: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#C9222B"/><text x="20" y="27" font-family="Arial" font-size="22" font-weight="900" fill="#fff" text-anchor="middle">Z</text></svg>`,
+
+  // ── Ecommerce ───────────────────────────────────────────────────────────────
+  shopify: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#5E8E3E"/><path d="M26 13s-.2-1.3-1.3-1.4c-1-.1-1.8.6-2 .8 0 0-.4-.1-.8-.1-1 0-1.5.7-1.7 1.2-.3-.1-.7-.1-1-.1L18 25l8 1.5L29 14l-3-1zm-3.8 1c.1-.4.4-1 .9-1.3v.5l.6.2-.6 3.8c-.5-.2-.9-.5-.9-1V14zm2.5 3.5l.6-4 .7.3L25 25l-1-8.5h1zm1.8-3.8l.8.3.2 1.4-.3-.1-.7-1.6z" fill="#fff"/><path d="M18 25l1.5-11 1 .3L19 25h-1z" fill="#fff" opacity=".5"/></svg>`,
+
+  woocommerce: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#96588A"/><text x="20" y="27" font-family="Arial" font-size="13" font-weight="900" fill="#fff" text-anchor="middle">Woo</text></svg>`,
+
+  magento: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#EE672F"/><path d="M20 11l8 5v10l-4 2.5V17l-4-2.5L16 17v11.5L12 26V16l8-5z" fill="#fff"/></svg>`,
+
+  amazon_seller: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#FF9900"/><text x="20" y="25" font-family="Arial" font-size="20" font-weight="900" fill="#fff" text-anchor="middle">a</text><path d="M12 28c5-2.5 12-2.5 17 0" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>`,
+
+  // ── Shipping ────────────────────────────────────────────────────────────────
+  fedex: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#4D148C"/><text x="12" y="25" font-family="Arial" font-size="12" font-weight="900" fill="#fff">Fe</text><text x="23" y="25" font-family="Arial" font-size="12" font-weight="900" fill="#FF6600">dEx</text></svg>`,
+
+  ups: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#351C15"/><path d="M20 10l8 4v9c0 4-8 7-8 7s-8-3-8-7v-9l8-4z" fill="#FFB500"/><text x="20" y="25" font-family="Arial" font-size="8" font-weight="900" fill="#351C15" text-anchor="middle">UPS</text></svg>`,
+
+  dhl: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#FFCC00"/><text x="20" y="26" font-family="Arial" font-size="14" font-weight="900" fill="#CC0000" text-anchor="middle">DHL</text></svg>`,
+
+  delhivery: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#D52B1E"/><text x="20" y="27" font-family="Arial" font-size="22" font-weight="900" fill="#fff" text-anchor="middle">D</text></svg>`,
+
+  shiprocket: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#E03D24"/><path d="M20 9l3 6h5l-4 4 1.5 6L20 22l-5.5 3 1.5-6-4-4h5L20 9z" fill="#fff"/></svg>`,
+
+  aftership: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#5C6BC0"/><text x="20" y="27" font-family="Arial" font-size="22" font-weight="900" fill="#fff" text-anchor="middle">A</text></svg>`,
+
+  maersk: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#00243D"/><path d="M10 20h20M15 14l5 6 5-6M15 26l5-6 5 6" stroke="#42B0D5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+
+  msc: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#003087"/><text x="20" y="26" font-family="Arial" font-size="13" font-weight="900" fill="#fff" text-anchor="middle">MSC</text></svg>`,
+
+  shipping_tracker: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#0EA5E9"/><path d="M8 22h18l-2-8h4l3 8" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="13" cy="27" r="2.5" fill="#fff"/><circle cx="23" cy="27" r="2.5" fill="#fff"/><path d="M8 18h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>`,
+
+  // ── Support ─────────────────────────────────────────────────────────────────
+  zendesk: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#1F73B7"/><path d="M20 12a8 8 0 100 16 8 8 0 000-16zm0 3c1.7 0 3 1.3 3 3s-1.3 3-3 3-3-1.3-3-3 1.3-3 3-3z" fill="#fff"/></svg>`,
+
+  freshdesk: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#4CA542"/><path d="M13 14h14v12a6 6 0 01-6 6h-2a6 6 0 01-6-6V14z" fill="#fff" opacity=".9"/><circle cx="16" cy="20" r="2" fill="#4CA542"/><circle cx="24" cy="20" r="2" fill="#4CA542"/><path d="M17 24h6" stroke="#4CA542" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+
+  intercom: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#1F8DED"/><rect x="10" y="11" width="20" height="16" rx="4" fill="#fff"/><circle cx="15" cy="19" r="2" fill="#1F8DED"/><circle cx="20" cy="19" r="2" fill="#1F8DED"/><circle cx="25" cy="19" r="2" fill="#1F8DED"/><path d="M14 27l3-4h6l3 4" fill="#fff"/></svg>`,
+
+  // ── AI ──────────────────────────────────────────────────────────────────────
+  openai: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#000"/><path d="M20 10c-5.5 0-10 4.5-10 10s4.5 10 10 10 10-4.5 10-10S25.5 10 20 10zm0 4l1.5 4.5H26l-3.7 2.7 1.4 4.3L20 23l-3.7 2.5 1.4-4.3L14 18.5h4.5L20 14z" fill="#fff"/></svg>`,
+
+  anthropic: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#CC785C"/><path d="M17 26l3-12 3 12h-2l-.7-3h-2.6L17 26h-1.5zm2-5h2l-1-4-1 4z" fill="#fff" font-family="serif"/><text x="20" y="26" font-family="Georgia,serif" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">A</text></svg>`,
+
+  google_gemini: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#fff" stroke="#E2E8F0"/><path d="M20 10c0 5.5-4.5 10-10 10 5.5 0 10 4.5 10 10 0-5.5 4.5-10 10-10-5.5 0-10-4.5-10-10z" fill="url(#gem)"/><defs><linearGradient id="gem" x1="10" y1="10" x2="30" y2="30"><stop offset="0%" stop-color="#4285F4"/><stop offset="50%" stop-color="#9B72CB"/><stop offset="100%" stop-color="#EA4335"/></linearGradient></defs></svg>`,
+
+  // ── Platform / Generic ───────────────────────────────────────────────────────
+  ocr_engine: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#3B82F6"/><rect x="11" y="10" width="14" height="18" rx="2" fill="#fff"/><path d="M13 15h10M13 18h10M13 21h7" stroke="#3B82F6" stroke-width="1.5" stroke-linecap="round"/><path d="M27 22l1-2 1 2 2 1-2 1-1 2-1-2-2-1 2-1z" fill="#FCD34D"/></svg>`,
+
+  webhook_listener: `<svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#7C3AED"/><path d="M14 20c0-3.3 2.7-6 6-6" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M11 20c0-5 4-9 9-9" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".5"/><circle cx="20" cy="20" r="3" fill="#fff"/><path d="M20 23v5M17 31h6" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>`,
 };
 
 function renderConnectorCard(c) {
@@ -411,9 +506,40 @@ async function viewConnectorDetails(id) {
 
 // ── INSTALLED CONNECTORS ──────────────────────────────────────────────────────
 
+function updateSidebarVisibility(rows) {
+  const cats = new Set((rows || []).map(c => (c.category || '').toLowerCase()));
+  const any = cats.size > 0;
+  const visibility = {
+    'sidebar-erp':        cats.has('erp') || cats.has('accounting'),
+    'sidebar-crm':        cats.has('crm'),
+    'sidebar-tracking':   cats.has('tracking') || cats.has('shipping'),
+    'sidebar-support':    cats.has('support'),
+    'sidebar-automation': any,
+    'sidebar-operations': any,
+  };
+  const sectionGroup = {
+    erp:'sidebar-erp', vendors:'sidebar-erp', 'purchase-orders':'sidebar-erp',
+    invoices:'sidebar-erp', inventory:'sidebar-erp', warehouses:'sidebar-erp',
+    crm:'sidebar-crm', pipeline:'sidebar-crm', leads:'sidebar-crm',
+    contacts:'sidebar-crm', opportunities:'sidebar-crm',
+    tracking:'sidebar-tracking',
+    support:'sidebar-support',
+    workflows:'sidebar-automation', events:'sidebar-automation',
+    queues:'sidebar-operations', logs:'sidebar-operations',
+    health:'sidebar-operations', oauth:'sidebar-operations', webhooks:'sidebar-operations',
+  };
+  for (const [id, visible] of Object.entries(visibility)) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = visible ? '' : 'none';
+  }
+  const activeGroup = sectionGroup[_currentSection];
+  if (activeGroup && !visibility[activeGroup]) showSection('dashboard');
+}
+
 async function loadInstalled() {
   const res = await apiFetch(`/connectors?tenant_id=${_tenantId}`);
   const rows = res.ok ? (res.data.connectors || res.data || []) : [];
+  updateSidebarVisibility(rows);
   const tbody = document.getElementById('installedTbody');
   if (!tbody) return;
   if (!rows.length) {
@@ -565,14 +691,14 @@ function renderOAuthTokens(tokens) {
       <td>${t.is_valid ? '<span class="badge badge-active">Valid</span>' : '<span class="badge badge-failed">Expired</span>'}</td>
       <td>${esc(formatDate(t.expires_at))}</td>
       <td>
-        <button class="btn btn-xs btn-secondary" onclick="revokeToken('${esc(t.token_id)}')">Revoke</button>
-        ${!t.is_valid ? `<button class="btn btn-xs btn-primary" onclick="refreshToken('${esc(t.token_id)}')">Refresh</button>` : ''}
+        <button class="btn btn-xs btn-secondary" onclick="revokeToken('${esc(t.id)}')">Revoke</button>
+        ${!t.is_valid ? `<button class="btn btn-xs btn-primary" onclick="refreshToken('${esc(t.id)}')">Refresh</button>` : ''}
       </td>
     </tr>`).join('');
 }
 
 async function startOAuth(provider) {
-  const res = await apiFetch(`/oauth/authorize/${provider}?tenant_id=${_tenantId}`, { method:'POST', body:'{}' });
+  const res = await apiFetch(`/oauth/authorize/${provider}?tenant_id=${_tenantId}`, { method:'GET' });
   if (res.ok && res.data.auth_url) {
     window.open(res.data.auth_url, '_blank', 'width=600,height=700');
     toast(`OAuth flow started for ${provider}`, 'info');
@@ -699,7 +825,7 @@ function renderQueueJobs(jobs, tbodyId, isDL = false) {
       <td>${esc(j.error ? j.error.slice(0,40)+'…' : '—')}</td>
       <td>${timeAgo(j.created_at)}</td>
       <td>
-        ${isDL || j.status === 'failed' || j.status === 'dead_letter'
+        ${isDL || j.status === 'failed' || j.status === 'dead'
           ? `<button class="btn btn-xs btn-secondary" onclick="retryJob('${esc(j.job_id||j.id)}',${isDL})">Retry</button>` : ''}
         <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(252,92,92,.2);" onclick="cancelJob('${esc(j.job_id||j.id)}')">Cancel</button>
       </td>
@@ -753,7 +879,7 @@ async function loadLogs() {
 function renderLogLine(l) {
   return `<div class="log-line">
     <span class="log-ts">${esc(formatDate(l.timestamp||l.created_at))}</span>
-    <span class="log-lvl ${l.level||'INFO'}">${esc(l.level||'INFO')}</span>
+    <span class="log-lvl ${esc(l.level||'INFO')}">${esc(l.level||'INFO')}</span>
     <span class="log-connector">[${esc(l.connector_id||'system')}]</span>
     <span class="log-msg">${esc(l.message)}</span>
   </div>`;
@@ -814,8 +940,8 @@ async function loadHealth() {
         <span class="health-key">Last Sync</span><span class="health-val">${timeAgo(c.last_sync)}</span>
         <span class="health-key">Failures</span><span class="health-val">${c.failure_count||0}</span>
         <span class="health-key">Retries</span><span class="health-val">${c.retry_count||0}</span>
-        ${c.response_latency_ms ? `<span class="health-key">Latency</span><span class="health-val">${c.response_latency_ms}ms</span>` : ''}
-        ${c.api_quota_limit ? `<span class="health-key">API Quota</span><span class="health-val">${c.api_quota_used||0}/${c.api_quota_limit}</span>` : ''}
+        ${c.response_latency_ms ? `<span class="health-key">Latency</span><span class="health-val">${esc(c.response_latency_ms)}ms</span>` : ''}
+        ${c.api_quota_limit ? `<span class="health-key">API Quota</span><span class="health-val">${esc(c.api_quota_used||0)}/${esc(c.api_quota_limit)}</span>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -1040,25 +1166,25 @@ async function loadVendors() {
   tbody.innerHTML = rows.map(v => `
     <tr>
       <td><strong>${esc(v.name)}</strong></td>
-      <td style="font-family:monospace;font-size:11px;">${esc(v.vendor_code||'—')}</td>
+      <td style="font-family:monospace;font-size:11px;">${esc(v.code||'—')}</td>
       <td><a href="mailto:${esc(v.email||'')}" style="color:var(--accent);">${esc(v.email||'—')}</a></td>
       <td>${esc(v.category||'—')}</td>
       <td>${esc(v.payment_terms||'—')}</td>
       <td>${statusBadge(v.status||'active')}</td>
       <td>
-        <button class="btn btn-xs btn-secondary" onclick="editVendorModal('${esc(v.vendor_id)}')">Edit</button>
-        <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(220,38,38,.2);" onclick="deleteVendor('${esc(v.vendor_id)}','${esc(v.name)}')">Remove</button>
+        <button class="btn btn-xs btn-secondary" onclick="editVendorModal('${esc(v.id)}')">Edit</button>
+        <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(220,38,38,.2);" onclick="deleteVendor('${esc(v.id)}','${esc(v.name)}')">Remove</button>
       </td>
     </tr>`).join('');
 }
 
 function createVendorModal(v = {}) {
-  const edit = !!v.vendor_id;
+  const edit = !!v.id;
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'Add'} Vendor</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="two-col" style="gap:12px;">
       <div class="form-group"><label>Vendor Name *</label><input id="vnName" value="${esc(v.name||'')}" placeholder="Acme Corp" /></div>
-      <div class="form-group"><label>Vendor Code</label><input id="vnCode" value="${esc(v.vendor_code||'')}" placeholder="VND-001" /></div>
+      <div class="form-group"><label>Vendor Code</label><input id="vnCode" value="${esc(v.code||'')}" placeholder="VND-001" /></div>
     </div>
     <div class="two-col" style="gap:12px;">
       <div class="form-group"><label>Email</label><input id="vnEmail" type="email" value="${esc(v.email||'')}" /></div>
@@ -1075,7 +1201,7 @@ function createVendorModal(v = {}) {
     <div class="form-group"><label>Address</label><input id="vnAddress" value="${esc(v.address||'')}" /></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" id="saveVnBtn" onclick="submitVendor('${esc(v.vendor_id||'')}')">Save Vendor</button>
+      <button class="btn btn-primary" id="saveVnBtn" onclick="submitVendor('${esc(v.id||'')}')">Save Vendor</button>
     </div>
   `);
 }
@@ -1091,7 +1217,7 @@ async function submitVendor(id) {
   setBtnLoading(btn, true);
   const body = {
     name: document.getElementById('vnName').value.trim(),
-    vendor_code: document.getElementById('vnCode').value.trim(),
+    code: document.getElementById('vnCode').value.trim(),
     email: document.getElementById('vnEmail').value.trim(),
     phone: document.getElementById('vnPhone').value.trim(),
     category: document.getElementById('vnCategory').value,
@@ -1137,14 +1263,14 @@ async function loadPurchaseOrders() {
       <td>${esc(formatDate(p.order_date))}</td>
       <td>${esc(formatDate(p.expected_delivery))}</td>
       <td>
-        <button class="btn btn-xs btn-secondary" onclick="editPOModal('${esc(p.po_id)}')">Edit</button>
-        <button class="btn btn-xs btn-secondary" onclick="updatePOStatus('${esc(p.po_id)}','${esc(p.status)}')">Status</button>
+        <button class="btn btn-xs btn-secondary" onclick="editPOModal('${esc(p.id)}')">Edit</button>
+        <button class="btn btn-xs btn-secondary" onclick="updatePOStatus('${esc(p.id)}','${esc(p.status)}')">Status</button>
       </td>
     </tr>`).join('');
 }
 
 function createPOModal(po = {}) {
-  const edit = !!po.po_id;
+  const edit = !!po.id;
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Purchase Order</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="two-col" style="gap:12px;">
@@ -1162,7 +1288,7 @@ function createPOModal(po = {}) {
     <div class="form-group"><label>Notes</label><textarea id="poNotes">${esc(po.notes||'')}</textarea></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" id="savePOBtn" onclick="submitPO('${esc(po.po_id||'')}')">Save PO</button>
+      <button class="btn btn-primary" id="savePOBtn" onclick="submitPO('${esc(po.id||'')}')">Save PO</button>
     </div>
   `);
 }
@@ -1229,14 +1355,14 @@ async function loadInvoices() {
       <td>${inv.amount ? '$'+Number(inv.amount).toLocaleString() : '—'}</td>
       <td style="${inv.status==='overdue'?'color:var(--danger);font-weight:600;':''}">${esc(formatDate(inv.due_date))}</td>
       <td>
-        <button class="btn btn-xs btn-secondary" onclick="editInvoiceModal('${esc(inv.invoice_id)}')">Edit</button>
-        ${inv.status!=='paid'?`<button class="btn btn-xs btn-primary" onclick="markInvoicePaid('${esc(inv.invoice_id)}')">Mark Paid</button>`:''}
+        <button class="btn btn-xs btn-secondary" onclick="editInvoiceModal('${esc(inv.id)}')">Edit</button>
+        ${inv.status!=='paid'?`<button class="btn btn-xs btn-primary" onclick="markInvoicePaid('${esc(inv.id)}')">Mark Paid</button>`:''}
       </td>
     </tr>`).join('');
 }
 
 function createInvoiceModal(inv = {}) {
-  const edit = !!inv.invoice_id;
+  const edit = !!inv.id;
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Invoice</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="two-col" style="gap:12px;">
@@ -1250,7 +1376,7 @@ function createInvoiceModal(inv = {}) {
     <div class="form-group"><label>Notes</label><textarea id="invNotes">${esc(inv.notes||'')}</textarea></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" id="saveInvBtn" onclick="submitInvoice('${esc(inv.invoice_id||'')}')">Save Invoice</button>
+      <button class="btn btn-primary" id="saveInvBtn" onclick="submitInvoice('${esc(inv.id||'')}')">Save Invoice</button>
     </div>
   `);
 }
@@ -1309,19 +1435,19 @@ async function loadInventory() {
       <td><strong>${esc(item.name)}</strong></td>
       <td>${esc(item.warehouse_name||item.warehouse_id||'—')}</td>
       <td style="${isLow?'color:var(--danger);font-weight:700;':''}">${item.quantity ?? '—'}</td>
-      <td>${item.reserved_quantity ?? 0}</td>
+      <td>${item.reserved ?? 0}</td>
       <td>${item.reorder_point ?? '—'}</td>
       <td>${isLow ? '<span class="badge badge-failed">Low Stock</span>' : '<span class="badge badge-active">OK</span>'}</td>
       <td>
-        <button class="btn btn-xs btn-secondary" onclick="editInventoryModal('${esc(item.inventory_id)}')">Edit</button>
-        <button class="btn btn-xs btn-secondary" onclick="adjustStockModal('${esc(item.inventory_id)}','${esc(item.name)}',${item.quantity||0})">Adjust</button>
+        <button class="btn btn-xs btn-secondary" onclick="editInventoryModal('${esc(item.id)}')">Edit</button>
+        <button class="btn btn-xs btn-secondary" onclick="adjustStockModal('${esc(item.id)}','${esc(item.name)}',${item.quantity||0})">Adjust</button>
       </td>
     </tr>`;
   }).join('');
 }
 
 function createInventoryModal(item = {}) {
-  const edit = !!item.inventory_id;
+  const edit = !!item.id;
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'Add'} Inventory Item</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="two-col" style="gap:12px;">
@@ -1338,7 +1464,7 @@ function createInventoryModal(item = {}) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" id="saveInvIBtn" onclick="submitInventoryItem('${esc(item.inventory_id||'')}')">Save Item</button>
+      <button class="btn btn-primary" id="saveInvIBtn" onclick="submitInventoryItem('${esc(item.id||'')}')">Save Item</button>
     </div>
   `);
 }
@@ -1410,17 +1536,17 @@ async function loadWarehouses() {
       </div>
       <div class="health-meta">
         <span class="health-key">Location</span><span class="health-val">${esc(w.city||'—')}${w.country?', '+esc(w.country):''}</span>
-        <span class="health-key">Capacity</span><span class="health-val">${w.capacity ? w.capacity.toLocaleString()+' units' : '—'}</span>
+        <span class="health-key">Capacity</span><span class="health-val">${w.capacity ? esc(Number(w.capacity).toLocaleString())+' units' : '—'}</span>
         <span class="health-key">Manager</span><span class="health-val">${esc(w.manager_name||'—')}</span>
       </div>
       <div style="margin-top:8px;display:flex;gap:6px;">
-        <button class="btn btn-xs btn-secondary" onclick="editWarehouseModal('${esc(w.warehouse_id)}')">Edit</button>
+        <button class="btn btn-xs btn-secondary" onclick="editWarehouseModal('${esc(w.id)}')">Edit</button>
       </div>
     </div>`).join('');
 }
 
 function createWarehouseModal(wh = {}) {
-  const edit = !!wh.warehouse_id;
+  const edit = !!wh.id;
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'Add'} Warehouse</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="two-col" style="gap:12px;">
@@ -1437,7 +1563,7 @@ function createWarehouseModal(wh = {}) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" id="saveWhBtn" onclick="submitWarehouse('${esc(wh.warehouse_id||'')}')">Save Warehouse</button>
+      <button class="btn btn-primary" id="saveWhBtn" onclick="submitWarehouse('${esc(wh.id||'')}')">Save Warehouse</button>
     </div>
   `);
 }
@@ -1525,12 +1651,12 @@ async function loadPipeline() {
         ${total ? '$'+total.toLocaleString() : '—'}
       </div>
       ${items.map(o => `
-        <div style="background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:10px;cursor:pointer;" onclick="editOpportunityModal('${esc(o.opportunity_id)}')">
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:10px;cursor:pointer;" onclick="editOpportunityModal('${esc(o.id)}')">
           <div style="font-size:12px;font-weight:600;margin-bottom:4px;">${esc(o.title)}</div>
           <div style="font-size:11px;color:var(--text-muted);">${esc(o.contact_name||'—')}</div>
           <div style="display:flex;align-items:center;margin-top:6px;">
             <span style="font-size:12px;color:${color};font-weight:600;">${o.value ? '$'+Number(o.value).toLocaleString() : '—'}</span>
-            <span style="margin-left:auto;font-size:10px;color:var(--text-muted);">${o.probability ? o.probability+'%' : ''}</span>
+            <span style="margin-left:auto;font-size:10px;color:var(--text-muted);">${o.probability != null ? esc(o.probability)+'%' : ''}</span>
           </div>
         </div>`).join('')}
     </div>`;
@@ -1559,14 +1685,14 @@ async function loadLeads() {
       <td>${esc(l.assigned_to||'—')}</td>
       <td>${timeAgo(l.created_at)}</td>
       <td>
-        <button class="btn btn-xs btn-secondary" onclick="editLeadModal('${esc(l.lead_id)}')">Edit</button>
-        <button class="btn btn-xs btn-primary" onclick="convertLead('${esc(l.lead_id)}')">Convert</button>
+        <button class="btn btn-xs btn-secondary" onclick="editLeadModal('${esc(l.id)}')">Edit</button>
+        <button class="btn btn-xs btn-primary" onclick="convertLead('${esc(l.id)}')">Convert</button>
       </td>
     </tr>`).join('');
 }
 
 function createLeadModal(lead = {}) {
-  const edit = !!lead.lead_id;
+  const edit = !!lead.id;
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Lead</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="form-group"><label>Title *</label><input id="ldTitle" value="${esc(lead.title||'')}" placeholder="Lead from website" /></div>
@@ -1585,7 +1711,7 @@ function createLeadModal(lead = {}) {
     <div class="form-group"><label>Assigned To</label><input id="ldAssigned" value="${esc(lead.assigned_to||'')}" /></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" id="saveLdBtn" onclick="submitLead('${esc(lead.lead_id||'')}')">Save Lead</button>
+      <button class="btn btn-primary" id="saveLdBtn" onclick="submitLead('${esc(lead.id||'')}')">Save Lead</button>
     </div>
   `);
 }
@@ -1646,14 +1772,14 @@ async function loadContacts() {
       <td>${c.score != null ? `<span style="font-weight:600;color:${c.score>=70?'var(--success)':c.score>=40?'var(--warning)':'var(--danger)'}">${c.score}</span>` : '—'}</td>
       <td>${statusBadge(c.status||'active')}</td>
       <td>
-        <button class="btn btn-xs btn-secondary" onclick="editContactModal('${esc(c.contact_id)}')">Edit</button>
-        <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(220,38,38,.2);" onclick="deleteContact('${esc(c.contact_id)}','${esc(c.first_name+' '+(c.last_name||''))}')">Remove</button>
+        <button class="btn btn-xs btn-secondary" onclick="editContactModal('${esc(c.id)}')">Edit</button>
+        <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(220,38,38,.2);" onclick="deleteContact('${esc(c.id)}','${esc(c.first_name+' '+(c.last_name||''))}')">Remove</button>
       </td>
     </tr>`).join('');
 }
 
 function createContactModal(c = {}) {
-  const edit = !!c.contact_id;
+  const edit = !!c.id;
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Contact</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="two-col" style="gap:12px;">
@@ -1670,7 +1796,7 @@ function createContactModal(c = {}) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" id="saveCtBtn" onclick="submitContact('${esc(c.contact_id||'')}')">Save Contact</button>
+      <button class="btn btn-primary" id="saveCtBtn" onclick="submitContact('${esc(c.id||'')}')">Save Contact</button>
     </div>
   `);
 }
@@ -1733,15 +1859,15 @@ async function loadOpportunities() {
       <td>${o.probability != null ? o.probability+'%' : '—'}</td>
       <td>${esc(formatDate(o.close_date))}</td>
       <td>
-        <button class="btn btn-xs btn-secondary" onclick="editOpportunityModal('${esc(o.opportunity_id)}')">Edit</button>
-        <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(220,38,38,.2);" onclick="deleteOpportunity('${esc(o.opportunity_id)}','${esc(o.title)}')">Remove</button>
+        <button class="btn btn-xs btn-secondary" onclick="editOpportunityModal('${esc(o.id)}')">Edit</button>
+        <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(220,38,38,.2);" onclick="deleteOpportunity('${esc(o.id)}','${esc(o.title)}')">Remove</button>
       </td>
     </tr>`;
   }).join('');
 }
 
 function createOpportunityModal(opp = {}) {
-  const edit = !!opp.opportunity_id;
+  const edit = !!opp.id;
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Opportunity</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="form-group"><label>Title *</label><input id="opTitle" value="${esc(opp.title||'')}" placeholder="Enterprise Deal — Acme Corp" /></div>
@@ -1760,7 +1886,7 @@ function createOpportunityModal(opp = {}) {
     <div class="form-group"><label>Contact Name</label><input id="opContact" value="${esc(opp.contact_name||'')}" /></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" id="saveOpBtn" onclick="submitOpportunity('${esc(opp.opportunity_id||'')}')">Save Deal</button>
+      <button class="btn btn-primary" id="saveOpBtn" onclick="submitOpportunity('${esc(opp.id||'')}')">Save Deal</button>
     </div>
   `);
 }
@@ -1847,8 +1973,8 @@ async function loadTracking() {
       <td style="font-size:12px;">${esc(formatDate(s.estimated_delivery))}</td>
       <td><span class="badge ${RISK_BADGE[s.ai_delay_risk]||'badge-inactive'}">${esc(s.ai_delay_risk||'low')}</span></td>
       <td>
-        <button class="btn btn-xs btn-secondary" onclick="viewShipmentModal('${esc(s.shipment_id)}')">Details</button>
-        <button class="btn btn-xs btn-secondary" onclick="addTrackingEventModal('${esc(s.shipment_id)}')">Update</button>
+        <button class="btn btn-xs btn-secondary" onclick="viewShipmentModal('${esc(s.id)}')">Details</button>
+        <button class="btn btn-xs btn-secondary" onclick="addTrackingEventModal('${esc(s.id)}')">Update</button>
       </td>
     </tr>`).join('');
 }
@@ -1946,7 +2072,7 @@ async function viewShipmentModal(id) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Close</button>
-      <button class="btn btn-primary" onclick="closeModal();addTrackingEventModal('${esc(s.shipment_id)}')">Add Event</button>
+      <button class="btn btn-primary" onclick="closeModal();addTrackingEventModal('${esc(s.id)}')">Add Event</button>
     </div>
   `);
 }
@@ -2023,16 +2149,16 @@ async function loadWorkflows() {
       <td>${w.run_count ?? 0}</td>
       <td>${timeAgo(w.last_run_at)}</td>
       <td>
-        <button class="btn btn-xs btn-primary" onclick="runWorkflow('${esc(w.workflow_id)}','${esc(w.name)}')">Run</button>
-        <button class="btn btn-xs btn-secondary" onclick="editWorkflowModal('${esc(w.workflow_id)}')">Edit</button>
-        <button class="btn btn-xs btn-secondary" onclick="viewExecutions('${esc(w.workflow_id)}','${esc(w.name)}')">History</button>
-        <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(220,38,38,.2);" onclick="deleteWorkflow('${esc(w.workflow_id)}','${esc(w.name)}')">Delete</button>
+        <button class="btn btn-xs btn-primary" onclick="runWorkflow('${esc(w.id)}','${esc(w.name)}')">Run</button>
+        <button class="btn btn-xs btn-secondary" onclick="editWorkflowModal('${esc(w.id)}')">Edit</button>
+        <button class="btn btn-xs btn-secondary" onclick="viewExecutions('${esc(w.id)}','${esc(w.name)}')">History</button>
+        <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(220,38,38,.2);" onclick="deleteWorkflow('${esc(w.id)}','${esc(w.name)}')">Delete</button>
       </td>
     </tr>`).join('');
 }
 
 function createWorkflowModal(wf = {}) {
-  const edit = !!wf.workflow_id;
+  const edit = !!wf.id;
   const stepsJson = wf.steps_json || '[{"type":"action","name":"Step 1","config":{}}]';
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Workflow</h3><button class="modal-close" onclick="closeModal()">×</button></div>
@@ -2049,7 +2175,7 @@ function createWorkflowModal(wf = {}) {
     <div class="form-group"><label>Steps (JSON)</label><textarea id="wfSteps" rows="5" style="font-family:monospace;font-size:12px;">${esc(typeof stepsJson==='string'?stepsJson:JSON.stringify(stepsJson,null,2))}</textarea></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" id="saveWfBtn" onclick="submitWorkflow('${esc(wf.workflow_id||'')}')">Save Workflow</button>
+      <button class="btn btn-primary" id="saveWfBtn" onclick="submitWorkflow('${esc(wf.id||'')}')">Save Workflow</button>
     </div>
   `);
 }
@@ -2100,7 +2226,7 @@ async function viewExecutions(id, name) {
           <tbody>
             ${execs.map(e=>`
               <tr>
-                <td style="padding:6px 8px;font-family:monospace;font-size:11px;">${esc((e.execution_id||'').slice(0,12))}…</td>
+                <td style="padding:6px 8px;font-family:monospace;font-size:11px;">${esc((e.id||'').slice(0,12))}…</td>
                 <td style="padding:6px 8px;">${statusBadge(e.status)}</td>
                 <td style="padding:6px 8px;">${timeAgo(e.started_at)}</td>
                 <td style="padding:6px 8px;">${timeAgo(e.completed_at)}</td>
@@ -2163,7 +2289,7 @@ async function loadTickets() {
     const slaPast = t.sla_due_at && new Date(t.sla_due_at) < new Date() && t.status !== 'resolved';
     return `
     <tr${slaPast?' style="background:rgba(220,38,38,.04);"':''}>
-      <td style="font-family:monospace;font-size:11px;">#${esc(t.ticket_number||t.ticket_id.slice(0,8))}</td>
+      <td style="font-family:monospace;font-size:11px;">#${esc(t.ticket_number||(t.id||'').slice(0,8))}</td>
       <td><strong>${esc(t.subject)}</strong><div style="font-size:11px;color:var(--text-muted);">${esc(t.customer_name||'')}</div></td>
       <td><span style="font-weight:600;color:${pc};">${esc(t.priority||'normal')}</span></td>
       <td><span class="badge badge-info">${esc(t.channel||'email')}</span></td>
@@ -2171,8 +2297,8 @@ async function loadTickets() {
       <td style="${slaPast?'color:var(--danger);font-weight:600;':''}">${esc(formatDate(t.sla_due_at))}</td>
       <td>${timeAgo(t.created_at)}</td>
       <td>
-        <button class="btn btn-xs btn-secondary" onclick="viewTicketModal('${esc(t.ticket_id)}')">View</button>
-        <button class="btn btn-xs btn-primary" onclick="replyTicketModal('${esc(t.ticket_id)}','${esc(t.subject)}')">Reply</button>
+        <button class="btn btn-xs btn-secondary" onclick="viewTicketModal('${esc(t.id)}')">View</button>
+        <button class="btn btn-xs btn-primary" onclick="replyTicketModal('${esc(t.id)}','${esc(t.subject)}')">Reply</button>
       </td>
     </tr>`;
   }).join('');
@@ -2247,9 +2373,9 @@ async function viewTicketModal(id) {
     <div style="font-size:12px;font-weight:600;margin-bottom:8px;">Messages</div>
     <div style="max-height:240px;overflow-y:auto;">
       ${msgs.length ? msgs.map(m => `
-        <div style="padding:8px 12px;margin-bottom:8px;background:${m.direction==='inbound'?'var(--bg)':'var(--accent-subtle)'};border-radius:8px;border:1px solid var(--border);">
+        <div style="padding:8px 12px;margin-bottom:8px;background:${m.sender_type==='customer'?'var(--bg)':'var(--accent-subtle)'};border-radius:8px;border:1px solid var(--border);">
           <div style="display:flex;gap:6px;margin-bottom:4px;">
-            <span style="font-size:11px;font-weight:600;">${esc(m.author||'Customer')}</span>
+            <span style="font-size:11px;font-weight:600;">${esc(m.sender_id||'Customer')}</span>
             <span style="font-size:11px;color:var(--text-muted);">${timeAgo(m.created_at)}</span>
           </div>
           <div style="font-size:12px;">${esc(m.content)}</div>
@@ -2258,8 +2384,8 @@ async function viewTicketModal(id) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Close</button>
-      <button class="btn btn-primary" onclick="closeModal();replyTicketModal('${esc(t.ticket_id)}','${esc(t.subject)}')">Reply</button>
-      ${t.status!=='resolved'?`<button class="btn btn-secondary" onclick="resolveTicket('${esc(t.ticket_id)}')">Resolve</button>`:''}
+      <button class="btn btn-primary" onclick="closeModal();replyTicketModal('${esc(t.id)}','${esc(t.subject)}')">Reply</button>
+      ${t.status!=='resolved'?`<button class="btn btn-secondary" onclick="resolveTicket('${esc(t.id)}')">Resolve</button>`:''}
     </div>
   `);
 }
@@ -2290,7 +2416,7 @@ async function submitReply(ticketId) {
   if (!content) { toast('Message required', 'error'); setBtnLoading(btn, false); return; }
   const msgRes = await apiFetch(`/support/tickets/${ticketId}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ content, direction:'outbound', author:'agent', tenant_id:_tenantId }),
+    body: JSON.stringify({ content, sender_type:'agent', sender_id:'agent', tenant_id:_tenantId }),
   });
   if (newStatus) {
     await apiFetch(`/support/tickets/${ticketId}`, { method:'PATCH', body:JSON.stringify({ status:newStatus }) });
@@ -2342,7 +2468,13 @@ const sectionLoaders = {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', () => {
+async function initAuth() {
+  await ensureSession();
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await initAuth();
   showSection('dashboard');
+  loadInstalled();
   setInterval(loadDashboard, 30000);
 });

@@ -166,51 +166,46 @@ class OdooConnector(ConnectorBase):
         pass  # Odoo products → ERP inventory mapping
 
     def _upsert_po(self, r: Dict) -> None:
-        ext_id = str(r.get("id", ""))
         now = datetime.now(tz=timezone.utc).isoformat()
         state_map = {"draft": "draft", "sent": "pending", "purchase": "approved",
                      "done": "received", "cancel": "cancelled"}
         status = state_map.get(r.get("state", ""), "pending")
-        existing = self.db.fetch_one(
-            "SELECT po_id FROM erp_purchase_orders WHERE po_number=? AND tenant_id=?",
+        if not self.db.fetch_one(
+            "SELECT id FROM erp_purchase_orders WHERE po_number=? AND tenant_id=?",
             (r.get("name", ""), self.tenant_id),
-        )
-        if not existing:
+        ):
             pid = f"po_{uuid.uuid4().hex}"
-            partner = r.get("partner_id", [None, ""])
+            order_date = r.get("date_order", "")
             self.db.execute(
                 """INSERT INTO erp_purchase_orders
-                   (po_id, tenant_id, po_number, vendor_id, status,
-                    total_amount, order_date, created_at, updated_at)
+                   (id, tenant_id, po_number, status,
+                    total_amount, currency, order_date, created_at, updated_at)
                    VALUES (?,?,?,?,?,?,?,?,?)""",
                 (pid, self.tenant_id, r.get("name", ""),
-                 str(partner[0] or ""), status,
-                 r.get("amount_total", 0),
-                 r.get("date_order", "")[:10] if r.get("date_order") else None,
+                 status, r.get("amount_total", 0), "USD",
+                 order_date[:10] if order_date else None,
                  now, now),
             )
 
     def _upsert_invoice(self, r: Dict) -> None:
-        ext_id = str(r.get("id", ""))
         now = datetime.now(tz=timezone.utc).isoformat()
         state_map = {"draft": "draft", "posted": "sent", "cancel": "cancelled",
                      "paid": "paid"}
         status = "paid" if r.get("payment_state") == "paid" else state_map.get(r.get("state", ""), "draft")
-        partner = r.get("partner_id", [None, ""])
-        existing = self.db.fetch_one(
-            "SELECT invoice_id FROM erp_invoices WHERE invoice_number=? AND tenant_id=?",
+        if not self.db.fetch_one(
+            "SELECT id FROM erp_invoices WHERE invoice_number=? AND tenant_id=?",
             (r.get("name", ""), self.tenant_id),
-        )
-        if not existing:
+        ):
             iid = f"inv_{uuid.uuid4().hex}"
+            amount = r.get("amount_total", 0)
             self.db.execute(
                 """INSERT INTO erp_invoices
-                   (invoice_id, tenant_id, invoice_number, vendor_id, status,
-                    amount, due_date, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                   (id, tenant_id, invoice_number, status, amount, total_amount,
+                    currency, invoice_date, due_date, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                 (iid, self.tenant_id, r.get("name", ""),
-                 str(partner[0] or ""), status,
-                 r.get("amount_total", 0),
+                 status, amount, amount, "USD",
+                 r.get("invoice_date", now[:10]),
                  r.get("invoice_date_due"),
                  now, now),
             )
@@ -220,49 +215,45 @@ class OdooConnector(ConnectorBase):
     def _upsert_contact(self, r: Dict) -> None:
         ext_id = str(r.get("id", ""))
         now = datetime.now(tz=timezone.utc).isoformat()
-        existing = self.db.fetch_one(
-            "SELECT contact_id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
+        if not self.db.fetch_one(
+            "SELECT id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
             (ext_id, self.tenant_id),
-        )
-        if not existing:
+        ):
             cid = f"cnt_{uuid.uuid4().hex}"
             name_parts = (r.get("name") or "").split(" ", 1)
             self.db.execute(
                 """INSERT INTO crm_contacts
-                   (contact_id, tenant_id, first_name, last_name, email, phone,
-                    source, external_id, status, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,'odoo',?,'active',?,?)""",
-                (cid, self.tenant_id,
+                   (id, tenant_id, external_id, first_name, last_name, email, phone,
+                    source, status, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,'odoo','active',?,?)""",
+                (cid, self.tenant_id, ext_id,
                  name_parts[0], name_parts[1] if len(name_parts) > 1 else "",
                  r.get("email", ""), r.get("phone", ""),
-                 ext_id, now, now),
+                 now, now),
             )
 
     def _upsert_inventory(self, r: Dict) -> None:
         product = r.get("product_id", [None, ""])
-        location = r.get("location_id", [None, ""])
         sku = str(product[0] or "")
         now = datetime.now(tz=timezone.utc).isoformat()
         existing = self.db.fetch_one(
-            "SELECT inventory_id FROM erp_inventory WHERE sku=? AND warehouse_id=? AND tenant_id=?",
-            (sku, str(location[0] or ""), self.tenant_id),
+            "SELECT id FROM erp_inventory WHERE sku=? AND tenant_id=?",
+            (sku, self.tenant_id),
         )
         if existing:
             self.db.execute(
-                "UPDATE erp_inventory SET quantity=?, updated_at=? WHERE inventory_id=?",
-                (r.get("quantity", 0), now, existing["inventory_id"]),
+                "UPDATE erp_inventory SET quantity=?, updated_at=? WHERE id=?",
+                (r.get("quantity", 0), now, existing["id"]),
             )
         else:
             iid = f"inv_{uuid.uuid4().hex}"
             self.db.execute(
                 """INSERT INTO erp_inventory
-                   (inventory_id, tenant_id, sku, name, warehouse_id,
-                    quantity, reserved_quantity, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                   (id, tenant_id, sku, name, quantity, reserved, updated_at)
+                   VALUES (?,?,?,?,?,?,?)""",
                 (iid, self.tenant_id, sku, str(product[1] or ""),
-                 str(location[0] or ""),
                  r.get("quantity", 0), r.get("reserved_quantity", 0),
-                 now, now),
+                 now),
             )
 
     async def verify_webhook_signature(self, raw_body: bytes, headers: Dict) -> bool:

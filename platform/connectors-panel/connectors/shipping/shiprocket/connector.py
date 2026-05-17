@@ -109,9 +109,9 @@ class ShiprocketConnector(ConnectorBase):
         shipment_id = f"shp_{uuid.uuid4().hex}"
         now = datetime.now(tz=timezone.utc).isoformat()
         self.db.execute(
-            """INSERT INTO erp_shipments
-               (shipment_id, tenant_id, carrier, tracking_number, status,
-                recipient_name, recipient_address, created_at, updated_at)
+            """INSERT INTO shipments
+               (id, tenant_id, carrier, tracking_number, status,
+                consignee_name, destination_location, created_at, updated_at)
                VALUES (?,?,?,?,?,?,?,?,?)""",
             (
                 shipment_id, self.tenant_id, "shiprocket",
@@ -141,7 +141,7 @@ class ShiprocketConnector(ConnectorBase):
         # Update tracking number in DB
         now = datetime.now(tz=timezone.utc).isoformat()
         self.db.execute(
-            "UPDATE erp_shipments SET tracking_number=?, updated_at=? "
+            "UPDATE shipments SET tracking_number=?, updated_at=? "
             "WHERE tracking_number=? AND tenant_id=? AND carrier='shiprocket'",
             (awb, now, str(shipment_id), self.tenant_id),
         )
@@ -179,13 +179,13 @@ class ShiprocketConnector(ConnectorBase):
         mapped = status_map.get(track_status, "in_transit")
         now = datetime.now(tz=timezone.utc).isoformat()
         row = self.db.fetch_one(
-            "SELECT shipment_id FROM erp_shipments WHERE tracking_number=? AND tenant_id=?",
+            "SELECT id FROM shipments WHERE tracking_number=? AND tenant_id=?",
             (awb, self.tenant_id),
         )
         if row:
             self.db.execute(
-                "UPDATE erp_shipments SET status=?, updated_at=? WHERE shipment_id=?",
-                (mapped, now, row["shipment_id"]),
+                "UPDATE shipments SET status=?, updated_at=? WHERE id=?",
+                (mapped, now, row["id"]),
             )
             self._publish_event("shipment.tracking_updated",
                                 {"carrier": "shiprocket", "awb": awb,
@@ -197,7 +197,7 @@ class ShiprocketConnector(ConnectorBase):
                    since: Optional[datetime] = None) -> Dict[str, Any]:
         if entity == "shipments":
             rows = self.db.fetch_all(
-                "SELECT tracking_number FROM erp_shipments "
+                "SELECT tracking_number FROM shipments "
                 "WHERE carrier='shiprocket' AND tenant_id=? "
                 "AND status NOT IN ('delivered','cancelled') "
                 "AND tracking_number != '' AND tracking_number IS NOT NULL",
@@ -241,13 +241,13 @@ class ShiprocketConnector(ConnectorBase):
         if awb and status:
             now = datetime.now(tz=timezone.utc).isoformat()
             row = self.db.fetch_one(
-                "SELECT shipment_id FROM erp_shipments WHERE tracking_number=? AND tenant_id=?",
+                "SELECT id FROM shipments WHERE tracking_number=? AND tenant_id=?",
                 (awb, self.tenant_id),
             )
             if row:
                 self.db.execute(
-                    "UPDATE erp_shipments SET status=?, updated_at=? WHERE shipment_id=?",
-                    (status.lower().replace(" ", "_"), now, row["shipment_id"]),
+                    "UPDATE shipments SET status=?, updated_at=? WHERE id=?",
+                    (status.lower().replace(" ", "_"), now, row["id"]),
                 )
                 self._publish_event("shipment.tracking_updated",
                                     {"carrier": "shiprocket", "awb": awb,

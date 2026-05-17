@@ -22,7 +22,7 @@
       </div>
     </div>
 
-    <div style="flex:1;overflow-y:auto;padding-bottom:12px;">
+    <div class="sidebar-scroll">
 
       <!-- OVERVIEW -->
       <div class="sidebar-section">
@@ -47,7 +47,7 @@
       </div>
 
       <!-- ERP -->
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="sidebar-erp">
         <div class="sidebar-label">ERP</div>
         <button class="nav-item" data-section="erp" onclick="showSection('erp')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
@@ -76,7 +76,7 @@
       </div>
 
       <!-- CRM -->
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="sidebar-crm">
         <div class="sidebar-label">CRM</div>
         <button class="nav-item" data-section="crm" onclick="showSection('crm')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -101,17 +101,17 @@
       </div>
 
       <!-- TRACKING -->
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="sidebar-tracking">
         <div class="sidebar-label">Tracking</div>
         <button class="nav-item" data-section="tracking" onclick="showSection('tracking')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88 16.24,7.76"/></svg>
           <span class="nav-item-label">Shipment Tracking</span>
-          <span class="nav-badge" id="trackingBadge" style="display:none;">0</span>
+          <span class="nav-badge hidden" id="trackingBadge">0</span>
         </button>
       </div>
 
       <!-- WORKFLOWS -->
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="sidebar-automation">
         <div class="sidebar-label">Automation</div>
         <button class="nav-item" data-section="workflows" onclick="showSection('workflows')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M7 6h10M5 8v2a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3V8M12 13v3"/></svg>
@@ -124,22 +124,22 @@
       </div>
 
       <!-- SUPPORT -->
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="sidebar-support">
         <div class="sidebar-label">Support</div>
         <button class="nav-item" data-section="support" onclick="showSection('support')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           <span class="nav-item-label">Tickets</span>
-          <span class="nav-badge" id="supportBadge" style="display:none;">0</span>
+          <span class="nav-badge hidden" id="supportBadge">0</span>
         </button>
       </div>
 
       <!-- OPERATIONS -->
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="sidebar-operations">
         <div class="sidebar-label">Operations</div>
         <button class="nav-item" data-section="queues" onclick="showSection('queues')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
           <span class="nav-item-label">Queue Monitor</span>
-          <span class="nav-badge" id="queueBadge" style="display:none;">0</span>
+          <span class="nav-badge hidden" id="queueBadge">0</span>
         </button>
         <button class="nav-item" data-section="logs" onclick="showSection('logs')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
@@ -177,9 +177,9 @@
       </div>
     </div>
 
-    <div style="padding:12px 16px;border-top:1px solid var(--border);">
-      <div style="font-size:11px;color:var(--text-muted);">MailPilot Enterprise OS</div>
-      <div style="font-size:10px;color:var(--text-dim);">v2.0.0</div>
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-name">MailPilot Enterprise OS</div>
+      <div class="sidebar-footer-ver">v2.0.0</div>
     </div>
   </nav>
 
@@ -190,8 +190,9 @@
         <div class="topbar-title" id="topbarTitle">Dashboard</div>
         <div class="topbar-sub" id="topbarSub">Enterprise operations overview</div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;margin-left:auto;">
-        <select id="tenantSelect" style="width:auto;padding:5px 10px;font-size:12px;" onchange="_tenantId=this.value;reloadCurrentSection()">
+      <div class="topbar-actions">
+        <label for="tenantSelect" class="sr-only">Tenant</label>
+        <select id="tenantSelect" title="Tenant" class="tenant-select" onchange="_tenantId=this.value;reloadCurrentSection()">
           <option value="default">default tenant</option>
           <option value="tenant_001">tenant_001</option>
           <option value="tenant_002">tenant_002</option>
@@ -208,49 +209,49 @@
       <!-- ── DASHBOARD ─────────────────────────────────────────────────── -->
       <div id="sec-dashboard" class="section active">
         <div class="stats-grid" id="dashStatsGrid">
-          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-subtle);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div class="stat-value" id="statConnectors">—</div><div class="stat-label">Connectors</div></div>
-          <div class="stat-card"><div class="stat-icon" style="background:var(--success-subtle);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="stat-value" id="statVendors">—</div><div class="stat-label">Vendors</div></div>
-          <div class="stat-card"><div class="stat-icon" style="background:var(--amber-subtle);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg></div><div class="stat-value" id="statPOs">—</div><div class="stat-label">Purchase Orders</div></div>
-          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-subtle);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="stat-value" id="statContacts">—</div><div class="stat-label">CRM Contacts</div></div>
-          <div class="stat-card"><div class="stat-icon" style="background:var(--success-subtle);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88 16.24,7.76"/></svg></div><div class="stat-value" id="statShipments">—</div><div class="stat-label">Active Shipments</div></div>
-          <div class="stat-card"><div class="stat-icon" style="background:var(--red-subtle);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="stat-value" id="statTickets">—</div><div class="stat-label">Open Tickets</div></div>
+          <div class="stat-card"><div class="stat-icon stat-icon--accent"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div class="stat-value" id="statConnectors">—</div><div class="stat-label">Connectors</div></div>
+          <div class="stat-card"><div class="stat-icon stat-icon--success"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="stat-value" id="statVendors">—</div><div class="stat-label">Vendors</div></div>
+          <div class="stat-card"><div class="stat-icon stat-icon--amber"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg></div><div class="stat-value" id="statPOs">—</div><div class="stat-label">Purchase Orders</div></div>
+          <div class="stat-card"><div class="stat-icon stat-icon--accent"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="stat-value" id="statContacts">—</div><div class="stat-label">CRM Contacts</div></div>
+          <div class="stat-card"><div class="stat-icon stat-icon--success"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88 16.24,7.76"/></svg></div><div class="stat-value" id="statShipments">—</div><div class="stat-label">Active Shipments</div></div>
+          <div class="stat-card"><div class="stat-icon stat-icon--red"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="stat-value" id="statTickets">—</div><div class="stat-label">Open Tickets</div></div>
         </div>
 
-        <div class="two-col" style="margin-top:4px;">
+        <div class="two-col mt-4">
           <div class="card">
             <div class="card-header">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88 16.24,7.76"/></svg>
               <span class="card-title">Shipment Risk Alerts</span>
-              <button class="btn btn-xs btn-secondary" style="margin-left:auto;" onclick="showSection('tracking')">View all →</button>
+              <button class="btn btn-xs btn-secondary ml-auto" onclick="showSection('tracking')">View all →</button>
             </div>
-            <div id="dashRiskShipments"><div style="padding:16px;color:var(--text-muted);text-align:center;">Loading…</div></div>
+            <div id="dashRiskShipments"><div class="loading-cell">Loading…</div></div>
           </div>
           <div class="card">
             <div class="card-header">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/></svg>
               <span class="card-title">Urgent Tickets</span>
-              <button class="btn btn-xs btn-secondary" style="margin-left:auto;" onclick="showSection('support')">View all →</button>
+              <button class="btn btn-xs btn-secondary ml-auto" onclick="showSection('support')">View all →</button>
             </div>
-            <div id="dashUrgentTickets"><div style="padding:16px;color:var(--text-muted);text-align:center;">Loading…</div></div>
+            <div id="dashUrgentTickets"><div class="loading-cell">Loading…</div></div>
           </div>
         </div>
 
-        <div class="two-col" style="margin-top:16px;">
+        <div class="two-col mt-16">
           <div class="card">
             <div class="card-header">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
               <span class="card-title">Recent Logs</span>
-              <button class="btn btn-xs btn-secondary" style="margin-left:auto;" onclick="showSection('logs')">View all →</button>
+              <button class="btn btn-xs btn-secondary ml-auto" onclick="showSection('logs')">View all →</button>
             </div>
-            <div class="log-stream" id="recentLogs" style="max-height:220px;"><div style="padding:20px;color:var(--text-muted);text-align:center;">Loading…</div></div>
+            <div class="log-stream log-stream--sm" id="recentLogs"><div class="loading-cell--lg">Loading…</div></div>
           </div>
           <div class="card">
             <div class="card-header"><span class="card-title">Quick Navigation</span></div>
-            <div class="settings-row" style="padding:10px 0;"><span class="settings-key">Marketplace</span><button class="btn btn-xs btn-primary" onclick="showSection('marketplace')">Browse →</button></div>
-            <div class="settings-row" style="padding:10px 0;"><span class="settings-key">Workflow Builder</span><button class="btn btn-xs btn-secondary" onclick="showSection('workflows')">Build →</button></div>
-            <div class="settings-row" style="padding:10px 0;"><span class="settings-key">Pipeline Board</span><button class="btn btn-xs btn-secondary" onclick="showSection('pipeline')">View →</button></div>
-            <div class="settings-row" style="padding:10px 0;"><span class="settings-key">Shipment Tracking</span><button class="btn btn-xs btn-secondary" onclick="showSection('tracking')">Track →</button></div>
-            <div class="settings-row" style="padding:10px 0;border:none;"><span class="settings-key">Queue Health</span><button class="btn btn-xs btn-secondary" onclick="showSection('queues')">Monitor →</button></div>
+            <div class="settings-row settings-row--padded"><span class="settings-key">Marketplace</span><button class="btn btn-xs btn-primary" onclick="showSection('marketplace')">Browse →</button></div>
+            <div class="settings-row settings-row--padded"><span class="settings-key">Workflow Builder</span><button class="btn btn-xs btn-secondary" onclick="showSection('workflows')">Build →</button></div>
+            <div class="settings-row settings-row--padded"><span class="settings-key">Pipeline Board</span><button class="btn btn-xs btn-secondary" onclick="showSection('pipeline')">View →</button></div>
+            <div class="settings-row settings-row--padded"><span class="settings-key">Shipment Tracking</span><button class="btn btn-xs btn-secondary" onclick="showSection('tracking')">Track →</button></div>
+            <div class="settings-row settings-row--last"><span class="settings-key">Queue Health</span><button class="btn btn-xs btn-secondary" onclick="showSection('queues')">Monitor →</button></div>
           </div>
         </div>
       </div>
@@ -262,7 +263,7 @@
             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input id="mktSearch" placeholder="Search connectors…" oninput="renderMarketplace(_marketplace)" />
           </div>
-          <select id="mktCategory" class="filter-select" onchange="renderMarketplace(_marketplace)">
+          <select id="mktCategory" class="filter-select" aria-label="Category" title="Category" onchange="renderMarketplace(_marketplace)">
             <option value="">All categories</option>
             <option value="communication">Communication</option>
             <option value="erp">ERP</option>
@@ -277,14 +278,14 @@
           </select>
         </div>
         <div class="connector-grid" id="marketplaceGrid">
-          <div class="empty-state" style="grid-column:1/-1"><div class="spinner"></div></div>
+          <div class="empty-state grid-full"><div class="spinner"></div></div>
         </div>
       </div>
 
       <!-- ── INSTALLED ──────────────────────────────────────────────────── -->
       <div id="sec-installed" class="section">
         <div class="filter-bar">
-          <div class="search-input" style="flex:1;">
+          <div class="search-input flex-1">
             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input placeholder="Filter connectors…" oninput="filterInstalledTable(this.value)" />
           </div>
@@ -303,17 +304,17 @@
         <div class="stats-grid" id="erpStatsGrid">
           <div class="stat-card"><div class="stat-value" id="erpVendors">—</div><div class="stat-label">Active Vendors</div></div>
           <div class="stat-card"><div class="stat-value" id="erpPOs">—</div><div class="stat-label">Purchase Orders</div></div>
-          <div class="stat-card"><div class="stat-value" id="erpOverdueInv" style="color:var(--danger);">—</div><div class="stat-label">Overdue Invoices</div></div>
-          <div class="stat-card"><div class="stat-value" id="erpLowStock" style="color:var(--warning);">—</div><div class="stat-label">Low Stock Items</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--danger" id="erpOverdueInv">—</div><div class="stat-label">Overdue Invoices</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--warning" id="erpLowStock">—</div><div class="stat-label">Low Stock Items</div></div>
           <div class="stat-card"><div class="stat-value" id="erpWarehouses">—</div><div class="stat-label">Warehouses</div></div>
         </div>
-        <div class="two-col" style="margin-top:4px;">
+        <div class="two-col mt-4">
           <div class="card"><div class="card-header"><span class="card-title">Quick Actions</span></div>
-            <div class="settings-row" style="padding:10px 0;"><span class="settings-key">Vendors</span><button class="btn btn-xs btn-secondary" onclick="showSection('vendors')">Manage →</button></div>
-            <div class="settings-row" style="padding:10px 0;"><span class="settings-key">Purchase Orders</span><button class="btn btn-xs btn-secondary" onclick="showSection('purchase-orders')">View →</button></div>
-            <div class="settings-row" style="padding:10px 0;"><span class="settings-key">Invoices</span><button class="btn btn-xs btn-secondary" onclick="showSection('invoices')">View →</button></div>
-            <div class="settings-row" style="padding:10px 0;"><span class="settings-key">Inventory</span><button class="btn btn-xs btn-secondary" onclick="showSection('inventory')">Manage →</button></div>
-            <div class="settings-row" style="padding:10px 0;border:none;"><span class="settings-key">Warehouses</span><button class="btn btn-xs btn-secondary" onclick="showSection('warehouses')">Configure →</button></div>
+            <div class="settings-row settings-row--padded"><span class="settings-key">Vendors</span><button class="btn btn-xs btn-secondary" onclick="showSection('vendors')">Manage →</button></div>
+            <div class="settings-row settings-row--padded"><span class="settings-key">Purchase Orders</span><button class="btn btn-xs btn-secondary" onclick="showSection('purchase-orders')">View →</button></div>
+            <div class="settings-row settings-row--padded"><span class="settings-key">Invoices</span><button class="btn btn-xs btn-secondary" onclick="showSection('invoices')">View →</button></div>
+            <div class="settings-row settings-row--padded"><span class="settings-key">Inventory</span><button class="btn btn-xs btn-secondary" onclick="showSection('inventory')">Manage →</button></div>
+            <div class="settings-row settings-row--last"><span class="settings-key">Warehouses</span><button class="btn btn-xs btn-secondary" onclick="showSection('warehouses')">Configure →</button></div>
           </div>
           <div class="card"><div class="card-header"><span class="card-title">Recent Purchase Orders</span></div><div id="erpRecentPOs"><div class="empty-state"><div class="spinner"></div></div></div></div>
         </div>
@@ -322,7 +323,7 @@
       <!-- ── VENDORS ────────────────────────────────────────────────────── -->
       <div id="sec-vendors" class="section">
         <div class="filter-bar">
-          <div class="search-input" style="flex:1;"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="vendorSearch" placeholder="Search vendors…" oninput="loadVendors()"/></div>
+          <div class="search-input flex-1"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="vendorSearch" placeholder="Search vendors…" oninput="loadVendors()"/></div>
           <button class="btn btn-primary btn-sm" onclick="createVendorModal()">+ Add Vendor</button>
         </div>
         <div class="table-wrap">
@@ -334,13 +335,13 @@
       <!-- ── PURCHASE ORDERS ────────────────────────────────────────────── -->
       <div id="sec-purchase-orders" class="section">
         <div class="filter-bar">
-          <select id="poStatusFilter" class="filter-select" onchange="loadPurchaseOrders()">
+          <select id="poStatusFilter" class="filter-select" aria-label="Status" title="Status" onchange="loadPurchaseOrders()">
             <option value="">All statuses</option>
             <option value="draft">Draft</option><option value="pending">Pending</option>
             <option value="approved">Approved</option><option value="received">Received</option>
             <option value="cancelled">Cancelled</option>
           </select>
-          <div style="flex:1;"></div>
+          <div class="flex-1"></div>
           <button class="btn btn-primary btn-sm" onclick="createPOModal()">+ New PO</button>
         </div>
         <div class="table-wrap">
@@ -352,13 +353,13 @@
       <!-- ── INVOICES ────────────────────────────────────────────────────── -->
       <div id="sec-invoices" class="section">
         <div class="filter-bar">
-          <select id="invStatusFilter" class="filter-select" onchange="loadInvoices()">
+          <select id="invStatusFilter" class="filter-select" aria-label="Status" title="Status" onchange="loadInvoices()">
             <option value="">All statuses</option>
             <option value="draft">Draft</option><option value="sent">Sent</option>
             <option value="paid">Paid</option><option value="overdue">Overdue</option>
             <option value="cancelled">Cancelled</option>
           </select>
-          <div style="flex:1;"></div>
+          <div class="flex-1"></div>
           <button class="btn btn-primary btn-sm" onclick="createInvoiceModal()">+ New Invoice</button>
         </div>
         <div class="table-wrap">
@@ -370,9 +371,9 @@
       <!-- ── INVENTORY ──────────────────────────────────────────────────── -->
       <div id="sec-inventory" class="section">
         <div class="filter-bar">
-          <label class="toggle" style="margin-right:4px;"><input type="checkbox" id="lowStockOnly" onchange="loadInventory()"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
-          <span style="font-size:13px;color:var(--text-muted);margin-right:12px;">Low stock only</span>
-          <div class="search-input" style="flex:1;"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="invSearch" placeholder="Search items…"/></div>
+          <label class="toggle inventory-toggle"><input type="checkbox" id="lowStockOnly" aria-label="Low stock only" title="Low stock only" onchange="loadInventory()"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          <span class="low-stock-label">Low stock only</span>
+          <div class="search-input flex-1"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="invSearch" placeholder="Search items…"/></div>
           <button class="btn btn-primary btn-sm" onclick="createInventoryModal()">+ Add Item</button>
         </div>
         <div class="table-wrap">
@@ -384,10 +385,10 @@
       <!-- ── WAREHOUSES ─────────────────────────────────────────────────── -->
       <div id="sec-warehouses" class="section">
         <div class="filter-bar">
-          <div style="flex:1;"></div>
+          <div class="flex-1"></div>
           <button class="btn btn-primary btn-sm" onclick="createWarehouseModal()">+ Add Warehouse</button>
         </div>
-        <div class="health-grid" id="warehouseGrid"><div class="empty-state" style="grid-column:1/-1"><div class="spinner"></div></div></div>
+        <div class="health-grid" id="warehouseGrid"><div class="empty-state grid-full"><div class="spinner"></div></div></div>
       </div>
 
       <!-- ── CRM OVERVIEW ───────────────────────────────────────────────── -->
@@ -396,15 +397,15 @@
           <div class="stat-card"><div class="stat-value" id="crmContacts">—</div><div class="stat-label">Active Contacts</div></div>
           <div class="stat-card"><div class="stat-value" id="crmLeads">—</div><div class="stat-label">Open Leads</div></div>
           <div class="stat-card"><div class="stat-value" id="crmOpps">—</div><div class="stat-label">Opportunities</div></div>
-          <div class="stat-card"><div class="stat-value" id="crmPipeline" style="color:var(--accent);">—</div><div class="stat-label">Pipeline Value</div></div>
-          <div class="stat-card"><div class="stat-value" id="crmWon" style="color:var(--success);">—</div><div class="stat-label">Won Revenue</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--accent" id="crmPipeline">—</div><div class="stat-label">Pipeline Value</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--success" id="crmWon">—</div><div class="stat-label">Won Revenue</div></div>
         </div>
-        <div class="two-col" style="margin-top:4px;">
+        <div class="two-col mt-4">
           <div class="card"><div class="card-header"><span class="card-title">Quick Actions</span></div>
-            <div class="settings-row" style="padding:10px 0;"><span class="settings-key">Pipeline Board</span><button class="btn btn-xs btn-primary" onclick="showSection('pipeline')">View →</button></div>
-            <div class="settings-row" style="padding:10px 0;"><span class="settings-key">Leads</span><button class="btn btn-xs btn-secondary" onclick="showSection('leads')">Manage →</button></div>
-            <div class="settings-row" style="padding:10px 0;"><span class="settings-key">Contacts</span><button class="btn btn-xs btn-secondary" onclick="showSection('contacts')">Browse →</button></div>
-            <div class="settings-row" style="padding:10px 0;border:none;"><span class="settings-key">Opportunities</span><button class="btn btn-xs btn-secondary" onclick="showSection('opportunities')">View →</button></div>
+            <div class="settings-row settings-row--padded"><span class="settings-key">Pipeline Board</span><button class="btn btn-xs btn-primary" onclick="showSection('pipeline')">View →</button></div>
+            <div class="settings-row settings-row--padded"><span class="settings-key">Leads</span><button class="btn btn-xs btn-secondary" onclick="showSection('leads')">Manage →</button></div>
+            <div class="settings-row settings-row--padded"><span class="settings-key">Contacts</span><button class="btn btn-xs btn-secondary" onclick="showSection('contacts')">Browse →</button></div>
+            <div class="settings-row settings-row--last"><span class="settings-key">Opportunities</span><button class="btn btn-xs btn-secondary" onclick="showSection('opportunities')">View →</button></div>
           </div>
           <div class="card"><div class="card-header"><span class="card-title">Pipeline Summary</span></div><div id="crmPipelineSummary"><div class="empty-state"><div class="spinner"></div></div></div></div>
         </div>
@@ -413,21 +414,21 @@
       <!-- ── PIPELINE ───────────────────────────────────────────────────── -->
       <div id="sec-pipeline" class="section">
         <div class="filter-bar">
-          <div style="flex:1;"></div>
+          <div class="flex-1"></div>
           <button class="btn btn-primary btn-sm" onclick="createOpportunityModal()">+ New Deal</button>
         </div>
-        <div id="pipelineBoard" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;"></div>
+        <div id="pipelineBoard" class="pipeline-board"></div>
       </div>
 
       <!-- ── LEADS ──────────────────────────────────────────────────────── -->
       <div id="sec-leads" class="section">
         <div class="filter-bar">
-          <select id="leadStatusFilter" class="filter-select" onchange="loadLeads()">
+          <select id="leadStatusFilter" class="filter-select" aria-label="Status" title="Status" onchange="loadLeads()">
             <option value="">All statuses</option>
             <option value="new">New</option><option value="contacted">Contacted</option>
             <option value="qualified">Qualified</option><option value="unqualified">Unqualified</option>
           </select>
-          <div style="flex:1;"></div>
+          <div class="flex-1"></div>
           <button class="btn btn-primary btn-sm" onclick="createLeadModal()">+ New Lead</button>
         </div>
         <div class="table-wrap">
@@ -439,7 +440,7 @@
       <!-- ── CONTACTS ───────────────────────────────────────────────────── -->
       <div id="sec-contacts" class="section">
         <div class="filter-bar">
-          <div class="search-input" style="flex:1;"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="contactSearch" placeholder="Search contacts…" oninput="loadContacts()"/></div>
+          <div class="search-input flex-1"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="contactSearch" placeholder="Search contacts…" oninput="loadContacts()"/></div>
           <button class="btn btn-primary btn-sm" onclick="createContactModal()">+ New Contact</button>
         </div>
         <div class="table-wrap">
@@ -451,13 +452,13 @@
       <!-- ── OPPORTUNITIES ──────────────────────────────────────────────── -->
       <div id="sec-opportunities" class="section">
         <div class="filter-bar">
-          <select id="oppStageFilter" class="filter-select" onchange="loadOpportunities()">
+          <select id="oppStageFilter" class="filter-select" aria-label="Stage" title="Stage" onchange="loadOpportunities()">
             <option value="">All stages</option>
             <option value="prospecting">Prospecting</option><option value="qualification">Qualification</option>
             <option value="proposal">Proposal</option><option value="negotiation">Negotiation</option>
             <option value="closed_won">Closed Won</option><option value="closed_lost">Closed Lost</option>
           </select>
-          <div style="flex:1;"></div>
+          <div class="flex-1"></div>
           <button class="btn btn-primary btn-sm" onclick="createOpportunityModal()">+ New Deal</button>
         </div>
         <div class="table-wrap">
@@ -468,16 +469,16 @@
 
       <!-- ── TRACKING ───────────────────────────────────────────────────── -->
       <div id="sec-tracking" class="section">
-        <div class="stats-grid" style="margin-bottom:16px;">
+        <div class="stats-grid mb-16">
           <div class="stat-card"><div class="stat-value" id="trkTotal">—</div><div class="stat-label">Total Shipments</div></div>
-          <div class="stat-card"><div class="stat-value" id="trkInTransit" style="color:var(--accent);">—</div><div class="stat-label">In Transit</div></div>
-          <div class="stat-card"><div class="stat-value" id="trkDelivered" style="color:var(--success);">—</div><div class="stat-label">Delivered</div></div>
-          <div class="stat-card"><div class="stat-value" id="trkExceptions" style="color:var(--danger);">—</div><div class="stat-label">Exceptions</div></div>
-          <div class="stat-card"><div class="stat-value" id="trkHighRisk" style="color:var(--warning);">—</div><div class="stat-label">High Delay Risk</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--accent" id="trkInTransit">—</div><div class="stat-label">In Transit</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--success" id="trkDelivered">—</div><div class="stat-label">Delivered</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--danger" id="trkExceptions">—</div><div class="stat-label">Exceptions</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--warning" id="trkHighRisk">—</div><div class="stat-label">High Delay Risk</div></div>
         </div>
         <div class="filter-bar">
-          <div class="search-input" style="flex:1;"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="trackingSearch" placeholder="Search by AWB, BL, order ref…" oninput="loadTracking()"/></div>
-          <select id="trackingCarrierFilter" class="filter-select" onchange="loadTracking()">
+          <div class="search-input flex-1"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="trackingSearch" placeholder="Search by AWB, BL, order ref…" oninput="loadTracking()"/></div>
+          <select id="trackingCarrierFilter" class="filter-select" aria-label="Carrier" title="Carrier" onchange="loadTracking()">
             <option value="">All carriers</option>
             <option value="fedex">FedEx</option><option value="ups">UPS</option>
             <option value="dhl">DHL</option><option value="delhivery">Delhivery</option>
@@ -485,7 +486,7 @@
             <option value="maersk">Maersk</option><option value="msc">MSC</option>
             <option value="other">Other</option>
           </select>
-          <select id="trackingStatusFilter" class="filter-select" onchange="loadTracking()">
+          <select id="trackingStatusFilter" class="filter-select" aria-label="Status" title="Status" onchange="loadTracking()">
             <option value="">All statuses</option>
             <option value="pending">Pending</option><option value="in_transit">In Transit</option>
             <option value="out_for_delivery">Out for Delivery</option>
@@ -502,18 +503,18 @@
 
       <!-- ── WORKFLOWS ──────────────────────────────────────────────────── -->
       <div id="sec-workflows" class="section">
-        <div class="stats-grid" style="margin-bottom:16px;">
+        <div class="stats-grid mb-16">
           <div class="stat-card"><div class="stat-value" id="wfTotal">—</div><div class="stat-label">Workflows</div></div>
-          <div class="stat-card"><div class="stat-value" id="wfActive" style="color:var(--success);">—</div><div class="stat-label">Active</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--success" id="wfActive">—</div><div class="stat-label">Active</div></div>
           <div class="stat-card"><div class="stat-value" id="wfExecutions">—</div><div class="stat-label">Total Runs</div></div>
-          <div class="stat-card"><div class="stat-value" id="wfFailed" style="color:var(--danger);">—</div><div class="stat-label">Failed Runs</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--danger" id="wfFailed">—</div><div class="stat-label">Failed Runs</div></div>
         </div>
         <div class="filter-bar">
-          <select id="wfStatusFilter" class="filter-select" onchange="loadWorkflows()">
+          <select id="wfStatusFilter" class="filter-select" aria-label="Status" title="Status" onchange="loadWorkflows()">
             <option value="">All statuses</option>
             <option value="active">Active</option><option value="draft">Draft</option><option value="paused">Paused</option>
           </select>
-          <div style="flex:1;"></div>
+          <div class="flex-1"></div>
           <button class="btn btn-primary btn-sm" onclick="createWorkflowModal()">+ New Workflow</button>
         </div>
         <div class="table-wrap">
@@ -524,24 +525,24 @@
 
       <!-- ── SUPPORT (TICKETS) ──────────────────────────────────────────── -->
       <div id="sec-support" class="section">
-        <div class="stats-grid" style="margin-bottom:16px;">
+        <div class="stats-grid mb-16">
           <div class="stat-card"><div class="stat-value" id="sptTotal">—</div><div class="stat-label">Total Tickets</div></div>
-          <div class="stat-card"><div class="stat-value" id="sptOpen" style="color:var(--accent);">—</div><div class="stat-label">Open</div></div>
-          <div class="stat-card"><div class="stat-value" id="sptUrgent" style="color:var(--danger);">—</div><div class="stat-label">Urgent</div></div>
-          <div class="stat-card"><div class="stat-value" id="sptResolved" style="color:var(--success);">—</div><div class="stat-label">Resolved</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--accent" id="sptOpen">—</div><div class="stat-label">Open</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--danger" id="sptUrgent">—</div><div class="stat-label">Urgent</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--success" id="sptResolved">—</div><div class="stat-label">Resolved</div></div>
         </div>
         <div class="filter-bar">
-          <select id="sptStatusFilter" class="filter-select" onchange="loadTickets()">
+          <select id="sptStatusFilter" class="filter-select" aria-label="Status" title="Status" onchange="loadTickets()">
             <option value="">All statuses</option>
             <option value="open">Open</option><option value="in_progress">In Progress</option>
             <option value="pending">Pending</option><option value="resolved">Resolved</option>
           </select>
-          <select id="sptPriorityFilter" class="filter-select" onchange="loadTickets()">
+          <select id="sptPriorityFilter" class="filter-select" aria-label="Priority" title="Priority" onchange="loadTickets()">
             <option value="">All priorities</option>
             <option value="urgent">Urgent</option><option value="high">High</option>
             <option value="normal">Normal</option><option value="low">Low</option>
           </select>
-          <div class="search-input" style="flex:1;"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="sptSearch" placeholder="Search tickets…" oninput="loadTickets()"/></div>
+          <div class="search-input flex-1"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="sptSearch" placeholder="Search tickets…" oninput="loadTickets()"/></div>
           <button class="btn btn-primary btn-sm" onclick="createTicketModal()">+ New Ticket</button>
         </div>
         <div class="table-wrap">
@@ -555,15 +556,15 @@
         <div class="two-col">
           <div class="card">
             <div class="card-header"><span class="card-title">Publish Event</span></div>
-            <div class="form-group"><label>Event Type</label><input id="pubEventType" placeholder="invoice.created" /></div>
-            <div class="form-group"><label>Payload (JSON)</label><textarea id="pubEventPayload" rows="3" placeholder='{"key":"value"}'></textarea></div>
+            <div class="form-group"><label for="pubEventType">Event Type</label><input id="pubEventType" placeholder="invoice.created" /></div>
+            <div class="form-group"><label for="pubEventPayload">Payload (JSON)</label><textarea id="pubEventPayload" rows="3" placeholder='{"key":"value"}'></textarea></div>
             <button class="btn btn-primary btn-sm" onclick="publishEvent()">Publish</button>
           </div>
-          <div class="card"><div class="card-header"><span class="card-title">Event Types</span></div><div id="eventTypeGrid" style="display:flex;flex-wrap:wrap;gap:6px;"></div></div>
+          <div class="card"><div class="card-header"><span class="card-title">Event Types</span></div><div id="eventTypeGrid" class="event-type-grid"></div></div>
         </div>
-        <div class="card" style="margin-top:16px;">
-          <div class="card-header"><span class="card-title">Event Feed</span><button class="btn btn-sm btn-primary" id="subEventsBtn" style="margin-left:auto;" onclick="subscribeToEvents()">Subscribe Live</button></div>
-          <div id="eventFeed" style="max-height:400px;overflow-y:auto;"><div style="color:var(--text-muted);padding:20px;text-align:center;">Loading events…</div></div>
+        <div class="card mt-16">
+          <div class="card-header"><span class="card-title">Event Feed</span><button class="btn btn-sm btn-primary ml-auto" id="subEventsBtn" onclick="subscribeToEvents()">Subscribe Live</button></div>
+          <div id="eventFeed" class="event-feed"><div class="loading-cell--lg">Loading events…</div></div>
         </div>
       </div>
 
@@ -571,7 +572,7 @@
       <div id="sec-oauth" class="section">
         <div class="two-col">
           <div class="card"><div class="card-header"><span class="card-title">Provider Connections</span></div><div class="oauth-provider-list" id="oauthProviderList"><div class="empty-state"><div class="spinner"></div></div></div></div>
-          <div class="card"><div class="card-header"><span class="card-title">Stored Tokens</span><button class="btn btn-xs btn-danger" style="margin-left:auto;" onclick="if(confirm('Revoke all?',()=>apiFetch('/oauth/tokens?tenant_id='+_tenantId,{method:'DELETE'}).then(r=>r.ok?toast('Revoked','success'):0).then(loadOAuth))){}">Revoke All</button></div>
+          <div class="card"><div class="card-header"><span class="card-title">Stored Tokens</span><button class="btn btn-xs btn-danger ml-auto" onclick="if(confirm('Revoke all?',()=>apiFetch('/oauth/tokens?tenant_id='+_tenantId,{method:'DELETE'}).then(r=>r.ok?toast('Revoked','success'):0).then(loadOAuth))){}">Revoke All</button></div>
             <div class="table-wrap"><table><thead><tr><th>Provider</th><th>Connector</th><th>Status</th><th>Expires</th><th>Actions</th></tr></thead><tbody id="oauthTokenTbody"></tbody></table></div>
           </div>
         </div>
@@ -579,35 +580,35 @@
 
       <!-- ── WEBHOOKS ───────────────────────────────────────────────────── -->
       <div id="sec-webhooks" class="section">
-        <div class="filter-bar"><div style="flex:1;"></div><button class="btn btn-primary btn-sm" onclick="createWebhookModal()">+ New Webhook</button></div>
+        <div class="filter-bar"><div class="flex-1"></div><button class="btn btn-primary btn-sm" onclick="createWebhookModal()">+ New Webhook</button></div>
         <div class="table-wrap"><table><thead><tr><th>Connector</th><th>URL</th><th>Events</th><th>Status</th><th>Last Triggered</th><th>Stats</th><th>Actions</th></tr></thead><tbody id="webhookTbody"></tbody></table></div>
       </div>
 
       <!-- ── QUEUES ─────────────────────────────────────────────────────── -->
       <div id="sec-queues" class="section">
-        <div class="stats-grid" style="margin-bottom:20px;">
-          <div class="stat-card"><div class="stat-value" id="qstatQueued" style="color:var(--warning)">—</div><div class="stat-label">Queued</div></div>
-          <div class="stat-card"><div class="stat-value" id="qstatProcessing" style="color:var(--accent)">—</div><div class="stat-label">Processing</div></div>
-          <div class="stat-card"><div class="stat-value" id="qstatDead" style="color:var(--danger)">—</div><div class="stat-label">Dead Letters</div></div>
-          <div class="stat-card"><div class="stat-value" id="qstatProcessed" style="color:var(--success)">—</div><div class="stat-label">Completed</div></div>
+        <div class="stats-grid mb-20">
+          <div class="stat-card"><div class="stat-value stat-value--warning" id="qstatQueued">—</div><div class="stat-label">Queued</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--accent" id="qstatProcessing">—</div><div class="stat-label">Processing</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--danger" id="qstatDead">—</div><div class="stat-label">Dead Letters</div></div>
+          <div class="stat-card"><div class="stat-value stat-value--success" id="qstatProcessed">—</div><div class="stat-label">Completed</div></div>
         </div>
         <div class="tabs">
           <button class="tab-btn active" onclick="showTab(this,'tabActive')">Active Jobs</button>
           <button class="tab-btn" onclick="showTab(this,'tabDL')">Dead Letters</button>
         </div>
         <div id="tabActive"><div class="table-wrap"><table><thead><tr><th>Job ID</th><th>Connector</th><th>Type</th><th>Status</th><th>Attempts</th><th>Error</th><th>Created</th><th>Actions</th></tr></thead><tbody id="queueJobsTbody"></tbody></table></div></div>
-        <div id="tabDL" style="display:none;"><div style="display:flex;justify-content:flex-end;margin-bottom:10px;"><button class="btn btn-danger btn-sm" onclick="clearDeadLetters()">Clear Dead Letters</button></div><div class="table-wrap"><table><thead><tr><th>Job ID</th><th>Connector</th><th>Type</th><th>Attempts</th><th>Error</th><th>Created</th><th>Actions</th></tr></thead><tbody id="deadLetterTbody"></tbody></table></div></div>
+        <div id="tabDL" class="hidden"><div class="filter-bar"><div class="flex-1"></div><button class="btn btn-danger btn-sm" onclick="clearDeadLetters()">Clear Dead Letters</button></div><div class="table-wrap"><table><thead><tr><th>Job ID</th><th>Connector</th><th>Type</th><th>Attempts</th><th>Error</th><th>Created</th><th>Actions</th></tr></thead><tbody id="deadLetterTbody"></tbody></table></div></div>
       </div>
 
       <!-- ── LOGS ───────────────────────────────────────────────────────── -->
       <div id="sec-logs" class="section">
         <div class="filter-bar">
-          <select id="logLevelFilter" class="filter-select" onchange="loadLogs()"><option value="">All levels</option><option value="INFO">INFO</option><option value="WARN">WARN</option><option value="ERROR">ERROR</option></select>
-          <div class="search-input" style="flex:1;"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="logConnFilter" placeholder="Filter by connector…" oninput="loadLogs()"/></div>
+          <select id="logLevelFilter" class="filter-select" aria-label="Log level" title="Log level" onchange="loadLogs()"><option value="">All levels</option><option value="INFO">INFO</option><option value="WARN">WARN</option><option value="ERROR">ERROR</option></select>
+          <div class="search-input flex-1"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="logConnFilter" placeholder="Filter by connector…" oninput="loadLogs()"/></div>
           <button class="btn btn-secondary btn-sm" onclick="loadLogs()">Reload</button>
           <button class="btn btn-primary btn-sm" id="streamBtn" onclick="toggleLogStream()">Start Live Stream</button>
         </div>
-        <div class="log-stream" id="logStreamEl" style="max-height:560px;"><div style="padding:20px;color:var(--text-muted);text-align:center;">Loading logs…</div></div>
+        <div class="log-stream log-stream--lg" id="logStreamEl"><div class="loading-cell--lg">Loading logs…</div></div>
       </div>
 
       <!-- ── HEALTH ─────────────────────────────────────────────────────── -->
@@ -616,18 +617,18 @@
           <button class="btn btn-secondary btn-sm" onclick="loadHealth()">Refresh All</button>
           <button class="btn btn-secondary btn-sm" onclick="apiFetch('/health').then(r=>r.ok?toast('System: '+r.data.status,'success'):toast('Health check failed','error'))">System Ping</button>
         </div>
-        <div class="health-grid" id="healthGrid"><div class="empty-state" style="grid-column:1/-1"><div class="spinner"></div></div></div>
+        <div class="health-grid" id="healthGrid"><div class="empty-state grid-full"><div class="spinner"></div></div></div>
       </div>
 
       <!-- ── PLUGINS ────────────────────────────────────────────────────── -->
       <div id="sec-plugins" class="section">
-        <div class="filter-bar"><div class="search-input" style="flex:1;"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search plugins…"/></div><button class="btn btn-secondary btn-sm" onclick="loadPlugins()">Reload Registry</button></div>
+        <div class="filter-bar"><div class="search-input flex-1"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search plugins…"/></div><button class="btn btn-secondary btn-sm" onclick="loadPlugins()">Reload Registry</button></div>
         <div class="table-wrap"><table><thead><tr><th>Plugin</th><th>Version</th><th>Category</th><th>Status</th><th>Actions</th></tr></thead><tbody id="pluginsTbody"></tbody></table></div>
       </div>
 
       <!-- ── PERMISSIONS ────────────────────────────────────────────────── -->
       <div id="sec-permissions" class="section">
-        <div class="card"><div class="card-header"><span class="card-title">Permission Matrix</span><span class="card-sub" style="margin-left:8px;">Plugin × Scope</span></div><div style="overflow-x:auto;" id="permissionsMatrix"><div class="empty-state"><div class="spinner"></div></div></div></div>
+        <div class="card"><div class="card-header"><span class="card-title">Permission Matrix</span><span class="card-sub perm-sub">Plugin × Scope</span></div><div class="overflow-x-auto" id="permissionsMatrix"><div class="empty-state"><div class="spinner"></div></div></div></div>
       </div>
 
       <!-- ── SETTINGS ───────────────────────────────────────────────────── -->
@@ -635,19 +636,19 @@
         <div class="two-col">
           <div class="card">
             <div class="card-header"><span class="card-title">Panel Configuration</span></div>
-            <div class="settings-row"><div class="settings-info"><div class="settings-key">Active Tenant</div><div class="settings-desc">Tenant ID for all operations in this session</div></div><input id="settingsTenant" style="width:160px;" /></div>
-            <div class="settings-row"><div class="settings-info"><div class="settings-key">API Base URL</div><div class="settings-desc">Backend API prefix</div></div><input value="/api/connector-panel" style="width:200px;" readonly /></div>
-            <div class="settings-row"><div class="settings-info"><div class="settings-key">Auto-refresh</div><div class="settings-desc">Refresh dashboard every 30 seconds</div></div><label class="toggle"><input type="checkbox" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div>
-            <div class="settings-row" style="border:none;"><div></div><button class="btn btn-primary btn-sm" onclick="saveSettings()">Save Settings</button></div>
+            <div class="settings-row"><div class="settings-info"><div class="settings-key">Active Tenant</div><div class="settings-desc">Tenant ID for all operations in this session</div></div><input id="settingsTenant" class="settings-input--sm" aria-label="Active Tenant" title="Active Tenant" /></div>
+            <div class="settings-row"><div class="settings-info"><div class="settings-key">API Base URL</div><div class="settings-desc">Backend API prefix</div></div><input value="/api/connector-panel" class="settings-input--md" aria-label="API Base URL" title="API Base URL" readonly /></div>
+            <div class="settings-row"><div class="settings-info"><div class="settings-key">Auto-refresh</div><div class="settings-desc">Refresh dashboard every 30 seconds</div></div><label class="toggle"><input type="checkbox" aria-label="Auto-refresh" title="Auto-refresh" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div>
+            <div class="settings-row settings-row--borderless"><div></div><button class="btn btn-primary btn-sm" onclick="saveSettings()">Save Settings</button></div>
           </div>
           <div class="card">
             <div class="card-header"><span class="card-title">About</span></div>
-            <div style="font-size:13px;color:var(--text-muted);line-height:1.8;">
-              <div><strong style="color:var(--text);">MailPilot Enterprise OS</strong></div>
+            <div class="about-text">
+              <div><strong class="text-default">MailPilot Enterprise OS</strong></div>
               <div>Version: 2.0.0</div>
               <div>Modules: ERP · CRM · Tracking · Workflows · Support</div>
               <div>API prefix: /api/connector-panel</div>
-              <div style="margin-top:12px;"><a href="#" onclick="showSection('marketplace')" style="color:var(--accent);">Marketplace →</a> · <a href="#" onclick="apiFetch('/health').then(r=>toast(r.ok?'API online':'API offline',r.ok?'success':'error'))" style="color:var(--accent);">Test API →</a></div>
+              <div class="mt-12"><a href="#" onclick="showSection('marketplace')" class="about-link">Marketplace →</a> · <a href="#" onclick="apiFetch('/health').then(r=>toast(r.ok?'API online':'API offline',r.ok?'success':'error'))" class="about-link">Test API →</a></div>
             </div>
           </div>
         </div>
@@ -663,13 +664,14 @@
 function showTab(btn, tabId) {
   btn.closest('.section').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  btn.closest('.section').querySelectorAll('[id^="tab"]').forEach(t => t.style.display = 'none');
+  btn.closest('.section').querySelectorAll('[id^="tab"]').forEach(t => t.classList.add('hidden'));
   const el = document.getElementById(tabId);
-  if (el) el.style.display = 'block';
+  if (el) el.classList.remove('hidden');
 }
 function filterInstalledTable(q) {
   document.querySelectorAll('#installedTbody tr').forEach(tr => {
-    tr.style.display = !q || tr.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
+    const show = !q || tr.textContent.toLowerCase().includes(q.toLowerCase());
+    tr.classList.toggle('hidden', !show);
   });
 }
 function filterEventType(type) { document.getElementById('pubEventType').value = type; }

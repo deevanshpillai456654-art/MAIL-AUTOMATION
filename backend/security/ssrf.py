@@ -22,7 +22,8 @@ class OutboundURLDecision:
 
 
 _METADATA_HOSTS = {"metadata.google.internal", "169.254.169.254"}
-_LOCAL_HOSTS = {"localhost", "localhost.localdomain", "0.0.0.0", "::1"}
+# Denylist entries, not bind targets.
+_LOCAL_HOSTS = {"localhost", "localhost.localdomain", "0.0.0.0", "::1"}  # nosec B104
 
 
 def _is_blocked_ip(ip_text: str) -> bool:

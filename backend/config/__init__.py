@@ -130,7 +130,8 @@ IS_PORTABLE = _is_truthy(os.environ.get("AIO_PORTABLE")) or _is_truthy(os.enviro
 # ── API binding ───────────────────────────────────────────────────────────────
 
 API_HOST = settings.api_host
-if API_HOST == "0.0.0.0" and not (IS_CONTAINERIZED or os.environ.get("ALLOW_EXTERNAL_BIND") == "1"):
+# Wildcard binds are reduced to loopback unless explicitly enabled.
+if API_HOST == "0.0.0.0" and not (IS_CONTAINERIZED or os.environ.get("ALLOW_EXTERNAL_BIND") == "1"):  # nosec B104
     API_HOST = "127.0.0.1"
 API_PORT = settings.api_port
 PUBLIC_BASE_URL = settings.public_base_url or f"http://127.0.0.1:{API_PORT}"

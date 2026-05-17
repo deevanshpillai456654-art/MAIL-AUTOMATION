@@ -5,6 +5,7 @@
   const MAX_NONCES = 1500;
   const seenNonces = new Set();
   const nonceOrder = [];
+
   const allowedMessageTypes = new Set([
     'AIO_CLASSIFY_EMAIL',
     'AIO_SEND_FEEDBACK',
@@ -24,6 +25,28 @@
     'AIO_GET_SETTINGS',
     'AIO_SAVE_SETTINGS'
   ]);
+
+  // Per-type allowlist of permitted payload field names.
+  // Any field not listed here is rejected. Unknown message types default to no fields.
+  const MESSAGE_SCHEMAS = {
+    AIO_CLASSIFY_EMAIL:    ['subject', 'sender', 'senderEmail', 'body'],
+    AIO_SEND_FEEDBACK:     ['emailId', 'category', 'correct'],
+    AIO_GET_STATUS:        [],
+    AIO_GET_PROVIDERS:     [],
+    AIO_OPEN_DASHBOARD:    ['tab'],
+    AIO_RUNTIME_TELEMETRY: ['event', 'data'],
+    AIO_GET_THREAT_STATS:  [],
+    AIO_GET_RECENT_THREATS:['limit'],
+    AIO_ANALYZE_DOMAIN:    ['domain'],
+    AIO_REPORT_SCAM:       ['emailId', 'senderEmail'],
+    AIO_MARK_SAFE:         ['emailId'],
+    AIO_BLACKLIST_SENDER:  ['senderEmail'],
+    AIO_WHITELIST_SENDER:  ['senderEmail'],
+    AIO_SHOW_NOTIFICATION: ['title', 'message'],
+    AIO_UPDATE_BADGE:      ['count', 'color'],
+    AIO_GET_SETTINGS:      [],
+    AIO_SAVE_SETTINGS:     ['autoClassify', 'notifications', 'syncInterval']
+  };
 
   function browserApi() { return global.browser || global.chrome; }
 
@@ -49,13 +72,35 @@
     return true;
   }
 
+  /**
+   * Validate payload fields against the per-type allowlist schema.
+   * Returns false if any key is not in the schema, or if the schema itself is
+   * unknown (fail-closed). This replaces the previous keyword blocklist which
+   * could be bypassed with alternate spellings.
+   */
+  function validatePayloadSchema(type, payload) {
+    const allowedFields = MESSAGE_SCHEMAS[type];
+    if (!allowedFields) return false; // unknown type — reject
+    const payloadKeys = Object.keys(payload || {});
+    for (const key of payloadKeys) {
+      if (!allowedFields.includes(key)) return false;
+    }
+    return true;
+  }
+
   function validateMessage(message) {
     const msg = safeJson(message);
-    if (!allowedMessageTypes.has(msg.type)) return { ok: false, reason: 'unsupported_message_type' };
-    if (!msg.nonce || !rememberNonce(String(msg.nonce))) return { ok: false, reason: 'nonce_replay_or_missing' };
-    if (payloadBytes(msg.payload) > MAX_PAYLOAD_BYTES) return { ok: false, reason: 'payload_too_large' };
-    if (/token|password|secret|credential/i.test(JSON.stringify(msg.payload || {}))) {
-      return { ok: false, reason: 'plaintext_secret_blocked' };
+    if (!allowedMessageTypes.has(msg.type)) {
+      return { ok: false, reason: 'unsupported_message_type' };
+    }
+    if (!msg.nonce || !rememberNonce(String(msg.nonce))) {
+      return { ok: false, reason: 'nonce_replay_or_missing' };
+    }
+    if (payloadBytes(msg.payload) > MAX_PAYLOAD_BYTES) {
+      return { ok: false, reason: 'payload_too_large' };
+    }
+    if (!validatePayloadSchema(msg.type, msg.payload)) {
+      return { ok: false, reason: 'payload_schema_violation' };
     }
     return { ok: true, message: msg };
   }

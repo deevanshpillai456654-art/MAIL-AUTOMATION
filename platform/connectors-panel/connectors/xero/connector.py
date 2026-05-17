@@ -61,17 +61,20 @@ class XeroConnector(ConnectorBase):
 
     async def get_auth_url(self, redirect_uri: str, state: str) -> str:
         verifier, challenge = self._make_pkce()
-        # Store verifier in config cache keyed by state for exchange_code
+        # Store verifier temporarily for exchange_code to retrieve
+        from ...shared.utils import encrypt_secret
+        now_str = datetime.now(tz=timezone.utc).isoformat()
         self.db.execute(
-            "INSERT OR REPLACE INTO oauth_tokens "
-            "(token_id, instance_id, tenant_id, access_token, refresh_token, "
-            " expires_at, scopes, created_at, updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
+            """INSERT OR REPLACE INTO oauth_tokens
+               (id, connector_id, tenant_id, provider,
+                access_token_enc, refresh_token_enc,
+                expires_at, scopes, is_valid, created_at)
+               VALUES (?,?,?,?,?,?,?,?,1,?)""",
             (
-                f"pkce_{state[:20]}", f"pkce_{self.instance_id}",
-                self.tenant_id, verifier, "", "", "pkce",
-                datetime.now(tz=timezone.utc).isoformat(),
-                datetime.now(tz=timezone.utc).isoformat(),
+                f"pkce_{state[:20]}", self.instance_id,
+                self.tenant_id, "pkce",
+                encrypt_secret(verifier), None, None, '["pkce"]',
+                now_str,
             ),
         )
         params = urlencode({
@@ -90,12 +93,16 @@ class XeroConnector(ConnectorBase):
         return "Basic " + base64.b64encode(creds.encode()).decode()
 
     async def exchange_code(self, code: str, redirect_uri: str) -> Dict[str, Any]:
-        # Retrieve PKCE verifier (best-effort; fall back to secret if missing)
+        # Retrieve PKCE verifier (best-effort; fall back if missing)
         pkce_row = self.db.fetch_one(
-            "SELECT access_token FROM oauth_tokens WHERE instance_id=? AND scopes='pkce' AND tenant_id=?",
-            (f"pkce_{self.instance_id}", self.tenant_id),
+            "SELECT access_token_enc FROM oauth_tokens WHERE connector_id=? AND provider='pkce' AND tenant_id=?",
+            (self.instance_id, self.tenant_id),
         )
-        verifier = pkce_row["access_token"] if pkce_row else ""
+        if pkce_row:
+            from ...shared.utils import decrypt_secret
+            verifier = decrypt_secret(pkce_row["access_token_enc"])
+        else:
+            verifier = ""
 
         client = self._get_http()
         data: Dict[str, str] = {
@@ -163,27 +170,19 @@ class XeroConnector(ConnectorBase):
             connections = resp.json()
             if connections:
                 tid = connections[0].get("tenantId", "")
+                self.config["xero_tenant_id"] = tid
                 self.db.execute(
-                    "UPDATE connectors SET config=json_set(COALESCE(config,'{}'), '$.xero_tenant_id', ?) "
-                    "WHERE instance_id=?",
+                    "UPDATE connectors SET config_json=json_set(COALESCE(config_json,'{}'), '$.xero_tenant_id', ?) "
+                    "WHERE id=?",
                     (tid, self.instance_id),
                 )
                 return tid
         return ""
 
     def _xero_headers(self, access_token: str) -> Dict:
-        tenant_row = self.db.fetch_one(
-            "SELECT config FROM connectors WHERE instance_id=?",
-            (self.instance_id,),
-        )
-        import json as _json
-        tenant_id = ""
-        if tenant_row:
-            cfg = _json.loads(tenant_row.get("config") or "{}")
-            tenant_id = cfg.get("xero_tenant_id", "")
         return {
             "Authorization": f"Bearer {access_token}",
-            "Xero-Tenant-Id": tenant_id,
+            "Xero-Tenant-Id": self.config.get("xero_tenant_id", ""),
             "Accept": "application/json",
         }
 
@@ -239,13 +238,13 @@ class XeroConnector(ConnectorBase):
         }
         status = status_map.get(xero_status, "sent")
         existing = self.db.fetch_one(
-            "SELECT invoice_id FROM erp_invoices WHERE invoice_number=? AND tenant_id=?",
+            "SELECT id FROM erp_invoices WHERE invoice_number=? AND tenant_id=?",
             (inv_num, self.tenant_id),
         )
         if existing:
             self.db.execute(
-                "UPDATE erp_invoices SET status=?, updated_at=? WHERE invoice_id=?",
-                (status, now, existing["invoice_id"]),
+                "UPDATE erp_invoices SET status=?, updated_at=? WHERE id=?",
+                (status, now, existing["id"]),
             )
             if status == "paid":
                 self._publish_event("invoice.paid",
@@ -253,16 +252,19 @@ class XeroConnector(ConnectorBase):
         else:
             iid = f"inv_{uuid.uuid4().hex}"
             contact = r.get("Contact", {})
+            amount = float(r.get("Total", 0) or 0)
+            inv_date = (r.get("Date", "") or now)[:10]
             self.db.execute(
                 """INSERT INTO erp_invoices
-                   (invoice_id, tenant_id, invoice_number, vendor_id, status,
-                    amount, currency, due_date, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                   (id, tenant_id, invoice_number, vendor_id, status,
+                    amount, total_amount, currency, invoice_date, due_date,
+                    created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (iid, self.tenant_id, inv_num,
                  contact.get("ContactID", ""),
-                 status,
-                 float(r.get("Total", 0) or 0),
+                 status, amount, amount,
                  r.get("CurrencyCode", "USD"),
+                 inv_date,
                  (r.get("DueDate", "") or "")[:10] or None,
                  now, now),
             )
@@ -289,7 +291,7 @@ class XeroConnector(ConnectorBase):
         ext_id = r.get("ContactID", "")
         now = datetime.now(tz=timezone.utc).isoformat()
         if not self.db.fetch_one(
-            "SELECT contact_id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
+            "SELECT id FROM crm_contacts WHERE external_id=? AND tenant_id=?",
             (ext_id, self.tenant_id),
         ):
             cid = f"cnt_{uuid.uuid4().hex}"
@@ -301,7 +303,7 @@ class XeroConnector(ConnectorBase):
             emails = r.get("EmailAddress", "")
             self.db.execute(
                 """INSERT INTO crm_contacts
-                   (contact_id, tenant_id, first_name, last_name, email, phone,
+                   (id, tenant_id, first_name, last_name, email, phone,
                     source, external_id, status, created_at, updated_at)
                    VALUES (?,?,?,?,?,?,'xero',?,'active',?,?)""",
                 (cid, self.tenant_id,
@@ -334,6 +336,8 @@ class XeroConnector(ConnectorBase):
         if not sig:
             return False
         key = self.config.get("client_secret", "")
+        if not key:
+            return False
         expected = base64.b64encode(
             hmac.new(key.encode(), raw_body, hashlib.sha256).digest()
         ).decode()

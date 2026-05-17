@@ -11,6 +11,8 @@ class ShopifyAPI:
     @staticmethod
     def shop_url(shop: str) -> str:
         s = shop.rstrip("/")
+        if "/" in s:
+            raise ValueError(f"Invalid shop value: must not contain path separators")
         if not s.endswith(".myshopify.com"):
             s = f"{s}.myshopify.com"
         return f"https://{s}"

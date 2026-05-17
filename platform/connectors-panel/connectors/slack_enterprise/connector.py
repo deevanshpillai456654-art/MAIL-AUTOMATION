@@ -230,7 +230,7 @@ class SlackEnterpriseConnector(ConnectorBase):
                                         headers: Dict) -> bool:
         signing_secret = self.config.get("signing_secret", "")
         if not signing_secret:
-            return True
+            return False  # fail-closed: configure signing_secret to enable Slack webhooks
         timestamp = headers.get("x-slack-request-timestamp", "")
         sig_header = headers.get("x-slack-signature", "")
         if not timestamp or not sig_header:

@@ -55,8 +55,11 @@ def _discover_plugins() -> list[PluginInfo]:
     for base_dir in dirs_to_scan:
         for manifest_file in sorted(base_dir.glob("*/plugin.json")):
             try:
+                import re as _re
                 raw = json.loads(manifest_file.read_text(encoding="utf-8"))
                 plugin_id = raw.get("name", manifest_file.parent.name)
+                if not _re.fullmatch(r'[A-Za-z0-9_\-]+', plugin_id):
+                    continue  # skip plugins with unsafe IDs
                 if plugin_id in seen:
                     continue
                 seen.add(plugin_id)
@@ -153,6 +156,9 @@ async def plugins_health():
         # Try to call health_check if module is available
         try:
             import importlib
+            import re as _re
+            if not _re.fullmatch(r'[A-Za-z0-9_\-]+', p.plugin_id):
+                raise ValueError("invalid plugin_id")
             mod = importlib.import_module(f"platform.plugins.{p.plugin_id}.module")
             for attr in dir(mod):
                 cls = getattr(mod, attr)
@@ -209,14 +215,11 @@ async def disable_plugin(plugin_id: str):
 
 
 @router.get("/{plugin_id}/permissions", response_model=list[PluginPermission], summary="Get plugin permissions")
-async def get_plugin_permissions(plugin_id: str, tenant_id: Optional[str] = Query(None)):
+async def get_plugin_permissions(plugin_id: str, tenant_id: str = Query(...)):
     _find_plugin(plugin_id)
     db = get_panel_db()
-    sql = "SELECT * FROM plugin_permissions WHERE plugin_id = ?"
-    params: list[Any] = [plugin_id]
-    if tenant_id:
-        sql += " AND tenant_id = ?"
-        params.append(tenant_id)
+    sql = "SELECT * FROM plugin_permissions WHERE plugin_id = ? AND tenant_id = ?"
+    params: list[Any] = [plugin_id, tenant_id]
     rows = db.fetch_all(sql, params)
     return [
         PluginPermission(
@@ -231,7 +234,7 @@ async def get_plugin_permissions(plugin_id: str, tenant_id: Optional[str] = Quer
 
 
 @router.post("/{plugin_id}/permissions", response_model=PluginPermission, status_code=status.HTTP_201_CREATED, summary="Grant permission")
-async def grant_permission(plugin_id: str, body: PermissionGrantRequest):
+async def grant_permission(plugin_id: str, body: PermissionGrantRequest, tenant_id: str = Query(...)):
     _find_plugin(plugin_id)
     db = get_panel_db()
     perm_id = str(uuid.uuid4())
@@ -245,12 +248,12 @@ async def grant_permission(plugin_id: str, body: PermissionGrantRequest):
             granted_at = excluded.granted_at,
             granted_by = excluded.granted_by
         """,
-        (perm_id, plugin_id, body.tenant_id, body.permission.value, now, body.granted_by),
+        (perm_id, plugin_id, tenant_id, body.permission.value, now, body.granted_by),
     )
 
     return PluginPermission(
         plugin_id=plugin_id,
-        tenant_id=body.tenant_id,
+        tenant_id=tenant_id,
         permission=body.permission,
         granted_at=datetime.fromisoformat(now),
         granted_by=body.granted_by,

@@ -757,10 +757,12 @@ class Database:
         return text[:80] or fallback
 
     def _bucket_scope_rows(self, table: str, account_id: int = None) -> list:
+        if table not in {"mail_labels", "mail_folders"}:
+            raise ValueError("Unsupported bucket table")
         if account_id is None:
-            return self.fetch_all(f"SELECT * FROM {table} WHERE account_id IS NULL ORDER BY id")
+            return self.fetch_all(f"SELECT * FROM {table} WHERE account_id IS NULL ORDER BY id")  # nosec B608
         return self.fetch_all(
-            f"SELECT * FROM {table} WHERE account_id = ? OR account_id IS NULL ORDER BY CASE WHEN account_id = ? THEN 0 ELSE 1 END, id",
+            f"SELECT * FROM {table} WHERE account_id = ? OR account_id IS NULL ORDER BY CASE WHEN account_id = ? THEN 0 ELSE 1 END, id",  # nosec B608
             (account_id, account_id),
         )
 

@@ -35,33 +35,42 @@ if !ERRORLEVEL! EQU 0 (
 )
 
 if exist "%~dp0AIEmailOrganizer.exe" (
-    "%~dp0AIEmailOrganizer.exe" >>"%AIO_LOG_DIR%\service.log" 2>>&1
+    "%~dp0AIEmailOrganizer.exe" >>"%AIO_LOG_DIR%\stdout.log" 2>>"%AIO_LOG_DIR%\stderr.log"
     exit /b !ERRORLEVEL!
 )
 
 set "SERVICE_DIR=%~dp0service"
 if not exist "%SERVICE_DIR%\run.py" set "SERVICE_DIR=%~dp0local-service"
+if not exist "%SERVICE_DIR%\run.py" set "SERVICE_DIR=%~dp0backend"
 if not exist "%SERVICE_DIR%\run.py" (
-    echo [%DATE% %TIME%] ERROR: Could not find service\run.py or local-service\run.py.>>"%AIO_LOG_DIR%\launcher.log"
+    echo [%DATE% %TIME%] ERROR: Could not find service\run.py, local-service\run.py, or backend\run.py.>>"%AIO_LOG_DIR%\launcher.log"
     exit /b 1
 )
 
 if exist "%~dp0.venv\Scripts\python.exe" (
     cd /d "%SERVICE_DIR%"
-    "%~dp0.venv\Scripts\python.exe" run.py start >>"%AIO_LOG_DIR%\service.log" 2>>&1
+    "%~dp0.venv\Scripts\python.exe" run.py start >>"%AIO_LOG_DIR%\stdout.log" 2>>"%AIO_LOG_DIR%\stderr.log"
     exit /b !ERRORLEVEL!
 )
 
 set "PYTHON_CMD="
-where py >nul 2>nul
-if !ERRORLEVEL! EQU 0 set "PYTHON_CMD=py -3"
+py -3.12 --version >nul 2>nul
+if !ERRORLEVEL! EQU 0 set "PYTHON_CMD=py -3.12"
+if not defined PYTHON_CMD (
+    py -3.11 --version >nul 2>nul
+    if !ERRORLEVEL! EQU 0 set "PYTHON_CMD=py -3.11"
+)
+if not defined PYTHON_CMD (
+    py -3.10 --version >nul 2>nul
+    if !ERRORLEVEL! EQU 0 set "PYTHON_CMD=py -3.10"
+)
 if not defined PYTHON_CMD (
     where python >nul 2>nul
     if !ERRORLEVEL! EQU 0 set "PYTHON_CMD=python"
 )
 if defined PYTHON_CMD (
     cd /d "%SERVICE_DIR%"
-    !PYTHON_CMD! run.py start >>"%AIO_LOG_DIR%\service.log" 2>>&1
+    !PYTHON_CMD! run.py start >>"%AIO_LOG_DIR%\stdout.log" 2>>"%AIO_LOG_DIR%\stderr.log"
     exit /b !ERRORLEVEL!
 )
 

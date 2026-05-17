@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(__file__).parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SERVICE_DIR = PROJECT_ROOT
 API_URL = "http://127.0.0.1:4597"
 
@@ -67,7 +67,7 @@ def start_service():
     print("-" * 40)
 
     process = subprocess.Popen(
-        [sys.executable, "main.py"],
+        [sys.executable, "-m", "backend.main"],
         cwd=str(SERVICE_DIR),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE

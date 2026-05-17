@@ -348,7 +348,7 @@ class DynamicAnalyzer:
     
     def __init__(self):
         self._analysis_queue: deque = deque(maxlen=100)
-        self._sandbox_path = "/tmp/attachment_sandbox"
+        self._sandbox_path = str(Path(tempfile.gettempdir()) / "attachment_sandbox")
     
     async def analyze_in_sandbox(self, file_path: str) -> DynamicAnalysis:
         """Analyze file in isolated sandbox"""
@@ -398,7 +398,7 @@ class FirecrackerVM:
                  memory_mb: int = 256):
         self._vcpu_count = vcpu_count
         self._memory_mb = memory_mb
-        self._vm_dir = "/tmp/firecracker_vms"
+        self._vm_dir = str(Path(tempfile.gettempdir()) / "firecracker_vms")
         self._active_vms: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.RLock()
         self._config = {

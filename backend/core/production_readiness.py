@@ -195,7 +195,8 @@ class ProductionReadinessValidator:
             remediation="Set CORS_ALLOWED_ORIGINS to trusted HTTPS origins for cloud; local desktop releases use loopback and extension allow-lists.",
         ))
         checks.append(self._check(
-            ok=bind_host in {"0.0.0.0", "127.0.0.1", "localhost"},
+            # Readiness check only; config controls actual bind safety.
+            ok=bind_host in {"0.0.0.0", "127.0.0.1", "localhost"},  # nosec B104
             id="runtime.bind_host_valid",
             category="runtime",
             title="API bind host is valid for container or local deployment",
@@ -524,4 +525,3 @@ def evidence_templates() -> Dict[str, Dict[str, Any]]:
             "websocket_namespace_isolation": True,
         },
     }
-

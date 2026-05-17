@@ -41,21 +41,21 @@ async def list_workflows(
         conditions.append("status = ?"); params.append(status)
     where = " AND ".join(conditions)
     rows = db.fetch_all(
-        f"SELECT * FROM workflow_definitions WHERE {where} ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+        f"SELECT * FROM workflow_definitions WHERE {where} ORDER BY updated_at DESC LIMIT ? OFFSET ?",  # nosec B608
         params + [limit, offset],
     )
-    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM workflow_definitions WHERE {where}", params)
+    total = db.fetch_one(f"SELECT COUNT(*) AS c FROM workflow_definitions WHERE {where}", params)  # nosec B608
     return {"workflows": rows, "total": _int(total["c"] if total else 0)}
 
 
 @router.post("", summary="Create workflow", status_code=status.HTTP_201_CREATED)
-async def create_workflow(body: dict[str, Any]):
+async def create_workflow(body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
     wid = str(uuid.uuid4())
     now = utc_now_str()
     db.execute(
         "INSERT INTO workflow_definitions (id,tenant_id,name,description,trigger_type,trigger_config,steps_json,status,run_count,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-        (wid, body.get("tenant_id","default"), body["name"], body.get("description"),
+        (wid, tenant_id, body["name"], body.get("description"),
          body.get("trigger_type","manual"), body.get("trigger_config","{}"),
          body.get("steps_json","[]"), body.get("status","draft"), 0, now, now),
     )
@@ -96,13 +96,16 @@ async def get_workflow(workflow_id: str, tenant_id: str = Query(...)):
 
 
 @router.patch("/{workflow_id}", summary="Update workflow")
-async def update_workflow(workflow_id: str, body: dict[str, Any]):
+async def update_workflow(workflow_id: str, body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
+    existing = db.fetch_one("SELECT id FROM workflow_definitions WHERE id=? AND tenant_id=?", (workflow_id, tenant_id))
+    if not existing:
+        raise HTTPException(status_code=404, detail="Workflow not found")
     now = utc_now_str()
     allowed = {"name","description","trigger_type","trigger_config","steps_json","status"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if updates:
-        db.execute(f"UPDATE workflow_definitions SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=?", list(updates.values()) + [now, workflow_id])
+        db.execute(f"UPDATE workflow_definitions SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=? AND tenant_id=?", list(updates.values()) + [now, workflow_id, tenant_id])  # nosec B608
     return {"ok": True}
 
 
@@ -118,9 +121,9 @@ async def delete_workflow(workflow_id: str, tenant_id: str = Query(...)):
 # ---------------------------------------------------------------------------
 
 @router.post("/{workflow_id}/run", summary="Trigger workflow execution")
-async def run_workflow(workflow_id: str, body: dict[str, Any]):
+async def run_workflow(workflow_id: str, body: dict[str, Any], tenant_id: str = Query(...)):
     db = get_panel_db()
-    wf = db.fetch_one("SELECT * FROM workflow_definitions WHERE id=?", (workflow_id,))
+    wf = db.fetch_one("SELECT * FROM workflow_definitions WHERE id=? AND tenant_id=?", (workflow_id, tenant_id))
     if not wf:
         raise HTTPException(status_code=404, detail="Workflow not found")
     eid = str(uuid.uuid4())

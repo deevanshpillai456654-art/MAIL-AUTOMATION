@@ -13,13 +13,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Response, status
 from fastapi.staticfiles import StaticFiles
+
+from backend.auth.local_auth import require_local_auth, set_local_session_cookie
 
 log = logging.getLogger(__name__)
 
 from .connectors import router as connectors_router
-from .connector_engine import router as engine_router
+from .connector_engine import router as engine_router, public_router as engine_public_router
 from .crm import router as crm_router
 from .db import init_panel_db
 from .erp import router as erp_router
@@ -32,7 +34,7 @@ from .plugins import router as plugins_router
 from .queues import router as queues_router
 from .support import router as support_router
 from .tracking import router as tracking_router
-from .webhooks import router as webhooks_router
+from .webhooks import router as webhooks_router, public_router as webhooks_public_router
 from .workflows import router as workflows_router
 from ..shared.constants import CONNECTOR_PANEL_VERSION
 
@@ -45,8 +47,10 @@ router = APIRouter(
     tags=["connector-panel"],
 )
 
+_AUTH = [Depends(require_local_auth)]
 
-@router.get("/", summary="Panel status and version")
+
+@router.get("/", summary="Panel status and version", dependencies=_AUTH)
 async def panel_root():
     return {
         "name": "MailPilot Connector & Plugin Panel",
@@ -67,24 +71,40 @@ async def panel_root():
     }
 
 
-# Include all sub-routers — core
-router.include_router(connectors_router)
-router.include_router(marketplace_router)
-router.include_router(plugins_router)
-router.include_router(oauth_router)
-router.include_router(webhooks_router)
-router.include_router(queues_router)
-router.include_router(logs_router)
-router.include_router(health_router)
-router.include_router(events_router)
-# Connector SDK engine
-router.include_router(engine_router)
+@router.post(
+    "/session",
+    include_in_schema=False,
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=_AUTH,
+)
+async def bootstrap_panel_session() -> Response:
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    set_local_session_cookie(response)
+    return response
+
+
+# Public sub-routers: inbound webhooks and OAuth callbacks from external providers.
+# These must NOT carry the local-auth dependency — external systems cannot present it.
+router.include_router(webhooks_public_router)
+router.include_router(engine_public_router)
+
+# All remaining sub-routers require the local API token.
+router.include_router(connectors_router, dependencies=_AUTH)
+router.include_router(marketplace_router, dependencies=_AUTH)
+router.include_router(plugins_router, dependencies=_AUTH)
+router.include_router(oauth_router, dependencies=_AUTH)
+router.include_router(webhooks_router, dependencies=_AUTH)
+router.include_router(queues_router, dependencies=_AUTH)
+router.include_router(logs_router, dependencies=_AUTH)
+router.include_router(health_router, dependencies=_AUTH)
+router.include_router(events_router, dependencies=_AUTH)
+router.include_router(engine_router, dependencies=_AUTH)
 # Enterprise modules
-router.include_router(erp_router)
-router.include_router(crm_router)
-router.include_router(tracking_router)
-router.include_router(workflows_router)
-router.include_router(support_router)
+router.include_router(erp_router, dependencies=_AUTH)
+router.include_router(crm_router, dependencies=_AUTH)
+router.include_router(tracking_router, dependencies=_AUTH)
+router.include_router(workflows_router, dependencies=_AUTH)
+router.include_router(support_router, dependencies=_AUTH)
 
 
 # ---------------------------------------------------------------------------

@@ -160,15 +160,15 @@ class DHLConnector(ConnectorBase):
         shipment_id = f"shp_{uuid.uuid4().hex}"
         now = datetime.now(tz=timezone.utc).isoformat()
         self.db.execute(
-            """INSERT INTO erp_shipments
-               (shipment_id, tenant_id, carrier, tracking_number, status,
-                shipper_name, recipient_name, service_type, created_at, updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            """INSERT INTO shipments
+               (id, tenant_id, carrier, tracking_number, status,
+                shipper_name, consignee_name, created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
             (
                 shipment_id, self.tenant_id, "dhl", tracking_number, "created",
                 shipper_contact.get("fullName", ""),
                 receiver_contact.get("fullName", ""),
-                service_code, now, now,
+                now, now,
             ),
         )
         self._publish_event("shipment.created",
@@ -200,13 +200,13 @@ class DHLConnector(ConnectorBase):
         mapped = dhl_status_map.get(latest_status, "in_transit")
         now = datetime.now(tz=timezone.utc).isoformat()
         row = self.db.fetch_one(
-            "SELECT shipment_id FROM erp_shipments WHERE tracking_number=? AND tenant_id=?",
+            "SELECT id FROM shipments WHERE tracking_number=? AND tenant_id=?",
             (tracking_number, self.tenant_id),
         )
         if row:
             self.db.execute(
-                "UPDATE erp_shipments SET status=?, updated_at=? WHERE shipment_id=?",
-                (mapped, now, row["shipment_id"]),
+                "UPDATE shipments SET status=?, updated_at=? WHERE id=?",
+                (mapped, now, row["id"]),
             )
             self._publish_event("shipment.tracking_updated",
                                 {"carrier": "dhl", "tracking_number": tracking_number,
@@ -217,7 +217,7 @@ class DHLConnector(ConnectorBase):
                    since: Optional[datetime] = None) -> Dict[str, Any]:
         if entity == "shipments":
             rows = self.db.fetch_all(
-                "SELECT tracking_number FROM erp_shipments "
+                "SELECT tracking_number FROM shipments "
                 "WHERE carrier='dhl' AND tenant_id=? AND status NOT IN ('delivered','cancelled')",
                 (self.tenant_id,),
             )
@@ -244,13 +244,13 @@ class DHLConnector(ConnectorBase):
         if tracking_number:
             now = datetime.now(tz=timezone.utc).isoformat()
             row = self.db.fetch_one(
-                "SELECT shipment_id FROM erp_shipments WHERE tracking_number=? AND tenant_id=?",
+                "SELECT id FROM shipments WHERE tracking_number=? AND tenant_id=?",
                 (tracking_number, self.tenant_id),
             )
             if row:
                 self.db.execute(
-                    "UPDATE erp_shipments SET status=?, updated_at=? WHERE shipment_id=?",
-                    (latest.lower() or "in_transit", now, row["shipment_id"]),
+                    "UPDATE shipments SET status=?, updated_at=? WHERE id=?",
+                    (latest.lower() or "in_transit", now, row["id"]),
                 )
 
     async def health_check(self) -> Dict[str, Any]:

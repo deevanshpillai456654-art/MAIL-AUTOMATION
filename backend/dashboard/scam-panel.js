@@ -49,10 +49,22 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
 });
 
 // ── Fetch helper ─────────────────────────────────────────
+let localSessionReady = null;
+async function ensureLocalSession() {
+  if (!localSessionReady) {
+    localSessionReady = fetch('/api/v1/session/bootstrap', {
+      method: 'POST',
+      credentials: 'same-origin',
+    }).catch(() => null);
+  }
+  await localSessionReady;
+}
+
 async function api(path, opts = {}) {
+  await ensureLocalSession();
   // FIX: only set Content-Type when a body is present (avoids proxy rejections on GET)
   const hdrs = opts.body != null ? { 'Content-Type': 'application/json' } : {};
-  const res = await fetch(API + path, { ...opts, headers: { ...hdrs, ...opts.headers } });
+  const res = await fetch(API + path, { ...opts, credentials: 'same-origin', headers: { ...hdrs, ...opts.headers } });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
   return res.json();
 }

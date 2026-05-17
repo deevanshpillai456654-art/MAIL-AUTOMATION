@@ -17,10 +17,45 @@ from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Query, Requ
 from pydantic import BaseModel
 
 from .db import get_panel_db
+from ..shared.utils import decrypt_config
 
 log = logging.getLogger(__name__)
 
+
+def _load_conn_config(row: dict) -> dict:
+    """Decrypt and return the connector config from a DB row."""
+    return decrypt_config(row.get("config") or row.get("config_json") or "")
+
 router = APIRouter(prefix="/engine", tags=["connector-engine"])
+
+# Public sub-router: no local-auth dependency (these receive external redirects/webhooks)
+public_router = APIRouter(prefix="/engine", tags=["connector-engine"])
+
+# ---------------------------------------------------------------------------
+# OAuth state anti-CSRF store
+# ---------------------------------------------------------------------------
+
+import time as _time
+
+_pending_oauth_states: dict[str, float] = {}  # state -> expiry timestamp
+_STATE_TTL_SECONDS = 600  # 10 minutes
+
+
+def _register_state(state: str) -> None:
+    """Record a pending OAuth state token with a TTL."""
+    now = _time.monotonic()
+    # Evict expired entries
+    expired = [s for s, exp in list(_pending_oauth_states.items()) if now > exp]
+    for s in expired:
+        _pending_oauth_states.pop(s, None)
+    _pending_oauth_states[state] = now + _STATE_TTL_SECONDS
+
+
+def _consume_state(state: str) -> bool:
+    """Return True and remove the state if it exists and has not expired."""
+    exp = _pending_oauth_states.pop(state, None)
+    return exp is not None and _time.monotonic() <= exp
+
 
 # ---------------------------------------------------------------------------
 # Lazy import helpers — avoid hard circular imports at module load time
@@ -101,14 +136,14 @@ async def get_manifest(connector_id: str):
 # ---------------------------------------------------------------------------
 
 @router.post("/install", status_code=201, summary="Install a connector")
-async def install_connector(req: InstallRequest):
+async def install_connector(req: InstallRequest, tenant_id: str = Query(...)):
     reg = _registry()
     if not reg:
         raise HTTPException(status_code=503, detail="Registry not available")
     try:
         instance_id = await reg.install(
             connector_id=req.connector_id,
-            tenant_id=req.tenant_id,
+            tenant_id=tenant_id,
             config=req.config,
             name=req.name,
         )
@@ -127,7 +162,7 @@ async def uninstall_connector(instance_id: str, tenant_id: str = Query(...)):
     if not reg:
         raise HTTPException(status_code=503, detail="Registry not available")
     try:
-        await reg.uninstall(instance_id)
+        await reg.uninstall(instance_id, tenant_id=tenant_id)
         return {"instance_id": instance_id, "status": "uninstalled"}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -140,6 +175,7 @@ async def uninstall_connector(instance_id: str, tenant_id: str = Query(...)):
 @router.post("/instances/{instance_id}/sync", summary="Trigger connector sync")
 async def trigger_sync(instance_id: str, req: SyncRequest,
                         background_tasks: BackgroundTasks,
+                        tenant_id: str = Query(...),
                         connector_id: Optional[str] = Query(None)):
     reg = _registry()
     if not reg:
@@ -148,12 +184,12 @@ async def trigger_sync(instance_id: str, req: SyncRequest,
 
     row = db.fetch_one(
         "SELECT * FROM connectors WHERE id=? AND tenant_id=?",
-        (instance_id, req.tenant_id),
+        (instance_id, tenant_id),
     )
     if not row:
         raise HTTPException(status_code=404, detail="Instance not found")
 
-    config = json.loads(row.get("config") or row.get("config_json") or "{}")
+    config = _load_conn_config(row)
     # connector_id (type) may be passed as query param; fall back to name matching
     cid = connector_id
     if not cid:
@@ -164,7 +200,7 @@ async def trigger_sync(instance_id: str, req: SyncRequest,
                             detail="Cannot determine connector type — pass ?connector_id=")
 
     try:
-        connector = reg.instantiate(instance_id, cid, req.tenant_id, config)
+        connector = reg.instantiate(instance_id, cid, tenant_id, config)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Cannot instantiate: {exc}")
 
@@ -188,9 +224,39 @@ async def trigger_sync(instance_id: str, req: SyncRequest,
 @router.post("/instances/{instance_id}/sync-all", summary="Sync all entities")
 async def sync_all(instance_id: str, tenant_id: str = Query(...),
                     background_tasks: BackgroundTasks = None):
-    return await trigger_sync(instance_id,
-                               SyncRequest(tenant_id=tenant_id, entity=None),
-                               background_tasks)
+    reg = _registry()
+    if not reg:
+        raise HTTPException(status_code=503, detail="Registry not available")
+    db = get_panel_db()
+    row = db.fetch_one(
+        "SELECT * FROM connectors WHERE id=? AND tenant_id=?",
+        (instance_id, tenant_id),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Instance not found")
+    config = _load_conn_config(row)
+    cls = reg._find_class_by_instance(instance_id)
+    cid = cls.MANIFEST.id if cls else ""
+    if not cid:
+        raise HTTPException(status_code=400,
+                            detail="Cannot determine connector type — pass ?connector_id=")
+    try:
+        connector = reg.instantiate(instance_id, cid, tenant_id, config)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Cannot instantiate: {exc}")
+
+    async def _run():
+        try:
+            result = await connector.run_sync_all()
+            log.info("Sync-all completed: instance=%s result=%s", instance_id, result)
+        except Exception as exc2:
+            log.exception("Sync-all failed: instance=%s", instance_id)
+        finally:
+            await connector.close()
+
+    background_tasks.add_task(_run)
+    return {"instance_id": instance_id, "entity": None,
+            "status": "queued", "message": "Full sync started in background"}
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +271,11 @@ async def oauth_authorize(
     instance_id: str = Query(...),
     redirect_uri: str = Query(...),
 ):
+    from urllib.parse import urlparse as _urlparse
+    _rp = _urlparse(redirect_uri)
+    if _rp.scheme not in ("https", "http") or not _rp.netloc:
+        raise HTTPException(status_code=422, detail="redirect_uri must be an absolute http/https URL")
+
     reg = _registry()
     if not reg:
         raise HTTPException(status_code=503, detail="Registry not available")
@@ -216,7 +287,7 @@ async def oauth_authorize(
     if not row:
         raise HTTPException(status_code=404, detail="Instance not found")
 
-    config = json.loads(row.get("config") or row.get("config_json") or "{}")
+    config = _load_conn_config(row)
     if not reg.get_class(connector_id):
         raise HTTPException(status_code=404,
                             detail=f"Unknown connector type: {connector_id}")
@@ -224,6 +295,7 @@ async def oauth_authorize(
 
     import secrets
     state = secrets.token_urlsafe(24)
+    _register_state(state)
     try:
         auth_url = await connector.get_auth_url(redirect_uri, state)
         return {"auth_url": auth_url, "state": state}
@@ -233,29 +305,31 @@ async def oauth_authorize(
         await connector.close()
 
 
-@router.post("/oauth/callback/{connector_id}",
-              summary="Handle OAuth callback (exchange code)")
+@public_router.post("/oauth/callback/{connector_id}",
+                    summary="Handle OAuth callback (exchange code)")
 async def oauth_callback(connector_id: str, req: OAuthCallbackRequest):
+    if not _consume_state(req.state):
+        raise HTTPException(status_code=400, detail="Invalid or expired OAuth state parameter")
+
     reg = _registry()
     if not reg:
         raise HTTPException(status_code=503, detail="Registry not available")
     db = get_panel_db()
 
-    # Find instance for this tenant + connector (name match against manifest)
     row = db.fetch_one(
-        "SELECT * FROM connectors WHERE name LIKE ? AND tenant_id=?",
-        (f"%{connector_id.replace('_', ' ')}%", req.tenant_id),
+        "SELECT * FROM connectors WHERE manifest_id=? AND tenant_id=? LIMIT 1",
+        (connector_id, req.tenant_id),
     )
     if not row:
         row = db.fetch_one(
-            "SELECT * FROM connectors WHERE tenant_id=? AND category=? LIMIT 1",
-            (req.tenant_id, connector_id),
+            "SELECT * FROM connectors WHERE name LIKE ? AND tenant_id=? LIMIT 1",
+            (f"%{connector_id.replace('_', ' ')}%", req.tenant_id),
         )
     if not row:
         raise HTTPException(status_code=404, detail="Connector instance not found")
 
     instance_id = row.get("id", "")
-    config = json.loads(row.get("config") or row.get("config_json") or "{}")
+    config = _load_conn_config(row)
     connector = reg.instantiate(instance_id, connector_id,
                                  req.tenant_id, config)
     try:
@@ -273,8 +347,8 @@ async def oauth_callback(connector_id: str, req: OAuthCallbackRequest):
 # Webhooks
 # ---------------------------------------------------------------------------
 
-@router.post("/webhooks/{connector_id}/{tenant_id}",
-              summary="Receive webhook from connector provider")
+@public_router.post("/webhooks/{connector_id}/{tenant_id}",
+                    summary="Receive webhook from connector provider")
 async def receive_webhook(
     connector_id: str,
     tenant_id: str,
@@ -289,14 +363,19 @@ async def receive_webhook(
     db = get_panel_db()
 
     row = db.fetch_one(
-        "SELECT * FROM connectors WHERE name LIKE ? AND tenant_id=?",
-        (f"%{connector_id.replace('_', ' ')}%", tenant_id),
+        "SELECT * FROM connectors WHERE manifest_id=? AND tenant_id=? LIMIT 1",
+        (connector_id, tenant_id),
     )
+    if not row:
+        row = db.fetch_one(
+            "SELECT * FROM connectors WHERE name LIKE ? AND tenant_id=? LIMIT 1",
+            (f"%{connector_id.replace('_', ' ')}%", tenant_id),
+        )
     if not row:
         raise HTTPException(status_code=404, detail="Connector not found")
 
     instance_id = row.get("id", "")
-    config = json.loads(row.get("config") or row.get("config_json") or "{}")
+    config = _load_conn_config(row)
     connector = reg.instantiate(instance_id, connector_id, tenant_id, config)
     if not connector:
         raise HTTPException(status_code=404,
@@ -353,7 +432,7 @@ async def health_check(instance_id: str, tenant_id: str = Query(...),
         raise HTTPException(status_code=400,
                             detail="Cannot determine connector type — pass ?connector_id=")
 
-    config = json.loads(row.get("config") or row.get("config_json") or "{}")
+    config = _load_conn_config(row)
     connector = reg.instantiate(instance_id, cid, tenant_id, config)
     if not connector:
         raise HTTPException(status_code=404, detail=f"Connector type '{cid}' not found")
@@ -404,22 +483,22 @@ async def stop_worker():
 
 @router.post("/shipping/{instance_id}/track",
               summary="Track a shipment via carrier connector")
-async def track_shipment(instance_id: str, req: ShipmentTrackRequest):
+async def track_shipment(instance_id: str, req: ShipmentTrackRequest, tenant_id: str = Query(...)):
     reg = _registry()
     if not reg:
         raise HTTPException(status_code=503, detail="Registry not available")
     db = get_panel_db()
     row = db.fetch_one(
         "SELECT * FROM connectors WHERE id=? AND tenant_id=?",
-        (instance_id, req.tenant_id),
+        (instance_id, tenant_id),
     )
     if not row:
         raise HTTPException(status_code=404, detail="Instance not found")
 
     cls = reg._find_class_by_instance(instance_id)
     cid = cls.MANIFEST.id if cls else ""
-    config = json.loads(row.get("config") or row.get("config_json") or "{}")
-    connector = reg.instantiate(instance_id, cid, req.tenant_id, config) if cid else None
+    config = _load_conn_config(row)
+    connector = reg.instantiate(instance_id, cid, tenant_id, config) if cid else None
     if not connector:
         raise HTTPException(status_code=400, detail="Cannot resolve connector type")
     try:
@@ -457,7 +536,7 @@ async def send_slack_alert(
     if not row:
         raise HTTPException(status_code=404, detail="Instance not found")
 
-    config = json.loads(row.get("config") or row.get("config_json") or "{}")
+    config = _load_conn_config(row)
     connector = reg.instantiate(instance_id, "slack_enterprise", tenant_id, config)
     try:
         result = await connector.send_alert(title, message, level, channel)
@@ -486,7 +565,7 @@ async def send_teams_notification(
     if not row:
         raise HTTPException(status_code=404, detail="Instance not found")
 
-    config = json.loads(row.get("config") or row.get("config_json") or "{}")
+    config = _load_conn_config(row)
     connector = reg.instantiate(instance_id, "teams", tenant_id, config)
     try:
         result = await connector.send_notification(title, message, level)

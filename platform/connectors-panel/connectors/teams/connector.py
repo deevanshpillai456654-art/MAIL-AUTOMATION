@@ -254,12 +254,12 @@ class TeamsConnector(ConnectorBase):
 
     async def verify_webhook_signature(self, raw_body: bytes,
                                         headers: Dict) -> bool:
-        # Teams webhook uses HMAC or simple auth token in header
-        auth_header = headers.get("authorization", "")
+        # Teams webhook uses a simple auth token in the Authorization header
         expected_token = self.config.get("webhook_token", "")
-        if expected_token and auth_header:
-            return hmac.compare_digest(auth_header, f"Bearer {expected_token}")
-        return True
+        if not expected_token:
+            return False  # fail-closed: configure webhook_token to enable Teams webhooks
+        auth_header = headers.get("authorization", "")
+        return bool(auth_header) and hmac.compare_digest(auth_header, f"Bearer {expected_token}")
 
     async def handle_webhook(self, event_type: str, payload: Dict[str, Any],
                               raw_body: bytes, headers: Dict) -> None:

@@ -170,6 +170,8 @@ class WhatsAppConnector(ConnectorBase):
     async def verify_webhook_signature(self, raw_body: bytes,
                                        headers: Dict[str, str]) -> bool:
         app_secret = self.config.get("app_secret", "")
+        if not app_secret:
+            return False
         sig_header = headers.get("X-Hub-Signature-256", "")
         if not sig_header:
             return False
@@ -220,19 +222,28 @@ class WhatsAppConnector(ConnectorBase):
     def _create_or_update_ticket(self, from_number: str, text: str,
                                  msg_id: str, msg_type: str) -> None:
         now = datetime.now(tz=timezone.utc).isoformat()
-        # Find open WhatsApp ticket for this number
-        existing = self.db.fetch_one(
-            """SELECT ticket_id FROM support_tickets
-               WHERE customer_phone=? AND channel='whatsapp'
-               AND status NOT IN ('resolved','closed')
-               AND tenant_id=?
-               ORDER BY created_at DESC LIMIT 1""",
+        # Resolve CRM contact by phone number
+        contact_row = self.db.fetch_one(
+            "SELECT id FROM crm_contacts WHERE phone=? AND tenant_id=?",
             (from_number, self.tenant_id),
-        ) if self.db.fetch_one.__code__.co_varcount > 0 else None
+        )
+        contact_id = contact_row["id"] if contact_row else None
 
         try:
+            # Find open WhatsApp ticket for this contact (or create one)
+            existing = None
+            if contact_id:
+                existing = self.db.fetch_one(
+                    """SELECT id FROM support_tickets
+                       WHERE contact_id=? AND channel='whatsapp'
+                       AND status NOT IN ('resolved','closed')
+                       AND tenant_id=?
+                       ORDER BY created_at DESC LIMIT 1""",
+                    (contact_id, self.tenant_id),
+                )
+
             if existing:
-                ticket_id = existing["ticket_id"]
+                ticket_id = existing["id"]
             else:
                 ticket_id = f"tkt_{uuid.uuid4().hex}"
                 ticket_num = f"WA-{ticket_id[-6:].upper()}"
@@ -240,21 +251,21 @@ class WhatsAppConnector(ConnectorBase):
                 sla_due = (datetime.now(tz=timezone.utc) + timedelta(hours=24)).isoformat()
                 self.db.execute(
                     """INSERT INTO support_tickets
-                       (ticket_id, tenant_id, ticket_number, subject, customer_phone,
+                       (id, tenant_id, contact_id, ticket_number, subject,
                         channel, status, priority, sla_due_at, created_at, updated_at)
                        VALUES (?,?,?,?,?,'whatsapp','open','normal',?,?,?)""",
-                    (ticket_id, self.tenant_id, ticket_num,
-                     f"WhatsApp: {text[:80]}", from_number,
+                    (ticket_id, self.tenant_id, contact_id, ticket_num,
+                     f"WhatsApp: {text[:80]}",
                      sla_due, now, now),
                 )
-            # Add message
+            # Add inbound message
             msg_rec_id = f"msg_{uuid.uuid4().hex}"
             self.db.execute(
                 """INSERT INTO support_messages
-                   (message_id, ticket_id, tenant_id, direction, content, author, created_at)
-                   VALUES (?,?,?,'inbound',?,?,?)""",
+                   (id, ticket_id, tenant_id, sender_type, sender_id, content, created_at)
+                   VALUES (?,?,?,'customer',?,?,?)""",
                 (msg_rec_id, ticket_id, self.tenant_id,
-                 text or f"[{msg_type}]", from_number, now),
+                 from_number, text or f"[{msg_type}]", now),
             )
         except Exception as exc:
             self._log("WARN", f"Could not create/update ticket: {exc}")

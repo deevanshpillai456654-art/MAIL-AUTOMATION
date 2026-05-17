@@ -121,11 +121,24 @@
     return false;
   }
 
+  let localSessionReady = null;
+  async function ensureLocalSession() {
+    if (!localSessionReady) {
+      localSessionReady = fetch('/api/v1/session/bootstrap', {
+        method: 'POST',
+        credentials: 'same-origin'
+      }).catch(() => null);
+    }
+    await localSessionReady;
+  }
+
   async function api(url, opt = {}) {
+    await ensureLocalSession();
     const method = opt.method || 'GET';
     const headers = {'Content-Type':'application/json', ...(opt.headers || {})};
     if (requiresAiAdminRole(url, method) && !headers['X-Intemo-Role']) headers['X-Intemo-Role'] = 'admin';
     const options = {...opt, headers};
+    options.credentials = 'same-origin';
     if (opt.body instanceof FormData) delete options.headers['Content-Type'];
     try {
       const res = await fetch(url, options);
@@ -870,7 +883,7 @@
     if (!e || !$('messagePreview')) return;
     const labelBadges = String(e.labels||'').replace(/[\[\]"]/g,'').split(',').filter(Boolean).slice(0,3).map(x=>`<span class="badge ok">${esc(x.trim())}</span>`).join('');
     const isScam = String(e.category||'').toLowerCase() === 'scam';
-    $('messagePreview').innerHTML = `<h2>${esc(e.subject||'Conversation')}</h2><p>${esc(e.sender||e.sender_email||'Unknown sender')} - ${esc(e.category||'Unclassified')}</p><div class="preview-actions"><button class="btn" type="button" data-email-action="reply" data-email-action-id="${esc(e.id)}">Reply</button><button class="btn" type="button" data-email-action="forward" data-email-action-id="${esc(e.id)}">Forward</button><button class="btn" type="button" data-email-action="assign" data-email-action-id="${esc(e.id)}">Assign</button><button class="btn" type="button" data-email-action="label" data-email-action-id="${esc(e.id)}">Label</button><button class="btn" type="button" data-email-action="move" data-email-action-id="${esc(e.id)}">Move</button><button class="btn" type="button" data-email-action="archive" data-email-action-id="${esc(e.id)}">Archive</button></div><div class="scam-flow ${isScam?'active':''}"><div><strong>Scam filter</strong><span>${isScam?'This sender is currently treated as scam.':'Decide how future email from this sender should be handled.'}</span></div><div class="verdict-actions"><button class="btn danger sm" data-email-category-id="${esc(e.id)}" data-email-category="Scam" type="button">Mark Scam</button><button class="btn sm" data-email-category-id="${esc(e.id)}" data-email-category="Normal" type="button">Mark Normal</button></div></div><h3>AI Summary</h3><p>${esc(e.ai_summary||'No summary yet.')}</p><h3>Thread</h3><p class="preview-message-body">${esc((e.body_text||'No body preview.').slice(0,4000))}</p>${renderAttachments(e)}<div class="thread-tags"><span class="badge">${esc(e.priority||'Medium')}</span><span class="badge ok">${esc(e.folder||'INBOX')}</span>${labelBadges}</div>`;
+    $('messagePreview').innerHTML = `<h2>${esc(e.subject||'Conversation')}</h2><p>${esc(e.sender||e.sender_email||'Unknown sender')} - ${esc(e.category||'Unclassified')}</p><div class="preview-actions"><button class="btn" type="button" data-email-action="reply" data-email-action-id="${esc(e.id)}">Reply</button><button class="btn" type="button" data-email-action="forward" data-email-action-id="${esc(e.id)}">Forward</button><button class="btn" type="button" data-email-action="assign" data-email-action-id="${esc(e.id)}">Assign</button><button class="btn" type="button" data-email-action="label" data-email-action-id="${esc(e.id)}">Label</button><button class="btn" type="button" data-email-action="move" data-email-action-id="${esc(e.id)}">Move</button><button class="btn" type="button" data-email-action="archive" data-email-action-id="${esc(e.id)}">Archive</button></div><div class="scam-flow ${isScam?'active':''}"><div><strong>Scam filter</strong><span>${isScam?'This sender is currently treated as scam.':'Decide how future email from this sender should be handled.'}</span></div><div class="verdict-actions"><button class="btn danger sm" data-email-category-id="${esc(e.id)}" data-email-category="Scam" type="button">Mark Scam</button><button class="btn sm" data-email-category-id="${esc(e.id)}" data-email-category="Normal" type="button">Mark Normal</button></div><small>Future emails from this sender will follow this decision.</small></div><h3>AI Summary</h3><p>${esc(e.ai_summary||'No summary yet.')}</p><h3>Thread</h3><p class="preview-message-body">${esc((e.body_text||'No body preview.').slice(0,4000))}</p>${renderAttachments(e)}<div class="thread-tags"><span class="badge">${esc(e.priority||'Medium')}</span><span class="badge ok">${esc(e.folder||'INBOX')}</span>${labelBadges}</div>`;
   }
 
   async function applyEmailVerdict(emailId, category) {
@@ -1611,7 +1624,7 @@ ${section('Model Health', modelHealth)}
     if (n.includes('rule'))        return '<button class="btn primary" data-open-view="automations" type="button">Manage Rules</button><button class="btn" id="simulateRuleBtn" type="button">Simulate Rule</button>';
     if (n.includes('security'))    return '<button class="btn primary" data-open-view="settings" data-settings-jump="security" type="button">Open Security Settings</button>';
     if (n.includes('audit'))       return '<button class="btn" data-load-audit type="button">Load Audit Logs</button>';
-    if (n.includes('backup'))      return '<button class="btn primary" data-admin-action="backup" type="button">Create Backup Now</button><button class="btn" data-admin-audit type="button">View Backup History</button>';
+    if (n.includes('backup'))      return '<button class="btn primary" data-admin-action="backup" type="button">Create Backup Checkpoint</button><button class="btn" data-admin-audit type="button">View Backup History</button>';
     if (n.includes('queue'))       return '<button class="btn primary" data-admin-action="queue" type="button">Open Queue Controls</button><button class="btn" data-admin-audit type="button">View Failures</button>';
     if (n.includes('automation'))  return '<button class="btn primary" data-open-view="automations" type="button">View Automations</button>';
     if (n.includes('api'))         return '<button class="btn" data-admin-action="api" type="button">Test Integrations</button>';

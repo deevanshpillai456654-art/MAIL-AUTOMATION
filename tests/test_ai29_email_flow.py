@@ -37,11 +37,15 @@ def test_oauth_missing_credentials_returns_428(monkeypatch):
 
 def test_accounts_test_returns_oauth_info_when_missing_config(monkeypatch):
     import backend.config as config
+    import backend.api.routes as routes_module
     monkeypatch.setattr(config, "GMAIL_CLIENT_ID", "YOUR_GMAIL_CLIENT_ID", raising=False)
     monkeypatch.setattr(config, "GMAIL_CLIENT_SECRET", "YOUR_GMAIL_CLIENT_SECRET", raising=False)
+    monkeypatch.setattr(routes_module, "ensure_local_request", lambda req: None)
     from fastapi.testclient import TestClient
+    from backend.auth.local_auth import get_local_token
     from backend.main import app
     c = TestClient(app)
+    c.post("/api/v1/session/bootstrap", headers={"X-Local-Token": get_local_token()})
     r = c.post("/api/v1/accounts/test", json={"provider": "gmail", "email": "user@gmail.com", "connection_method": "oauth"})
     assert r.status_code == 200
     data = r.json()
@@ -146,7 +150,9 @@ def test_email_attachments_are_listed_and_downloadable(tmp_path, monkeypatch):
         }
     ]
 
+    from backend.auth.local_auth import get_local_token
     client = TestClient(app)
+    client.post("/api/v1/session/bootstrap", headers={"X-Local-Token": get_local_token()})
     response = client.get(f"/api/v1/attachments/{meta.attachment_id}/download")
     assert response.status_code == 200
     assert response.content == b"PDFDATA"
