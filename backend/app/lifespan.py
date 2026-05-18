@@ -50,6 +50,138 @@ def create_lifespan(project_root: Path, logger: logging.Logger | None = None):
             app_logger.warning("Alert manager startup failed: %s", e)
 
         try:
+            from backend.api.event_bus import get_event_bus
+            await get_event_bus().start()
+            app_logger.info("Operational event bus started")
+        except Exception as e:
+            app_logger.warning("Event bus startup failed: %s", e)
+
+        try:
+            from backend.api.agents import ensure_agents_running
+            await ensure_agents_running()
+            app_logger.info("Autonomous operational agents started")
+        except Exception as e:
+            app_logger.warning("Agent supervisor startup failed: %s", e)
+
+        try:
+            from backend.api.reconciler import ensure_reconciler_running
+            await ensure_reconciler_running()
+            app_logger.info("Operational reconciler started")
+        except Exception as e:
+            app_logger.warning("Reconciler startup failed: %s", e)
+
+        try:
+            from backend.api.workflow_scheduler import ensure_scheduler_running
+            await ensure_scheduler_running()
+            app_logger.info("Workflow scheduler started")
+        except Exception as e:
+            app_logger.warning("Workflow scheduler startup failed: %s", e)
+
+        try:
+            from backend.api.webhooks import ensure_webhook_dispatcher
+            ensure_webhook_dispatcher()
+            app_logger.info("Outbound webhook dispatcher started")
+        except Exception as e:
+            app_logger.warning("Webhook dispatcher startup failed: %s", e)
+
+        try:
+            from backend.api.alert_rules import ensure_alert_rules_running
+            await ensure_alert_rules_running()
+            app_logger.info("Alert rules engine started")
+        except Exception as e:
+            app_logger.warning("Alert rules engine startup failed: %s", e)
+
+        try:
+            from backend.api.notifications import ensure_notification_center
+            ensure_notification_center()
+            app_logger.info("Notification center started")
+        except Exception as e:
+            app_logger.warning("Notification center startup failed: %s", e)
+
+        try:
+            from backend.api.metric_snapshots import ensure_metric_recorder_running
+            await ensure_metric_recorder_running()
+            app_logger.info("Metric snapshot recorder started")
+        except Exception as e:
+            app_logger.warning("Metric snapshot recorder startup failed: %s", e)
+
+        try:
+            from backend.api.audit_log import ensure_audit_log_running
+            ensure_audit_log_running()
+            app_logger.info("Audit log started")
+        except Exception as e:
+            app_logger.warning("Audit log startup failed: %s", e)
+
+        try:
+            from backend.api.incidents import ensure_incident_manager_running
+            ensure_incident_manager_running()
+            app_logger.info("Incident manager started")
+        except Exception as e:
+            app_logger.warning("Incident manager startup failed: %s", e)
+
+        try:
+            from backend.api.scheduled_reports import ensure_report_scheduler_running
+            await ensure_report_scheduler_running()
+            app_logger.info("Report scheduler started")
+        except Exception as e:
+            app_logger.warning("Report scheduler startup failed: %s", e)
+
+        try:
+            from backend.api.playbooks import ensure_playbooks_running
+            ensure_playbooks_running()
+            app_logger.info("Playbooks engine started")
+        except Exception as e:
+            app_logger.warning("Playbooks engine startup failed: %s", e)
+
+        try:
+            from backend.api.sla import ensure_sla_running
+            await ensure_sla_running()
+            app_logger.info("SLA checker started")
+        except Exception as e:
+            app_logger.warning("SLA checker startup failed: %s", e)
+
+        try:
+            from backend.api.maintenance import ensure_maintenance_running
+            await ensure_maintenance_running()
+            app_logger.info("Maintenance checker started")
+        except Exception as e:
+            app_logger.warning("Maintenance checker startup failed: %s", e)
+
+        try:
+            from backend.api.oncall import ensure_oncall_running
+            await ensure_oncall_running()
+            app_logger.info("On-call escalation engine started")
+        except Exception as e:
+            app_logger.warning("On-call engine startup failed: %s", e)
+
+        try:
+            from backend.api.event_bus import get_event_bus
+            from backend.api.workflows import trigger_workflow_by_template
+
+            async def _on_threat_detected(event: dict) -> None:
+                sev = event.get("severity", "low")
+                if sev in ("high", "critical"):
+                    await trigger_workflow_by_template(
+                        "threat_escalation",
+                        input_data=event.get("payload", {}),
+                        trigger_type="event",
+                    )
+
+            async def _on_email_received(event: dict) -> None:
+                await trigger_workflow_by_template(
+                    "smart_inbox_organizer",
+                    input_data=event.get("payload", {}),
+                    trigger_type="event",
+                )
+
+            bus = get_event_bus()
+            bus.subscribe("threat.detected",  _on_threat_detected)
+            bus.subscribe("email.received",    _on_email_received)
+            app_logger.info("Event-driven workflow activation subscriptions registered")
+        except Exception as e:
+            app_logger.warning("Event-driven workflow activation setup failed: %s", e)
+
+        try:
             from backend.scheduler.tasks import scheduler
             scheduler.set_enterprise_system(app.state.enterprise_system)
             scheduler.start()
@@ -75,6 +207,30 @@ def create_lifespan(project_root: Path, logger: logging.Logger | None = None):
             await alert_manager.stop()
         except Exception as e:
             app_logger.warning("Alert manager shutdown failed: %s", e)
+
+        try:
+            from backend.api.agents import get_supervisor
+            await get_supervisor().stop_all()
+        except Exception as e:
+            app_logger.warning("Agent supervisor shutdown failed: %s", e)
+
+        try:
+            from backend.api.reconciler import get_reconciler
+            await get_reconciler().stop()
+        except Exception as e:
+            app_logger.warning("Reconciler shutdown failed: %s", e)
+
+        try:
+            from backend.api.workflow_scheduler import get_workflow_scheduler
+            await get_workflow_scheduler().stop()
+        except Exception as e:
+            app_logger.warning("Workflow scheduler shutdown failed: %s", e)
+
+        try:
+            from backend.api.event_bus import get_event_bus
+            await get_event_bus().stop()
+        except Exception as e:
+            app_logger.warning("Event bus shutdown failed: %s", e)
 
         enterprise_system = getattr(app.state, "enterprise_system", None)
         if enterprise_system:

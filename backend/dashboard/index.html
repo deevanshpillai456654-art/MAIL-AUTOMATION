@@ -6,7 +6,7 @@
   <title>INTEMO - AI Email Operations</title>
   <link rel="manifest" href="/dashboard/pwa_manifest.json" />
   <link rel="apple-touch-icon" href="/dashboard/assets/apple-touch-icon.png" />
-  <link rel="stylesheet" href="/dashboard/enterprise-ui.css?v=6" />
+  <link rel="stylesheet" href="/dashboard/enterprise-ui.css?v=8" />
   <meta name="description" content="INTEMO - Enterprise AI Email Operations Platform" />
   <meta name="theme-color" content="#F6F8FB" />
 </head>
@@ -101,6 +101,33 @@
         Connectors
       </button>
 
+      <button class="nav-btn" data-view="ocr" data-requires-connector="ocr_engine" type="button" hidden aria-hidden="true">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <rect x="2" y="3" width="16" height="12" rx="1.5"/>
+          <path d="M5 7h2M5 10h6M5 13h4"/>
+          <path d="M13 8l2 2-2 2"/>
+        </svg>
+        OCR
+      </button>
+
+      <button class="nav-btn" data-view="workflows" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <circle cx="4" cy="10" r="2"/><circle cx="10" cy="4" r="2"/><circle cx="10" cy="16" r="2"/><circle cx="16" cy="10" r="2"/>
+          <path d="M6 10h4M10 6v4M10 10v4M14 10h-4"/>
+        </svg>
+        Workflows
+      </button>
+
+      <button class="nav-btn" data-view="command" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <rect x="2" y="3" width="16" height="11" rx="2"/>
+          <path d="M6 17h8M10 14v3"/>
+          <circle cx="10" cy="8.5" r="2.5" fill="currentColor" fill-opacity=".15"/>
+          <path d="M10 6v5M7.5 8.5h5"/>
+        </svg>
+        Command Center
+      </button>
+
       <div class="nav-section-label">Security</div>
 
       <a class="nav-btn nav-link" href="/security">
@@ -110,6 +137,72 @@
         </svg>
         Threat Intel
       </a>
+
+      <button class="nav-btn" data-view="webhooks" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <path d="M7 10a3 3 0 1 0 6 0 3 3 0 0 0-6 0Z"/>
+          <path d="M10 7V4M10 16v-3M7 10H4M16 10h-3"/>
+          <path d="M4.6 4.6l1.5 1.5M13.9 13.9l1.5 1.5M15.4 4.6l-1.5 1.5M6.1 13.9l-1.5 1.5"/>
+        </svg>
+        Webhooks
+      </button>
+
+      <button class="nav-btn" data-view="playbooks" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <path d="M5 4h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/>
+          <path d="M7 8l2 2 4-4"/>
+        </svg>
+        Playbooks
+      </button>
+
+      <button class="nav-btn" data-view="dispatches" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <rect x="3" y="4" width="14" height="12" rx="2"/>
+          <path d="M7 8h6M7 12h4"/>
+          <path d="M14 2v4M6 2v4"/>
+        </svg>
+        Dispatches
+      </button>
+
+      <button class="nav-btn" data-view="sla" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <circle cx="10" cy="10" r="7"/>
+          <path d="M10 6v4l2.5 2.5"/>
+          <path d="M6 17.5l1.5-2.5M14 17.5l-1.5-2.5"/>
+        </svg>
+        SLA
+      </button>
+
+      <button class="nav-btn" data-view="oncall" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <path d="M6.5 2a1.5 1.5 0 0 0-1.5 1.5v1A9 9 0 0 0 14 13.5h1a1.5 1.5 0 0 0 1.5-1.5v-1a1 1 0 0 0-.6-.9l-2-.8a1 1 0 0 0-1.1.3l-.8 1a6 6 0 0 1-3-3l1-.8a1 1 0 0 0 .3-1.1l-.8-2A1 1 0 0 0 8.5 3h-2Z"/>
+        </svg>
+        On-call
+      </button>
+
+      <button class="nav-btn" data-view="api-keys" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <circle cx="8" cy="11" r="4"/>
+          <path d="M12 7l5 5M14.5 4.5l1.5 1.5-1 1"/>
+        </svg>
+        API Keys
+      </button>
+
+      <button class="nav-btn" data-view="maintenance" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <path d="M15.5 4.5a3 3 0 0 0-4.24 0L4 11.75V16h4.25l7.25-7.26a3 3 0 0 0 0-4.24Z"/>
+          <path d="M11 7l2 2"/>
+        </svg>
+        Maintenance
+      </button>
+
+      <button class="nav-btn" data-view="runbooks" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <path d="M5 3h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/>
+          <path d="M7 7h6M7 10h6M7 13h4"/>
+        </svg>
+        Runbooks
+      </button>
 
       <div class="nav-section-label">System</div>
 
@@ -181,8 +274,33 @@
         <span id="syncPillText">Ready</span>
       </div>
 
+      <button class="top-action notif-bell dash-inline-001" type="button" id="notifBellBtn" aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path d="M10 2a6 6 0 0 1 6 6c0 3.5 1 5 2 6H2c1-1 2-2.5 2-6a6 6 0 0 1 6-6Z"/>
+          <path d="M8 17a2 2 0 0 0 4 0"/>
+        </svg>
+        <span id="notifBadge" aria-label="unread notifications" class="dash-inline-002"></span>
+      </button>
+
       <button class="avatar-btn" type="button" data-open-view="admin" title="Admin panel" aria-label="Open admin panel">AD</button>
     </header>
+
+    <!-- ── Notification slide-out panel ── -->
+    <div id="notifPanel" role="dialog" aria-label="Notifications" aria-modal="false" hidden class="dash-inline-003">
+      <div class="dash-inline-004">
+        <div>
+          <h2 class="dash-inline-005">Notifications</h2>
+          <p id="notifSubtitle" class="dash-inline-006"></p>
+        </div>
+        <div class="dash-inline-007">
+          <button class="btn sm dash-inline-008" type="button" id="notifMarkAllBtn">Mark all read</button>
+          <button class="btn sm dash-inline-008" type="button" id="notifClearBtn">Clear</button>
+          <button type="button" id="notifCloseBtn" aria-label="Close notifications" class="dash-inline-009">✕</button>
+        </div>
+      </div>
+      <div id="notifList" class="dash-inline-010"></div>
+    </div>
+    <div id="notifOverlay" hidden aria-hidden="true" class="dash-inline-011"></div>
 
     <!-- Content area -->
     <div class="content-area" id="contentArea">
@@ -207,6 +325,9 @@
 
       <!-- ─────────── DASHBOARD VIEW ─────────────────────────── -->
       <section class="view active" id="view-dashboard" aria-label="Dashboard">
+
+        <!-- ── Operational Intelligence Strip ── -->
+        <div id="dashIntelStrip" class="dash-inline-012"></div>
 
         <div class="certification-banner" id="certificationCard" role="note">
           <div>
@@ -968,6 +1089,1214 @@
         </div>
       </section>
 
+      <!-- ─────────── OCR VIEW ─────────────────────────────────── -->
+      <section class="view" id="view-ocr" aria-label="OCR Document Scanner">
+
+        <!-- Tab bar -->
+        <div class="ocr-tabs" role="tablist" aria-label="OCR sections">
+          <button class="ocr-tab active" data-ocr-tab="scan" type="button" role="tab" aria-selected="true">Scan Document</button>
+          <button class="ocr-tab" data-ocr-tab="email" type="button" role="tab" aria-selected="false">Scan Email</button>
+          <button class="ocr-tab" data-ocr-tab="history" type="button" role="tab" aria-selected="false">History</button>
+          <button class="ocr-tab" data-ocr-tab="batch" type="button" role="tab" aria-selected="false">Batch Process</button>
+        </div>
+
+        <!-- ── SCAN DOCUMENT tab ─────────────────────────────── -->
+        <div class="ocr-panel active" id="ocrTab-scan" role="tabpanel">
+          <div class="ocr-layout">
+
+            <!-- Left: upload + controls -->
+            <div class="ocr-left">
+              <article class="panel">
+                <div class="panel-head"><div><h2>Upload Document</h2><p>PDF, image (JPG/PNG/TIFF), or plain text file.</p></div></div>
+
+                <div class="ocr-drop-zone" id="ocrDropZone" tabindex="0" aria-label="Drop file or click to upload">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <strong>Drop file here or click to browse</strong>
+                  <span>PDF · PNG · JPG · TIFF · TXT · EML</span>
+                  <input type="file" id="ocrFileInput" accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif,.txt,.eml" aria-label="Choose file" />
+                </div>
+                <div id="ocrFileInfo" class="ocr-file-info hidden"></div>
+
+                <div class="ocr-options">
+                  <label class="ocr-option-label">Extract mode</label>
+                  <div class="ocr-option-group">
+                    <label><input type="radio" name="ocrMode" value="auto" checked /> Auto-detect</label>
+                    <label><input type="radio" name="ocrMode" value="invoice" /> Invoice</label>
+                    <label><input type="radio" name="ocrMode" value="receipt" /> Receipt</label>
+                    <label><input type="radio" name="ocrMode" value="contract" /> Contract</label>
+                    <label><input type="radio" name="ocrMode" value="raw" /> Raw text only</label>
+                  </div>
+                </div>
+
+                <button class="btn primary" type="button" id="ocrScanBtn" disabled>
+                  <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="3" width="16" height="12" rx="1"/><path d="M5 7h6M5 10h4"/></svg>
+                  Scan Document
+                </button>
+              </article>
+            </div>
+
+            <!-- Right: results -->
+            <div class="ocr-right">
+              <article class="panel" id="ocrResultPanel">
+                <div class="panel-head"><div><h2>Extracted Data</h2><p>Structured fields and raw text from your document.</p></div>
+                  <div class="dash-inline-013">
+                    <button class="btn sm" id="ocrCopyBtn" type="button" hidden>Copy Text</button>
+                    <button class="btn sm" id="ocrDownloadBtn" type="button" hidden>Download JSON</button>
+                  </div>
+                </div>
+                <div id="ocrResultBody">
+                  <div class="empty-state">
+                    <div class="empty-icon" aria-hidden="true">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M6 8h12M6 11h8M6 14h5"/></svg>
+                    </div>
+                    <h3>No document scanned yet</h3>
+                    <p>Upload a PDF, image, or email file and click Scan.</p>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── SCAN EMAIL tab ────────────────────────────────── -->
+        <div class="ocr-panel" id="ocrTab-email" role="tabpanel">
+          <article class="panel">
+            <div class="panel-head">
+              <div><h2>Scan Email</h2><p>Pick an email to extract text from its body and attachments.</p></div>
+              <button class="btn sm" type="button" id="ocrRefreshEmailsBtn">Refresh Emails</button>
+            </div>
+            <div id="ocrEmailList">
+              <div class="empty-state"><div class="spinner" aria-hidden="true"></div></div>
+            </div>
+          </article>
+          <article class="panel" id="ocrEmailResultPanel" hidden>
+            <div class="panel-head"><div><h2 id="ocrEmailResultTitle">Email Result</h2><p>Extracted content and fields.</p></div>
+              <button class="btn sm" id="ocrEmailCopyBtn" type="button">Copy Text</button>
+            </div>
+            <div id="ocrEmailResultBody"></div>
+          </article>
+        </div>
+
+        <!-- ── HISTORY tab ───────────────────────────────────── -->
+        <div class="ocr-panel" id="ocrTab-history" role="tabpanel">
+          <article class="panel">
+            <div class="panel-head">
+              <div><h2>Scan History</h2><p>All previous OCR jobs and their results.</p></div>
+              <button class="btn sm" type="button" id="ocrClearHistoryBtn">Clear History</button>
+            </div>
+            <div id="ocrHistoryList">
+              <div class="empty-state"><div class="spinner" aria-hidden="true"></div></div>
+            </div>
+          </article>
+        </div>
+
+        <!-- ── BATCH tab ─────────────────────────────────────── -->
+        <div class="ocr-panel" id="ocrTab-batch" role="tabpanel">
+          <article class="panel">
+            <div class="panel-head"><div><h2>Batch Process</h2><p>Upload multiple files and extract data from all at once.</p></div></div>
+
+            <div class="ocr-drop-zone" id="batchDropZone" tabindex="0" aria-label="Drop multiple files">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <strong>Drop multiple files here</strong>
+              <span>Max 20 files · PDF, PNG, JPG, TXT</span>
+              <input type="file" id="batchFileInput" accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif,.txt" multiple aria-label="Choose files" />
+            </div>
+
+            <div id="batchFileList" class="dash-inline-016"></div>
+
+            <div class="dash-inline-017">
+              <button class="btn primary" id="batchRunBtn" type="button" disabled>Run Batch OCR</button>
+              <button class="btn" id="batchClearBtn" type="button">Clear List</button>
+            </div>
+
+            <div id="batchResults" class="dash-inline-018"></div>
+          </article>
+        </div>
+
+      </section>
+
+      <!-- ─────────── WORKFLOWS VIEW ──────────────────────────────── -->
+      <section class="view" id="view-workflows" aria-label="Workflow Engine">
+
+        <!-- Tab bar -->
+        <div class="ocr-tabs" role="tablist" aria-label="Workflow sections">
+          <button class="ocr-tab active" data-ocr-tab="active"      type="button" role="tab" aria-selected="true">Active Workflows</button>
+          <button class="ocr-tab"        data-ocr-tab="marketplace" type="button" role="tab" aria-selected="false">Marketplace</button>
+          <button class="ocr-tab"        data-ocr-tab="history"     type="button" role="tab" aria-selected="false">Execution History</button>
+        </div>
+
+        <!-- ── ACTIVE tab ── -->
+        <div class="ocr-panel active" id="wfTab-active" role="tabpanel">
+          <!-- Stats strip -->
+          <div id="wfStatsStrip" class="dash-inline-019"></div>
+          <!-- Active workflow cards -->
+          <div id="wfActiveList"></div>
+        </div>
+
+        <!-- ── MARKETPLACE tab ── -->
+        <div class="ocr-panel" id="wfTab-marketplace" role="tabpanel">
+          <div class="dash-inline-020">
+            <div>
+              <h2 class="dash-inline-021">Workflow Marketplace</h2>
+              <p class="dash-inline-022">One-click activate AI-powered operational workflows — no configuration required.</p>
+            </div>
+            <div id="wfRecoLabel" class="dash-inline-023">AI Recommendations</div>
+          </div>
+          <div id="wfTemplateGrid" class="dash-inline-024"></div>
+        </div>
+
+        <!-- ── HISTORY tab ── -->
+        <div class="ocr-panel" id="wfTab-history" role="tabpanel">
+          <article class="panel">
+            <div class="panel-head">
+              <div><h2>Execution History</h2><p>Full audit trail of every workflow execution.</p></div>
+              <button class="btn sm" type="button" id="wfRefreshHistoryBtn">Refresh</button>
+            </div>
+            <div id="wfHistoryList"><div class="empty-state"><div class="spinner"></div></div></div>
+          </article>
+        </div>
+
+      </section>
+
+      <!-- ─────────── COMMAND CENTER VIEW ───────────────────────── -->
+      <section class="view" id="view-command" aria-label="Operational Command Center">
+
+        <!-- Tab bar -->
+        <div class="ocr-tabs" role="tablist" aria-label="Command Center sections">
+          <button class="ocr-tab active" data-cmd-tab="intelligence" type="button" role="tab" aria-selected="true">Intelligence</button>
+          <button class="ocr-tab"        data-cmd-tab="timeline"     type="button" role="tab" aria-selected="false">Live Timeline</button>
+          <button class="ocr-tab"        data-cmd-tab="agents"       type="button" role="tab" aria-selected="false">Agents</button>
+          <button class="ocr-tab"        data-cmd-tab="health"       type="button" role="tab" aria-selected="false">Health</button>
+          <button class="ocr-tab"        data-cmd-tab="alerts"       type="button" role="tab" aria-selected="false">Alert Rules</button>
+          <button class="ocr-tab"        data-cmd-tab="audit"        type="button" role="tab" aria-selected="false">Audit Log</button>
+          <button class="ocr-tab"        data-cmd-tab="incidents"    type="button" role="tab" aria-selected="false">Incidents</button>
+        </div>
+
+        <!-- ── INTELLIGENCE tab ── -->
+        <div class="ocr-panel active" id="cmdTab-intelligence" role="tabpanel">
+          <!-- Health score strip -->
+          <div id="cmdHealthStrip" class="dash-inline-025"></div>
+          <!-- Insights list -->
+          <article class="panel">
+            <div class="panel-head">
+              <div><h2>Operational Insights</h2><p>AI-generated, prioritised operational intelligence — updated continuously.</p></div>
+              <button class="btn sm" type="button" id="cmdAnalyzeBtn">Run Analysis</button>
+            </div>
+            <div id="cmdInsightList"><div class="empty-state"><div class="spinner"></div></div></div>
+          </article>
+          <!-- Predictions -->
+          <article class="panel dash-inline-026">
+            <div class="panel-head"><div><h2>Predictive Signals</h2><p>Short-term operational forecasts derived from platform telemetry.</p></div></div>
+            <div id="cmdPredictions" class="dash-inline-027"></div>
+          </article>
+        </div>
+
+        <!-- ── LIVE TIMELINE tab ── -->
+        <div class="ocr-panel" id="cmdTab-timeline" role="tabpanel">
+          <article class="panel">
+            <div class="panel-head">
+              <div><h2>Operational Event Timeline</h2><p>Real-time stream of every workflow execution, threat detection, agent action, and system event.</p></div>
+              <div class="dash-inline-007">
+                <span id="cmdWsStatus" class="badge neutral dash-inline-028">Connecting…</span>
+                <button class="btn sm" type="button" id="cmdClearTimelineBtn">Clear</button>
+              </div>
+            </div>
+            <div id="cmdTimelineList" class="dash-inline-029"></div>
+          </article>
+        </div>
+
+        <!-- ── AGENTS tab ── -->
+        <div class="ocr-panel" id="cmdTab-agents" role="tabpanel">
+          <article class="panel">
+            <div class="panel-head">
+              <div><h2>Autonomous Operational Agents</h2><p>Six AI agents continuously monitor and act on your operational data.</p></div>
+              <button class="btn sm" type="button" id="cmdRefreshAgentsBtn">Refresh</button>
+            </div>
+            <div id="cmdAgentList"><div class="empty-state"><div class="spinner"></div></div></div>
+          </article>
+          <!-- Recent agent actions -->
+          <article class="panel dash-inline-026">
+            <div class="panel-head"><div><h2>Recent Agent Actions</h2><p>Actions taken autonomously by operational agents.</p></div></div>
+            <div id="cmdAgentActions"><div class="empty-state"><p>Loading…</p></div></div>
+          </article>
+        </div>
+
+        <!-- ── HEALTH tab ── -->
+        <div class="ocr-panel" id="cmdTab-health" role="tabpanel">
+          <div id="cmdHealthDetail"><div class="empty-state"><div class="spinner"></div></div></div>
+        </div>
+
+        <!-- ── ALERT RULES tab ── -->
+        <div class="ocr-panel" id="cmdTab-alerts" role="tabpanel">
+          <div class="dash-inline-030">
+            <div>
+              <h2 class="dash-inline-031">Alert Rules</h2>
+              <p class="dash-inline-022">Define metric thresholds — breaches emit events that trigger webhooks and notifications.</p>
+            </div>
+            <div class="dash-inline-013">
+              <button class="btn sm" type="button" id="cmdAlertRefreshBtn">Refresh</button>
+              <button class="btn sm" type="button" id="cmdAlertAddBtn">+ Add Rule</button>
+            </div>
+          </div>
+
+          <!-- Current metric snapshot strip -->
+          <div id="cmdAlertMetrics" class="dash-inline-012"></div>
+
+          <!-- Rules list -->
+          <div id="cmdAlertRulesList"><div class="empty-state"><div class="spinner"></div></div></div>
+
+          <!-- Add/edit modal -->
+          <div id="cmdAlertModal" class="dash-inline-032">
+            <div class="dash-inline-033">
+              <h3 id="cmdAlertModalTitle" class="dash-inline-034">Add Alert Rule</h3>
+              <form id="cmdAlertForm" autocomplete="off">
+                <label class="dash-inline-035">
+                  <span class="dash-inline-036">Name</span>
+                  <input id="cmdAlertName" type="text" required placeholder="High Threat Alert" class="dash-inline-037">
+                </label>
+                <label class="dash-inline-035">
+                  <span class="dash-inline-036">Metric</span>
+                  <select id="cmdAlertMetric" class="dash-inline-038">
+                    <option value="active_threats">Active Threats</option>
+                    <option value="health_score">Health Score</option>
+                    <option value="workflow_success_rate">Workflow Success Rate (%)</option>
+                    <option value="running_agents">Running Agents</option>
+                    <option value="emails_last_1h">Emails (last 1h)</option>
+                    <option value="scam_last_24h">Scam Emails (24h)</option>
+                  </select>
+                </label>
+                <div class="dash-inline-039">
+                  <label class="dash-inline-040">
+                    <span class="dash-inline-036">Operator</span>
+                    <select id="cmdAlertOperator" class="dash-inline-041">
+                      <option>&gt;</option><option>&gt;=</option>
+                      <option>&lt;</option><option>&lt;=</option>
+                      <option>==</option>
+                    </select>
+                  </label>
+                  <label class="dash-inline-042">
+                    <span class="dash-inline-036">Threshold</span>
+                    <input id="cmdAlertThreshold" type="number" step="any" required placeholder="10" class="dash-inline-037">
+                  </label>
+                  <label class="dash-inline-040">
+                    <span class="dash-inline-036">Severity</span>
+                    <select id="cmdAlertSeverity" class="dash-inline-043">
+                      <option value="low">Low</option>
+                      <option value="medium" selected>Medium</option>
+                      <option value="high">High</option>
+                      <option value="critical">Critical</option>
+                    </select>
+                  </label>
+                </div>
+                <label class="dash-inline-044">
+                  <span class="dash-inline-036">Cooldown (minutes)</span>
+                  <input id="cmdAlertCooldown" type="number" min="1" value="30" class="dash-inline-037">
+                </label>
+                <div class="dash-inline-045">
+                  <button type="button" class="btn sm" id="cmdAlertCancelBtn">Cancel</button>
+                  <button type="submit" class="btn sm primary" id="cmdAlertSaveBtn">Save Rule</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── AUDIT LOG tab ── -->
+        <div class="ocr-panel" id="cmdTab-audit" role="tabpanel">
+          <!-- Filter bar -->
+          <div class="dash-inline-046">
+            <input id="auditSearchInput" type="text" placeholder="Search summary…" class="dash-inline-047">
+            <select id="auditSevFilter" aria-label="Filter audit log by severity" class="dash-inline-048">
+              <option value="">All severities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+              <option value="info">Info</option>
+            </select>
+            <select id="auditTypeFilter" aria-label="Filter audit log by event type" class="dash-inline-049">
+              <option value="">All event types</option>
+            </select>
+            <button class="btn sm" type="button" id="auditRefreshBtn">Refresh</button>
+            <button class="btn sm ghost" type="button" id="auditExportBtn">Export CSV</button>
+          </div>
+          <!-- Stats strip -->
+          <div id="auditStatsStrip" class="dash-inline-050"></div>
+          <!-- Entries -->
+          <div id="auditEntriesList"><div class="empty-state"><div class="spinner"></div></div></div>
+          <!-- Pagination -->
+          <div id="auditPagination" class="dash-inline-051"></div>
+        </div>
+
+        <!-- ── INCIDENTS tab ── -->
+        <div class="ocr-panel" id="cmdTab-incidents" role="tabpanel">
+          <!-- Status strip -->
+          <div id="incidentStatsStrip" class="dash-inline-052"></div>
+          <!-- Controls -->
+          <div class="dash-inline-046">
+            <select id="incStatusFilter" aria-label="Filter incidents by status" class="dash-inline-053">
+              <option value="">All statuses</option>
+              <option value="open">Open</option>
+              <option value="acknowledged">Acknowledged</option>
+              <option value="resolved">Resolved</option>
+            </select>
+            <select id="incSevFilter" aria-label="Filter incidents by severity" class="dash-inline-054">
+              <option value="">All severities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <button class="btn sm" type="button" id="incRefreshBtn">Refresh</button>
+            <button class="btn sm primary" type="button" id="incCreateBtn">+ Create Incident</button>
+          </div>
+          <!-- List -->
+          <div id="incidentList"><div class="empty-state"><div class="spinner"></div></div></div>
+          <!-- Detail modal -->
+          <div id="incidentModal" class="dash-inline-055">
+            <div class="dash-inline-056">
+              <div class="dash-inline-057">
+                <h3 id="incModalTitle" class="dash-inline-058"></h3>
+                <button class="btn sm ghost" type="button" id="incModalCloseBtn">✕</button>
+              </div>
+              <div id="incModalMeta" class="dash-inline-059"></div>
+              <p id="incModalDesc" class="dash-inline-060"></p>
+              <div id="incModalActions" class="dash-inline-061"></div>
+              <h4 class="dash-inline-062">Timeline</h4>
+              <div id="incModalTimeline" class="dash-inline-063"></div>
+              <div class="dash-inline-064">
+                <input id="incCommentInput" type="text" placeholder="Add a comment…" class="dash-inline-042">
+                <button class="btn sm" type="button" id="incCommentBtn">Post</button>
+              </div>
+            </div>
+          </div>
+          <!-- Create modal -->
+          <div id="incCreateModal" class="dash-inline-065">
+            <div class="dash-inline-066">
+              <h3 class="dash-inline-034">Create Incident</h3>
+              <form id="incCreateForm" autocomplete="off">
+                <label class="dash-inline-035">
+                  <span class="dash-inline-036">Title</span>
+                  <input id="incCreateTitle" type="text" required placeholder="Brief description of the issue" class="dash-inline-037">
+                </label>
+                <label class="dash-inline-035">
+                  <span class="dash-inline-036">Description</span>
+                  <textarea id="incCreateDesc" rows="3" placeholder="Additional context…" class="dash-inline-037"></textarea>
+                </label>
+                <label class="dash-inline-044">
+                  <span class="dash-inline-036">Severity</span>
+                  <select id="incCreateSev" class="dash-inline-038">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </label>
+                <div class="dash-inline-045">
+                  <button type="button" class="btn sm" id="incCreateCancelBtn">Cancel</button>
+                  <button type="submit" class="btn sm primary">Create</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ─────────── WEBHOOKS VIEW ───────────────────────────────── -->
+      <section class="view" id="view-webhooks" aria-label="Outbound Webhooks">
+
+        <div class="dash-inline-067">
+          <div>
+            <h2 class="dash-inline-068">Outbound Webhooks</h2>
+            <p class="dash-inline-022">Push platform events to Slack, PagerDuty, n8n or any HTTP endpoint. Events are signed with HMAC-SHA256.</p>
+          </div>
+          <button class="btn" type="button" id="whAddBtn">+ Add Webhook</button>
+        </div>
+
+        <!-- Stats strip -->
+        <div id="whStats" class="dash-inline-069"></div>
+
+        <!-- Webhook list -->
+        <div id="whList"><div class="empty-state"><div class="spinner"></div></div></div>
+
+        <!-- Add / Edit modal (hidden by default) -->
+        <div id="whModal" class="dash-inline-032">
+          <div class="dash-inline-070">
+            <h3 id="whModalTitle" class="dash-inline-071">Add Webhook</h3>
+            <form id="whForm" autocomplete="off">
+              <label class="form-row dash-inline-072">
+                <span class="dash-inline-073">Name</span>
+                <input id="whName" type="text" placeholder="My Slack Alerts" required class="dash-inline-037">
+              </label>
+              <label class="form-row dash-inline-072">
+                <span class="dash-inline-073">URL</span>
+                <input id="whUrl" type="url" placeholder="https://hooks.slack.com/..." required class="dash-inline-037">
+              </label>
+              <label class="form-row dash-inline-072">
+                <span class="dash-inline-073">Events (comma-separated patterns, * = all)</span>
+                <input id="whEvents" type="text" value="*" placeholder="threat.*, email.received" class="dash-inline-037">
+              </label>
+              <label class="form-row dash-inline-072">
+                <span class="dash-inline-073">Minimum severity</span>
+                <select id="whSeverity" class="dash-inline-038">
+                  <option value="low">Low (all events)</option>
+                  <option value="medium">Medium+</option>
+                  <option value="high">High+</option>
+                  <option value="critical">Critical only</option>
+                </select>
+              </label>
+              <label class="form-row dash-inline-072">
+                <span class="dash-inline-073">Signing secret (optional)</span>
+                <input id="whSecret" type="text" placeholder="Leave blank to skip HMAC signing" class="dash-inline-037">
+              </label>
+              <div class="dash-inline-074">
+                <button type="button" class="btn sm" id="whCancelBtn">Cancel</button>
+                <button type="button" class="btn sm" id="whTestBtn">Test</button>
+                <button type="submit" class="btn sm primary" id="whSaveBtn">Save</button>
+              </div>
+            </form>
+            <div id="whTestResult" class="dash-inline-075"></div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ─────────── PLAYBOOKS VIEW ───────────────────────────────── -->
+      <section class="view" id="view-playbooks" aria-label="Playbooks">
+
+        <div class="dash-inline-067">
+          <div>
+            <h2 class="dash-inline-068">Playbooks</h2>
+            <p class="dash-inline-022">Define automated step sequences that respond to platform events — emit events, trigger workflows, post webhooks, comment on incidents, or send notifications.</p>
+          </div>
+          <button class="btn" type="button" id="pbAddBtn">+ New Playbook</button>
+        </div>
+
+        <!-- Playbook list -->
+        <article class="panel dash-inline-076">
+          <div class="panel-head">
+            <div><h2>Playbooks</h2><p>Click a playbook to view its run history.</p></div>
+            <button class="btn ghost dash-inline-077" type="button" id="pbRefreshBtn">Refresh</button>
+          </div>
+          <div id="pbList"><div class="empty-state"><div class="spinner"></div></div></div>
+        </article>
+
+        <!-- Run history -->
+        <article class="panel">
+          <div class="panel-head">
+            <div><h2 id="pbRunsTitle">Recent Runs</h2><p>Execution history across all playbooks.</p></div>
+          </div>
+          <div id="pbRunList"><div class="empty-state"><p>Select a playbook to view its runs.</p></div></div>
+        </article>
+
+        <!-- Run detail modal -->
+        <div id="pbRunModal" class="dash-inline-078">
+          <div class="dash-inline-079">
+            <div class="dash-inline-080">
+              <h3 id="pbRunModalTitle" class="dash-inline-031"></h3>
+              <button class="btn sm ghost" type="button" id="pbRunModalCloseBtn">✕</button>
+            </div>
+            <div id="pbRunModalMeta" class="dash-inline-081"></div>
+            <h4 class="dash-inline-082">Step Log</h4>
+            <div id="pbRunModalSteps" class="dash-inline-083"></div>
+          </div>
+        </div>
+
+        <!-- Add/edit modal -->
+        <div id="pbModal" class="dash-inline-084">
+          <div class="dash-inline-085">
+            <h3 id="pbModalTitle" class="dash-inline-034">New Playbook</h3>
+            <form id="pbForm" autocomplete="off">
+              <label class="dash-inline-035">
+                <span class="dash-inline-036">Name</span>
+                <input id="pbName" type="text" required placeholder="Auto-Escalate Critical Alerts" class="dash-inline-037">
+              </label>
+              <label class="dash-inline-035">
+                <span class="dash-inline-036">Description</span>
+                <input id="pbDesc" type="text" placeholder="Optional description" class="dash-inline-037">
+              </label>
+              <div class="dash-inline-039">
+                <label class="dash-inline-042">
+                  <span class="dash-inline-036">Trigger</span>
+                  <select id="pbTriggerType" class="dash-inline-038">
+                    <option value="manual">Manual only</option>
+                    <option value="event">Event bus event</option>
+                    <option value="incident">Incident created</option>
+                  </select>
+                </label>
+                <label id="pbTriggerFilterRow" class="dash-inline-042">
+                  <span id="pbTriggerFilterLabel" class="dash-inline-036">Event type</span>
+                  <input id="pbTriggerFilter" type="text" placeholder="alert.threshold.breach" class="dash-inline-037">
+                </label>
+              </div>
+              <label class="dash-inline-086">
+                <span class="dash-inline-036">Steps (JSON array)</span>
+                <textarea id="pbSteps" rows="10" placeholder='[{"type":"emit_event","event_type":"custom.action","severity":"info"},{"type":"wait","seconds":5},{"type":"notify","message":"Done: {{event_type}}"}]' class="dash-inline-087"></textarea>
+              </label>
+              <p class="dash-inline-088">Types: <code>emit_event</code> · <code>trigger_workflow</code> · <code>webhook_post</code> · <code>incident_comment</code> · <code>notify</code> · <code>wait</code></p>
+              <div class="dash-inline-045">
+                <button type="button" class="btn sm" id="pbCancelBtn">Cancel</button>
+                <button type="submit" class="btn sm primary">Save Playbook</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ─────────── DISPATCHES VIEW ─────────────────────────────── -->
+      <section class="view" id="view-dispatches" aria-label="Scheduled Reports">
+
+        <div class="dash-inline-067">
+          <div>
+            <h2 class="dash-inline-068">Scheduled Dispatches</h2>
+            <p class="dash-inline-022">Generate and deliver periodic operational digests — platform health, incidents, alert rules, metric trends and audit summaries.</p>
+          </div>
+          <button class="btn" type="button" id="dispAddBtn">+ New Schedule</button>
+        </div>
+
+        <!-- Stats strip -->
+        <div id="dispStatsStrip" class="dash-inline-069"></div>
+
+        <!-- Config list -->
+        <article class="panel dash-inline-076">
+          <div class="panel-head">
+            <div><h2>Report Schedules</h2><p>Each schedule generates a report at the configured interval.</p></div>
+            <button class="btn ghost dash-inline-077" type="button" id="dispRefreshBtn">Refresh</button>
+          </div>
+          <div id="dispConfigList"><div class="empty-state"><div class="spinner"></div></div></div>
+        </article>
+
+        <!-- Run history -->
+        <article class="panel">
+          <div class="panel-head">
+            <div><h2>Recent Runs</h2><p>Last 50 report generation events across all schedules.</p></div>
+          </div>
+          <div id="dispRunList"><div class="empty-state"><p>Select a schedule to view its runs, or load all runs below.</p></div></div>
+        </article>
+
+        <!-- Run detail modal -->
+        <div id="dispRunModal" class="dash-inline-078">
+          <div class="dash-inline-089">
+            <div class="dash-inline-080">
+              <h3 id="dispRunModalTitle" class="dash-inline-031"></h3>
+              <button class="btn sm ghost" type="button" id="dispRunModalCloseBtn">✕</button>
+            </div>
+            <div id="dispRunModalMeta" class="dash-inline-081"></div>
+            <pre id="dispRunModalContent" class="dash-inline-090"></pre>
+          </div>
+        </div>
+
+        <!-- Add/edit modal -->
+        <div id="dispModal" class="dash-inline-065">
+          <div class="dash-inline-091">
+            <h3 id="dispModalTitle" class="dash-inline-034">New Report Schedule</h3>
+            <form id="dispForm" autocomplete="off">
+              <label class="dash-inline-035">
+                <span class="dash-inline-036">Name</span>
+                <input id="dispName" type="text" required placeholder="Daily Ops Digest" class="dash-inline-037">
+              </label>
+              <label class="dash-inline-035">
+                <span class="dash-inline-036">Interval</span>
+                <select id="dispInterval" class="dash-inline-038">
+                  <option value="1">Hourly</option>
+                  <option value="6">Every 6 hours</option>
+                  <option value="12">Every 12 hours</option>
+                  <option value="24" selected>Daily</option>
+                  <option value="168">Weekly</option>
+                </select>
+              </label>
+              <fieldset class="dash-inline-092">
+                <legend class="dash-inline-093">Sections</legend>
+                <div class="dash-inline-094">
+                  <label class="dash-inline-095"><input type="checkbox" name="section" value="platform_health" checked> Platform Health</label>
+                  <label class="dash-inline-095"><input type="checkbox" name="section" value="incidents" checked> Incidents</label>
+                  <label class="dash-inline-095"><input type="checkbox" name="section" value="alert_rules" checked> Alert Rules</label>
+                  <label class="dash-inline-095"><input type="checkbox" name="section" value="metric_trends" checked> Metric Trends</label>
+                  <label class="dash-inline-095"><input type="checkbox" name="section" value="audit_summary" checked> Audit Summary</label>
+                </div>
+              </fieldset>
+              <label class="dash-inline-035">
+                <span class="dash-inline-036">Delivery</span>
+                <select id="dispDelivery" class="dash-inline-038">
+                  <option value="store">Store locally (view in dashboard)</option>
+                  <option value="webhook">Deliver to webhook URL</option>
+                </select>
+              </label>
+              <label id="dispWebhookRow" class="dash-inline-044">
+                <span class="dash-inline-036">Webhook URL</span>
+                <input id="dispWebhookUrl" type="url" placeholder="https://hooks.slack.com/…" class="dash-inline-037">
+              </label>
+              <div class="dash-inline-045">
+                <button type="button" class="btn sm" id="dispCancelBtn">Cancel</button>
+                <button type="submit" class="btn sm primary" id="dispSaveBtn">Save Schedule</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ─────────── SLA VIEW ─────────────────────────────────── -->
+      <section class="view" id="view-sla" aria-label="SLA Tracker">
+
+        <div class="dash-inline-067">
+          <div>
+            <h2 class="dash-inline-068">SLA Tracker</h2>
+            <p class="dash-inline-022">Define response and resolution time limits per severity. Breaches are detected automatically and emitted as platform events.</p>
+          </div>
+          <button class="btn" type="button" id="slaAddBtn">+ New Policy</button>
+        </div>
+
+        <!-- Stats strip -->
+        <div id="slaStatsStrip" class="dash-inline-069"></div>
+
+        <!-- Policies table -->
+        <article class="panel dash-inline-076">
+          <div class="panel-head dash-inline-096">
+            <span class="panel-title">SLA Policies</span>
+            <span id="slaPoliciesCount" class="dash-inline-097"></span>
+          </div>
+          <div class="panel-body dash-inline-098">
+            <table class="data-table" id="slaPoliciesTable">
+              <thead>
+                <tr>
+                  <th>Name</th><th>Severity</th><th>Response</th><th>Resolve</th><th>Status</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="slaPoliciesTbody">
+                <tr><td colspan="6" class="dash-inline-099">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <!-- Breaches table -->
+        <article class="panel">
+          <div class="panel-head dash-inline-100">
+            <span class="panel-title">Breach History</span>
+            <div class="dash-inline-007">
+              <select id="slaBreachTypeFilter" class="filter-select dash-inline-077" aria-label="Filter SLA breaches by type">
+                <option value="">All types</option>
+                <option value="response">Response</option>
+                <option value="resolve">Resolution</option>
+              </select>
+              <select id="slaBreachSevFilter" class="filter-select dash-inline-077" aria-label="Filter SLA breaches by severity">
+                <option value="">All severities</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+          </div>
+          <div class="panel-body dash-inline-098">
+            <table class="data-table" id="slaBreachesTable">
+              <thead>
+                <tr>
+                  <th>Incident</th><th>Severity</th><th>Type</th><th>Policy</th><th>Breached At</th>
+                </tr>
+              </thead>
+              <tbody id="slaBreachesTbody">
+                <tr><td colspan="5" class="dash-inline-099">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <!-- Policy modal -->
+        <div class="modal-backdrop" id="slaPolicyModal" aria-modal="true" role="dialog" hidden>
+          <div class="modal dash-inline-101">
+            <div class="modal-head">
+              <span id="slaPolicyModalTitle">New SLA Policy</span>
+              <button class="modal-close" id="slaPolicyModalClose" aria-label="Close">&times;</button>
+            </div>
+            <form id="slaPolicyForm" autocomplete="off">
+              <div class="modal-body dash-inline-102">
+                <label class="field-label">Name
+                  <input class="field-input" type="text" id="slaPolName" required placeholder="e.g. Critical Incident SLA"/>
+                </label>
+                <label class="field-label">Applies to severity
+                  <select class="field-input" id="slaPolSeverity">
+                    <option value="">All severities</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                    <option value="info">Info</option>
+                  </select>
+                </label>
+                <label class="field-label">Response time (minutes)
+                  <input class="field-input" type="number" id="slaPolResponse" min="1" max="525600" value="60"/>
+                </label>
+                <label class="field-label">Resolution time (minutes)
+                  <input class="field-input" type="number" id="slaPolResolve" min="2" max="525600" value="240"/>
+                </label>
+                <label class="field-label dash-inline-103">
+                  <input type="checkbox" id="slaPolEnabled" checked/>
+                  Enabled
+                </label>
+              </div>
+              <div class="modal-foot">
+                <button type="button" class="btn" id="slaPolicyModalCancel">Cancel</button>
+                <button type="submit" class="btn sm primary" id="slaPolSaveBtn">Save Policy</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ─────────── ON-CALL VIEW ─────────────────────────────── -->
+      <section class="view" id="view-oncall" aria-label="On-call Schedules">
+
+        <!-- Current on-call banner -->
+        <div id="oncallCurrentBanner" class="dash-inline-104">
+          <div class="dash-inline-105">ON CALL NOW</div>
+          <div id="oncallCurrentList" class="dash-inline-106"></div>
+        </div>
+
+        <div class="dash-inline-067">
+          <div>
+            <h2 class="dash-inline-068">On-call Schedules</h2>
+            <p class="dash-inline-022">Manage rotation slots and escalation policies. Unacknowledged incidents trigger automatic escalation events.</p>
+          </div>
+          <button class="btn" type="button" id="oncallAddScheduleBtn">+ New Schedule</button>
+        </div>
+
+        <!-- Schedules list -->
+        <div id="oncallSchedulesList"></div>
+
+        <!-- Schedule modal -->
+        <div class="modal-backdrop" id="oncallScheduleModal" aria-modal="true" role="dialog" hidden>
+          <div class="modal dash-inline-107">
+            <div class="modal-head">
+              <span id="oncallScheduleModalTitle">New Schedule</span>
+              <button class="modal-close" id="oncallScheduleModalClose" aria-label="Close">&times;</button>
+            </div>
+            <form id="oncallScheduleForm" autocomplete="off">
+              <div class="modal-body dash-inline-102">
+                <label class="field-label">Name
+                  <input class="field-input" type="text" id="oncallSchName" required placeholder="e.g. Platform Engineering"/>
+                </label>
+                <label class="field-label">Description
+                  <input class="field-input" type="text" id="oncallSchDesc" placeholder="Optional"/>
+                </label>
+                <label class="field-label">Timezone
+                  <input class="field-input" type="text" id="oncallSchTz" value="UTC" placeholder="UTC"/>
+                </label>
+                <label class="field-label dash-inline-103">
+                  <input type="checkbox" id="oncallSchEnabled" checked/> Enabled
+                </label>
+              </div>
+              <div class="modal-foot">
+                <button type="button" class="btn" id="oncallScheduleModalCancel">Cancel</button>
+                <button type="submit" class="btn sm primary">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Slot modal -->
+        <div class="modal-backdrop" id="oncallSlotModal" aria-modal="true" role="dialog" hidden>
+          <div class="modal dash-inline-107">
+            <div class="modal-head">
+              <span>Add Rotation Slot</span>
+              <button class="modal-close" id="oncallSlotModalClose" aria-label="Close">&times;</button>
+            </div>
+            <form id="oncallSlotForm" autocomplete="off">
+              <input type="hidden" id="oncallSlotScheduleId"/>
+              <div class="modal-body dash-inline-102">
+                <label class="field-label">Member name
+                  <input class="field-input" type="text" id="oncallSlotName" required placeholder="Alice Smith"/>
+                </label>
+                <label class="field-label">Member email
+                  <input class="field-input" type="email" id="oncallSlotEmail" placeholder="alice@example.com"/>
+                </label>
+                <label class="field-label">Starts at (UTC ISO 8601)
+                  <input class="field-input" type="text" id="oncallSlotStart" required placeholder="2026-05-20T09:00:00Z"/>
+                </label>
+                <label class="field-label">Ends at (UTC ISO 8601)
+                  <input class="field-input" type="text" id="oncallSlotEnd" required placeholder="2026-05-27T09:00:00Z"/>
+                </label>
+                <label class="field-label dash-inline-103">
+                  <input type="checkbox" id="oncallSlotOverride"/> Override (takes priority over regular rotation)
+                </label>
+                <label class="field-label">Note
+                  <input class="field-input" type="text" id="oncallSlotNote" placeholder="Optional"/>
+                </label>
+              </div>
+              <div class="modal-foot">
+                <button type="button" class="btn" id="oncallSlotModalCancel">Cancel</button>
+                <button type="submit" class="btn sm primary">Add Slot</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Escalation modal -->
+        <div class="modal-backdrop" id="oncallEscModal" aria-modal="true" role="dialog" hidden>
+          <div class="modal dash-inline-107">
+            <div class="modal-head">
+              <span>Add Escalation Tier</span>
+              <button class="modal-close" id="oncallEscModalClose" aria-label="Close">&times;</button>
+            </div>
+            <form id="oncallEscForm" autocomplete="off">
+              <input type="hidden" id="oncallEscScheduleId"/>
+              <div class="modal-body dash-inline-102">
+                <label class="field-label">Level (1 = first responder)
+                  <input class="field-input" type="number" id="oncallEscLevel" min="1" value="1"/>
+                </label>
+                <label class="field-label">Contact name
+                  <input class="field-input" type="text" id="oncallEscName" required placeholder="Bob Jones"/>
+                </label>
+                <label class="field-label">Contact email
+                  <input class="field-input" type="email" id="oncallEscEmail" placeholder="bob@example.com"/>
+                </label>
+                <label class="field-label">Escalate after (minutes)
+                  <input class="field-input" type="number" id="oncallEscDelay" min="1" value="15"/>
+                </label>
+              </div>
+              <div class="modal-foot">
+                <button type="button" class="btn" id="oncallEscModalCancel">Cancel</button>
+                <button type="submit" class="btn sm primary">Add Tier</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ─────────── API KEYS VIEW ────────────────────────────── -->
+      <section class="view" id="view-api-keys" aria-label="API Keys">
+
+        <div class="dash-inline-067">
+          <div>
+            <h2 class="dash-inline-068">API Keys</h2>
+            <p class="dash-inline-022">Create named keys for external integrations. Keys are hashed on creation — the full key is shown only once.</p>
+          </div>
+          <button class="btn" type="button" id="akAddBtn">+ New Key</button>
+        </div>
+
+        <!-- Stats strip -->
+        <div id="akStatsStrip" class="dash-inline-069"></div>
+
+        <!-- Keys table -->
+        <article class="panel">
+          <div class="panel-head dash-inline-096">
+            <span class="panel-title">API Keys</span>
+            <label class="dash-inline-108">
+              <input type="checkbox" id="akEnabledOnly"/> Active only
+            </label>
+          </div>
+          <div class="panel-body dash-inline-098">
+            <table class="data-table" id="akTable">
+              <thead>
+                <tr>
+                  <th>Name</th><th>Key</th><th>Scopes</th><th>Expires</th><th>Last used</th><th>Calls</th><th>Status</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="akTbody">
+                <tr><td colspan="8" class="dash-inline-099">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <!-- Create/edit modal -->
+        <div class="modal-backdrop" id="akModal" aria-modal="true" role="dialog" hidden>
+          <div class="modal dash-inline-101">
+            <div class="modal-head">
+              <span id="akModalTitle">New API Key</span>
+              <button class="modal-close" id="akModalClose" aria-label="Close">&times;</button>
+            </div>
+            <form id="akForm" autocomplete="off">
+              <div class="modal-body dash-inline-102">
+                <label class="field-label">Name
+                  <input class="field-input" type="text" id="akName" required placeholder="e.g. CI Pipeline Key"/>
+                </label>
+                <label class="field-label">Description
+                  <input class="field-input" type="text" id="akDesc" placeholder="Optional notes about this key"/>
+                </label>
+                <label class="field-label">Scopes (leave empty for full access)
+                  <div id="akScopesGroup" class="dash-inline-109">
+                    <label class="dash-inline-110"><input type="checkbox" value="read"/>  read</label>
+                    <label class="dash-inline-110"><input type="checkbox" value="write"/> write</label>
+                    <label class="dash-inline-110"><input type="checkbox" value="admin"/> admin</label>
+                    <label class="dash-inline-110"><input type="checkbox" value="webhooks"/> webhooks</label>
+                    <label class="dash-inline-110"><input type="checkbox" value="reports"/> reports</label>
+                  </div>
+                </label>
+                <label class="field-label">Expires at (UTC ISO 8601, leave empty = never)
+                  <input class="field-input" type="text" id="akExpires" placeholder="2027-01-01T00:00:00Z"/>
+                </label>
+                <label class="field-label dash-inline-103">
+                  <input type="checkbox" id="akEnabled" checked/> Enabled
+                </label>
+              </div>
+              <div class="modal-foot">
+                <button type="button" class="btn" id="akModalCancel">Cancel</button>
+                <button type="submit" class="btn sm primary" id="akSaveBtn">Create Key</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Key reveal modal (shown once after creation / rotation) -->
+        <div class="modal-backdrop" id="akRevealModal" aria-modal="true" role="dialog" hidden>
+          <div class="modal dash-inline-111">
+            <div class="modal-head">
+              <span>Your New API Key</span>
+              <button class="modal-close" id="akRevealClose" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+              <p class="dash-inline-112">Copy this key now — it will <strong>not</strong> be shown again.</p>
+              <div class="dash-inline-007">
+                <code id="akRevealKey" class="dash-inline-113"></code>
+                <button class="btn xs" type="button" id="akCopyBtn" onclick="_copyAkKey()">Copy</button>
+              </div>
+              <p id="akRevealWarning" class="dash-inline-114"></p>
+            </div>
+            <div class="modal-foot">
+              <button type="button" class="btn primary" id="akRevealDone">Done</button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ─────────── MAINTENANCE VIEW ─────────────────────────── -->
+      <section class="view" id="view-maintenance" aria-label="Maintenance Windows">
+
+        <!-- Active banner -->
+        <div id="maintActiveBanner" hidden class="dash-inline-115">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true"><path d="M10 3l7 14H3L10 3Z"/><path d="M10 8v4M10 14v.5"/></svg>
+          <span id="maintActiveBannerText">Maintenance window is active</span>
+        </div>
+
+        <div class="dash-inline-067">
+          <div>
+            <h2 class="dash-inline-068">Maintenance Windows</h2>
+            <p class="dash-inline-022">Schedule planned downtime — suppresses alerts, incident creation and SLA tracking for the duration.</p>
+          </div>
+          <button class="btn" type="button" id="maintAddBtn">+ New Window</button>
+        </div>
+
+        <!-- Stats strip -->
+        <div id="maintStatsStrip" class="dash-inline-069"></div>
+
+        <!-- Filter bar -->
+        <div class="dash-inline-116">
+          <select id="maintStatusFilter" class="filter-select dash-inline-077" aria-label="Filter maintenance windows by status">
+            <option value="">All statuses</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="active">Active</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <button class="btn xs" id="maintRefreshBtn" type="button">Refresh</button>
+        </div>
+
+        <!-- Windows table -->
+        <article class="panel">
+          <div class="panel-head dash-inline-096">
+            <span class="panel-title">Windows</span>
+            <span id="maintWindowsCount" class="dash-inline-097"></span>
+          </div>
+          <div class="panel-body dash-inline-098">
+            <table class="data-table" id="maintWindowsTable">
+              <thead>
+                <tr>
+                  <th>Name</th><th>Starts</th><th>Ends</th><th>Status</th><th>Suppress</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="maintWindowsTbody">
+                <tr><td colspan="6" class="dash-inline-099">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <!-- Create/edit modal -->
+        <div class="modal-backdrop" id="maintWindowModal" aria-modal="true" role="dialog" hidden>
+          <div class="modal dash-inline-117">
+            <div class="modal-head">
+              <span id="maintWindowModalTitle">New Maintenance Window</span>
+              <button class="modal-close" id="maintWindowModalClose" aria-label="Close">&times;</button>
+            </div>
+            <form id="maintWindowForm" autocomplete="off">
+              <div class="modal-body dash-inline-102">
+                <label class="field-label">Name
+                  <input class="field-input" type="text" id="maintWinName" required placeholder="e.g. Database migration downtime"/>
+                </label>
+                <label class="field-label">Description
+                  <input class="field-input" type="text" id="maintWinDesc" placeholder="Optional notes"/>
+                </label>
+                <label class="field-label">Starts at (UTC ISO 8601)
+                  <input class="field-input" type="text" id="maintWinStartsAt" placeholder="2026-05-20T02:00:00Z" required/>
+                </label>
+                <label class="field-label">Ends at (UTC ISO 8601)
+                  <input class="field-input" type="text" id="maintWinEndsAt" placeholder="2026-05-20T04:00:00Z" required/>
+                </label>
+                <fieldset class="dash-inline-118">
+                  <legend class="dash-inline-119">Suppress during window</legend>
+                  <label class="dash-inline-120">
+                    <input type="checkbox" id="maintWinAlerts" checked/> Alerts
+                  </label>
+                  <label class="dash-inline-120">
+                    <input type="checkbox" id="maintWinIncidents" checked/> Incident creation
+                  </label>
+                  <label class="dash-inline-121">
+                    <input type="checkbox" id="maintWinSla" checked/> SLA breach detection
+                  </label>
+                </fieldset>
+              </div>
+              <div class="modal-foot">
+                <button type="button" class="btn" id="maintWindowModalCancel">Cancel</button>
+                <button type="submit" class="btn sm primary" id="maintWinSaveBtn">Save Window</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Detail/log modal -->
+        <div class="modal-backdrop" id="maintLogModal" aria-modal="true" role="dialog" hidden>
+          <div class="modal dash-inline-122">
+            <div class="modal-head">
+              <span id="maintLogModalTitle">Window Log</span>
+              <button class="modal-close" id="maintLogModalClose" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body dash-inline-123" id="maintLogModalBody">
+            </div>
+            <div class="modal-foot">
+              <button type="button" class="btn" id="maintLogModalCloseBtn">Close</button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ─────────── RUNBOOKS VIEW ───────────────────────────────── -->
+      <section class="view" id="view-runbooks" aria-label="Runbooks">
+
+        <div class="dash-inline-067">
+          <div>
+            <h2 class="dash-inline-068">Runbooks</h2>
+            <p class="dash-inline-022">Human-readable incident response and operational documentation with full version history.</p>
+          </div>
+          <button class="btn" type="button" id="rbAddBtn">+ New Runbook</button>
+        </div>
+
+        <!-- Stats strip -->
+        <div id="rbStatsStrip" class="dash-inline-069"></div>
+
+        <!-- Search / filter bar -->
+        <div class="dash-inline-124">
+          <input class="field-input dash-inline-125" type="search" id="rbSearchInput" placeholder="Search runbooks…"/>
+          <select id="rbCategoryFilter" class="filter-select dash-inline-077" aria-label="Filter runbooks by category">
+            <option value="">All categories</option>
+          </select>
+          <button class="btn xs" id="rbSearchBtn" type="button">Search</button>
+          <button class="btn xs" id="rbRefreshBtn" type="button">Refresh</button>
+        </div>
+
+        <!-- Runbooks list panel -->
+        <div class="dash-inline-126">
+          <article class="panel dash-inline-127">
+            <div class="panel-head dash-inline-096">
+              <span class="panel-title">Runbooks</span>
+              <span id="rbListCount" class="dash-inline-097"></span>
+            </div>
+            <div class="panel-body dash-inline-098">
+              <table class="data-table" id="rbListTable">
+                <thead>
+                  <tr>
+                    <th>Title</th><th>Category</th><th>Tags</th><th>Views</th><th>Updated</th><th></th>
+                  </tr>
+                </thead>
+                <tbody id="rbListTbody">
+                  <tr><td colspan="6" class="dash-inline-099">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div id="rbPagination" class="dash-inline-128"></div>
+          </article>
+
+          <!-- Detail / version history panel -->
+          <article class="panel dash-inline-129" id="rbDetailPanel" hidden>
+            <div class="panel-head dash-inline-096">
+              <span class="panel-title" id="rbDetailTitle">Runbook</span>
+              <button class="btn xs" type="button" id="rbDetailEditBtn">Edit</button>
+            </div>
+            <div class="panel-body dash-inline-130">
+              <div id="rbDetailMeta" class="dash-inline-131"></div>
+              <div id="rbDetailContent" class="dash-inline-132"></div>
+            </div>
+            <div class="dash-inline-133">
+              <button class="btn xs" type="button" id="rbVersionHistoryBtn">Version History</button>
+            </div>
+          </article>
+        </div>
+
+        <!-- Create / edit modal -->
+        <div class="modal-backdrop" id="rbEditModal" aria-modal="true" role="dialog" hidden>
+          <div class="modal dash-inline-134">
+            <div class="modal-head">
+              <span id="rbEditModalTitle">New Runbook</span>
+              <button class="modal-close" id="rbEditModalClose" aria-label="Close">&times;</button>
+            </div>
+            <form id="rbEditForm" autocomplete="off">
+              <div class="modal-body dash-inline-102">
+                <label class="field-label">Title *
+                  <input class="field-input" type="text" id="rbFormTitle" required placeholder="e.g. Database failover procedure"/>
+                </label>
+                <div class="dash-inline-135">
+                  <label class="field-label dash-inline-042">Category
+                    <input class="field-input" type="text" id="rbFormCategory" placeholder="e.g. infrastructure"/>
+                  </label>
+                  <label class="field-label dash-inline-042">Tags (comma-separated)
+                    <input class="field-input" type="text" id="rbFormTags" placeholder="database, failover, production"/>
+                  </label>
+                </div>
+                <label class="field-label">Owner
+                  <input class="field-input" type="text" id="rbFormOwner" placeholder="team or individual"/>
+                </label>
+                <label class="field-label">Content (Markdown)
+                  <textarea class="field-input dash-inline-136" id="rbFormContent" rows="10" placeholder="## Overview&#10;Describe the procedure step by step…"></textarea>
+                </label>
+                <label class="field-label">Change note
+                  <input class="field-input" type="text" id="rbFormChangeNote" placeholder="Brief summary of changes"/>
+                </label>
+                <input type="hidden" id="rbFormId"/>
+              </div>
+              <div class="modal-foot">
+                <button type="button" class="btn" id="rbEditModalCancel">Cancel</button>
+                <button type="submit" class="btn sm primary" id="rbFormSaveBtn">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Version history modal -->
+        <div class="modal-backdrop" id="rbVersionModal" aria-modal="true" role="dialog" hidden>
+          <div class="modal dash-inline-134">
+            <div class="modal-head">
+              <span id="rbVersionModalTitle">Version History</span>
+              <button class="modal-close" id="rbVersionModalClose" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body dash-inline-137">
+              <div id="rbVersionList"></div>
+            </div>
+            <div class="modal-foot">
+              <button type="button" class="btn" id="rbVersionModalCloseBtn">Close</button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
       <!-- ─────────── ADMIN VIEW ────────────────────────────────── -->
       <section class="view" id="view-admin" aria-label="Administration">
         <div class="admin-shell">
@@ -1024,7 +2353,7 @@
 <!-- Toast container -->
 <div class="toast-wrap" id="toastWrap" role="region" aria-label="Notifications" aria-live="polite" aria-atomic="false"></div>
 
-<script src="/dashboard/enterprise-ui.js?v=5"></script>
+<script src="/dashboard/enterprise-ui.js?v=8"></script>
 <script src="/dashboard/premium-ui.js"></script>
 </body>
 </html>

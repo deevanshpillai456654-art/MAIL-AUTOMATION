@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from typing import Any, Optional
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Query, status
 
@@ -788,10 +789,112 @@ _CATALOG: list[dict[str, Any]] = [
 
 _CATALOG_BY_ID: dict[str, dict[str, Any]] = {c["id"]: c for c in _CATALOG}
 
+_BRAND_ICON_DOMAINS = {
+    "whatsapp": "whatsapp.com",
+    "gmail": "mail.google.com",
+    "openai": "openai.com",
+    "ocr_engine": "abbyy.com",
+    "shopify": "shopify.com",
+    "slack": "slack.com",
+    "slack_enterprise": "slack.com",
+    "webhook_listener": "zapier.com",
+    "erp_sync": "sap.com",
+    "zoho_crm": "zoho.com",
+    "shipping_tracker": "fedex.com",
+    "sap": "sap.com",
+    "oracle_erp": "oracle.com",
+    "netsuite": "netsuite.com",
+    "odoo": "odoo.com",
+    "erpnext": "erpnext.com",
+    "ms_dynamics": "dynamics.microsoft.com",
+    "salesforce": "salesforce.com",
+    "hubspot": "hubspot.com",
+    "freshsales": "freshworks.com",
+    "pipedrive": "pipedrive.com",
+    "fedex": "fedex.com",
+    "ups": "ups.com",
+    "dhl": "dhl.com",
+    "delhivery": "delhivery.com",
+    "shiprocket": "shiprocket.in",
+    "aftership": "aftership.com",
+    "maersk": "maersk.com",
+    "msc_tracking": "msc.com",
+    "woocommerce": "woocommerce.com",
+    "magento": "adobe.com",
+    "amazon_seller": "sell.amazon.com",
+    "outlook": "outlook.com",
+    "teams": "teams.microsoft.com",
+    "telegram": "telegram.org",
+    "discord": "discord.com",
+    "quickbooks": "quickbooks.intuit.com",
+    "xero": "xero.com",
+    "zoho_books": "zoho.com/books",
+    "zendesk": "zendesk.com",
+    "freshdesk": "freshworks.com/freshdesk",
+    "intercom": "intercom.com",
+    "anthropic": "anthropic.com",
+    "google_gemini": "gemini.google.com",
+}
+
+_CARD_DESCRIPTIONS = {
+    "whatsapp": "Send template and session WhatsApp messages, receive media replies, and publish delivery status events.",
+    "gmail": "Read, label, send, and process Gmail messages through OAuth-backed Gmail API access.",
+    "openai": "Classify emails, extract fields, draft replies, summarize threads, and route work with GPT models.",
+    "ocr_engine": "Extract text and invoice fields from PDFs, receipts, and scanned documents for review queues.",
+    "shopify": "Sync Shopify orders, products, customers, and fulfillment updates into email-driven workflows.",
+    "slack": "Post alerts to Slack channels, handle slash commands, and route interactive workflow responses.",
+    "slack_enterprise": "Run Slack approval buttons, signed Event API webhooks, alerts, mentions, and file workflows.",
+    "webhook_listener": "Receive signed webhooks, normalize payloads, and publish events into the MailPilot event bus.",
+    "erp_sync": "Push invoices, purchase orders, and financial records between MailPilot and SAP, Oracle, or Dynamics.",
+    "zoho_crm": "Sync Zoho CRM contacts, deals, leads, and pipeline changes for sales follow-up workflows.",
+    "shipping_tracker": "Track FedEx, UPS, DHL, and USPS shipments and send delivery, exception, and return updates.",
+    "sap": "Exchange SAP purchase orders, invoices, goods receipts, and finance events with S/4HANA or ECC.",
+    "oracle_erp": "Connect Oracle ERP Cloud financials, procurement, projects, and supply chain records to MailPilot.",
+    "netsuite": "Sync NetSuite orders, invoices, inventory, subsidiaries, and item updates for finance teams.",
+    "odoo": "Move Odoo sales, CRM, inventory, accounting, manufacturing, and HR records into email workflows.",
+    "erpnext": "Sync ERPNext purchases, accounts, stock entries, manufacturing records, and service workflows.",
+    "ms_dynamics": "Connect Dynamics 365 Finance and Operations data for purchasing, invoices, shipments, and BI alerts.",
+    "salesforce": "Sync Salesforce leads, contacts, opportunities, accounts, and stage changes for sales operations.",
+    "hubspot": "Sync HubSpot contacts, deals, pipelines, email activity, and marketing follow-up triggers.",
+    "freshsales": "Capture Freshsales leads, deals, scores, and follow-up tasks from email and support queues.",
+    "pipedrive": "Create Pipedrive deals, update stages, sync activities, and trigger sales reminders from messages.",
+    "fedex": "Fetch FedEx tracking status, delivery estimates, exceptions, and proof-of-delivery updates.",
+    "ups": "Track UPS shipments, delivery attempts, exceptions, and return movements for customer updates.",
+    "dhl": "Track DHL Express shipments, customs milestones, delivery exceptions, and proof-of-delivery data.",
+    "delhivery": "Track Delhivery parcels, NDR events, pickup status, and delivery milestones for Indian shipments.",
+    "shiprocket": "Sync Shiprocket orders, labels, courier assignments, tracking events, and failed-delivery notices.",
+    "aftership": "Centralize carrier tracking from AfterShip and send branded delivery status notifications.",
+    "maersk": "Track Maersk ocean containers, vessel milestones, ETA changes, and exception events.",
+    "msc_tracking": "Track MSC container movements, port events, vessel updates, and shipment exceptions.",
+    "woocommerce": "Sync WooCommerce orders, products, customers, refunds, and fulfillment status changes.",
+    "magento": "Sync Adobe Commerce orders, catalog items, inventory, customers, and shipment updates.",
+    "amazon_seller": "Pull Amazon Seller Central orders, FBA shipment data, inventory, returns, and reports.",
+    "outlook": "Read, send, and organize Microsoft 365 Outlook mail plus calendar and contact records.",
+    "teams": "Send Microsoft Teams channel alerts, meeting notices, bot replies, and workflow updates.",
+    "telegram": "Send Telegram bot notifications, collect channel replies, and route group alerts.",
+    "discord": "Post Discord webhook alerts, route bot messages, and notify teams from workflow events.",
+    "quickbooks": "Sync QuickBooks Online invoices, payments, expenses, and accounts for finance handoff and reconciliation.",
+    "xero": "Sync Xero invoices, bank feeds, contacts, payroll, and expense claims for accounting review.",
+    "zoho_books": "Sync Zoho Books invoices, purchase orders, payments, contacts, and GST/tax reporting data.",
+    "zendesk": "Create and update Zendesk tickets, route SLA breaches, and attach customer email context to support work.",
+    "freshdesk": "Create Freshdesk tickets, assign agents, enforce SLA rules, and attach email thread context.",
+    "intercom": "Create Intercom conversations, sync contacts, send messages, and trigger customer support campaigns.",
+    "anthropic": "Use Claude for long email threads, policy checks, document analysis, and structured decision support.",
+    "google_gemini": "Use Gemini for document understanding, image analysis, field extraction, and multimodal review tasks.",
+}
+
+
+def _brand_icon_url(connector_id: str) -> str:
+    domain = _BRAND_ICON_DOMAINS.get(connector_id, f"{connector_id}.com")
+    return "https://www.google.com/s2/favicons?" + urlencode({"sz": 64, "domain": domain})
+
 
 def _to_marketplace_model(raw: dict[str, Any], installed_ids: set[str]) -> MarketplaceConnector:
+    payload = {k: v for k, v in raw.items()}
+    payload["icon_url"] = _brand_icon_url(raw["id"])
+    payload["description"] = _CARD_DESCRIPTIONS.get(raw["id"], raw["description"])
     return MarketplaceConnector(
-        **{k: v for k, v in raw.items()},
+        **payload,
         is_installed=raw["id"] in installed_ids,
     )
 

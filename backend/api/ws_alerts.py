@@ -236,20 +236,31 @@ async def emit_scam_detected(
 ) -> None:
     score = int(confidence * 100)
     severity = _severity_from_score(score)
+    payload = {
+        "email_id": email_id,
+        "sender_email": sender_email,
+        "subject": subject,
+        "category": category,
+        "confidence": confidence,
+        "confidence_score": score,
+        "reasons": reasons,
+    }
     await alert_manager.broadcast({
         "type": "scam_detected",
         "severity": severity,
-        "payload": {
-            "email_id": email_id,
-            "sender_email": sender_email,
-            "subject": subject,
-            "category": category,
-            "confidence": confidence,
-            "confidence_score": score,
-            "reasons": reasons,
-        },
+        "payload": payload,
         "timestamp": _now_iso(),
     })
+    try:
+        from backend.api.event_bus import emit as _emit
+        asyncio.create_task(_emit(
+            "threat.detected",
+            source="scam_classifier",
+            payload=payload,
+            severity=severity,
+        ))
+    except Exception:
+        pass
 
 
 async def emit_lookalike_detected(
@@ -262,24 +273,35 @@ async def emit_lookalike_detected(
     subject: str = "",
 ) -> None:
     severity = _severity_from_score(confidence_score)
+    payload = {
+        "detected_domain": detected_domain,
+        "impersonated_brand": impersonated_brand,
+        "confidence_score": confidence_score,
+        "threat_type": threat_type,
+        "reasons": reasons,
+        "sender_email": sender_email,
+        "subject": subject,
+        "warning": (
+            f"This email appears to impersonate {impersonated_brand} "
+            f"using a deceptive domain variation: '{detected_domain}'"
+        ),
+    }
     await alert_manager.broadcast({
         "type": "lookalike_detected",
         "severity": severity,
-        "payload": {
-            "detected_domain": detected_domain,
-            "impersonated_brand": impersonated_brand,
-            "confidence_score": confidence_score,
-            "threat_type": threat_type,
-            "reasons": reasons,
-            "sender_email": sender_email,
-            "subject": subject,
-            "warning": (
-                f"This email appears to impersonate {impersonated_brand} "
-                f"using a deceptive domain variation: '{detected_domain}'"
-            ),
-        },
+        "payload": payload,
         "timestamp": _now_iso(),
     })
+    try:
+        from backend.api.event_bus import emit as _emit
+        asyncio.create_task(_emit(
+            "threat.detected",
+            source="lookalike_detector",
+            payload=payload,
+            severity=severity,
+        ))
+    except Exception:
+        pass
 
 
 async def emit_stats_update(stats: Dict[str, Any]) -> None:

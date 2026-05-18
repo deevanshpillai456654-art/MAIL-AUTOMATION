@@ -696,6 +696,24 @@ async def process_email(email: EmailInput):
                 rule_summary = RuleActionExecutor(db, enable_provider_write=False).apply_rules_to_email_id(email_id)
             except Exception as exc:
                 logger.warning("Rule execution failed for processed email %s: %s", email_id, exc)
+
+            # Emit WS alert + event bus for high-confidence scam detections
+            try:
+                cat = result.get("category", "")
+                conf = result.get("confidence", 0)
+                if cat in ("Scam", "Phishing", "Spam") and conf >= 0.7:
+                    from backend.api.ws_alerts import emit_scam_detected
+                    asyncio.create_task(emit_scam_detected(
+                        email_id=str(email_id),
+                        sender_email=email.sender_email or "",
+                        subject=email.subject or "",
+                        confidence=conf,
+                        reasons=result.get("scam_reasons", []),
+                        category=cat,
+                    ))
+            except Exception:
+                pass
+
             return {"status": "success", "email_id": email_id, "classification": result, "rule_summary": rule_summary}
 
         return {"status": "success", "classification": result}

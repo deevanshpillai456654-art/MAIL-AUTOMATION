@@ -79,10 +79,21 @@
     templates:   ['Templates',    'Reusable reply, rule and reporting templates.'],
     reports:     ['Analytics',    'Generate operational, business, forwarding, AI and inbox reports.'],
     connectors:  ['Connectors',   'Install, configure and monitor integrations — Gmail, Slack, WhatsApp, Shopify, webhooks and plugins.'],
+    ocr:         ['OCR Engine',   'Scan PDFs, images and emails — extract text and structured fields like invoice numbers, dates and amounts.'],
+    workflows:   ['Workflow Engine',    'Build, activate and monitor AI-native operational workflows — from inbox triage to threat escalation.'],
+    command:     ['Command Center',    'Unified operational intelligence — real-time event timeline, AI insights, autonomous agents, and system health.'],
+    webhooks:    ['Webhooks',     'Push platform events to Slack, PagerDuty, n8n or any HTTP endpoint with HMAC-signed payloads.'],
     admin:       ['Admin',        'Manage governance, users, roles, provider settings, queues and update controls.'],
     settings:    ['Settings',     'General, accounts, AI, automations, notifications, security, integrations, updates and advanced.']
   };
   PAGES.dashboard = ['Dashboard', 'Operational overview - mailboxes, inbox health, AI processing, and automations.'];
+  PAGES.dispatches = ['Dispatches', 'Scheduled operational digests — generate and deliver platform reports on a recurring schedule.'];
+  PAGES.playbooks  = ['Playbooks',  'Automation sequences — trigger workflows, webhooks, notifications and incident comments in response to platform events.'];
+  PAGES.sla         = ['SLA Tracker', 'Response and resolution time limits per severity — automatic breach detection and event emission.'];
+  PAGES.maintenance = ['Maintenance', 'Schedule planned downtime windows — suppresses alerts, incidents and SLA tracking for the duration.'];
+  PAGES['api-keys'] = ['API Keys',    'Manage named API keys for external integrations — hashed storage, scope control, expiry and rotation.'];
+  PAGES.oncall      = ['On-call',     'Rotation schedules and escalation policies — automatic escalation events for unacknowledged incidents.'];
+  PAGES.runbooks    = ['Runbooks',   'Human-readable incident response and operational documentation with full version history and search.'];
 
   const FALLBACK_ADMIN_SECTIONS = [
     ['User Management','Manage users, invites and account ownership.'],
@@ -156,6 +167,43 @@
     return error.client_message || error.message || error.status || JSON.stringify(error).slice(0, 220);
   }
 
+  async function refreshConnectorFeatureNavigation() {
+    const result = await api('/api/connector-panel/marketplace/connectors?tenant_id=default');
+    const connectors = result.ok && Array.isArray(result.data) ? result.data : [];
+    const installedIds = new Set(
+      connectors
+        .filter(connector => connector && connector.is_installed)
+        .map(connector => connector.id)
+        .filter(Boolean)
+    );
+    const installedCategories = new Set(
+      connectors
+        .filter(connector => connector && connector.is_installed)
+        .map(connector => String(connector.category || '').toLowerCase())
+        .filter(Boolean)
+    );
+    $$('[data-requires-connector], [data-requires-connector-category], [data-requires-active-connector]').forEach(el => {
+      const requiredIds = String(el.dataset.requiresConnector || '').split(/\s+/).filter(Boolean);
+      const requiredCategories = String(el.dataset.requiresConnectorCategory || '').toLowerCase().split(/\s+/).filter(Boolean);
+      const needsAnyConnector = el.hasAttribute('data-requires-active-connector');
+      const visible = (
+        (!requiredIds.length || requiredIds.some(id => installedIds.has(id))) &&
+        (!requiredCategories.length || requiredCategories.some(category => installedCategories.has(category))) &&
+        (!needsAnyConnector || installedIds.size > 0)
+      );
+      el.hidden = !visible;
+      el.setAttribute('aria-hidden', visible ? 'false' : 'true');
+      el.tabIndex = visible ? 0 : -1;
+    });
+    const activeView = document.querySelector(`.nav-btn[data-view="${state.currentView}"]`);
+    if (activeView?.hidden) showView('connectors');
+  }
+
+  window.addEventListener('message', event => {
+    if (event.origin !== location.origin) return;
+    if (event.data?.type === 'connectors:changed') refreshConnectorFeatureNavigation();
+  });
+
   // ── Toasts ──────────────────────────────────────────────────────────────────
   function toast(title, msg = '', tone = 'info') {
     const wrap = $('toastWrap');
@@ -169,6 +217,8 @@
 
   // ── View routing ────────────────────────────────────────────────────────────
   function showView(view, settingsTab) {
+    const requestedNav = document.querySelector(`.nav-btn[data-view="${view}"]`);
+    if (requestedNav?.hidden) view = 'connectors';
     state.currentView = view;
     $$('.view').forEach(el => el.classList.toggle('active', el.id === `view-${view}`));
     $$('.nav-btn').forEach(btn => {
@@ -193,6 +243,22 @@
         frame.src = '/connectors-panel?t=' + Date.now();
         frame.dataset.loaded = '1';
       }
+    }
+    if (view === 'ocr')       initOCRView();
+    if (view === 'workflows') initWorkflowsView();
+    if (view === 'webhooks')   initWebhooksView();
+    if (view === 'dispatches') initDispatchesView();
+    if (view === 'playbooks')  initPlaybooksView();
+    if (view === 'sla')         initSlaView();
+    if (view === 'maintenance') initMaintenanceView();
+    if (view === 'api-keys')   initApiKeysView();
+    if (view === 'oncall')     initOncallView();
+    if (view === 'runbooks')   initRunbooksView();
+    if (view === 'command')   initCommandCenterView();
+    // Keep event stream alive while on command center; close when navigating away
+    if (view !== 'command' && _cmdWs && _cmdWs.readyState === WebSocket.OPEN) {
+      try { _cmdWs.close(); } catch (_) {}
+      _cmdWs = null;
     }
     window.scrollTo({top:0, behavior:'smooth'});
   }
@@ -646,6 +712,453 @@
     const sync = data.sync || {};
     if ($('syncPillText')) $('syncPillText').textContent = sync.status || 'Ready';
     if ($('sideSyncInterval')) $('sideSyncInterval').textContent = `${sync.interval || 20}s`;
+    _loadDashIntelStrip();
+  }
+
+  async function _loadDashIntelStrip() {
+    const strip = $('dashIntelStrip');
+    if (!strip) return;
+
+    const r = await api('/api/v1/telemetry/summary');
+    if (!r.ok) return;
+
+    const d = r.data;
+    const scoreColor = s => s >= 80 ? '#16a34a' : s >= 60 ? '#2563eb' : s >= 40 ? '#d97706' : '#dc2626';
+    const metrics = d.metrics || [];
+
+    const cards = [
+      // Health score card
+      `<button class="action-card" data-open-view="command" type="button" style="min-width:130px;text-align:left;padding:10px 14px;gap:4px;">
+        <div style="font-size:28px;font-weight:800;color:${scoreColor(d.health_score)};line-height:1;">${d.health_score}</div>
+        <strong style="font-size:11px;">Platform Health</strong>
+        <span style="font-size:11px;color:var(--text-muted);">${esc(d.health_status)}</span>
+      </button>`,
+      // Dynamic metric cards from telemetry
+      ...metrics.map(m => {
+        const alertColor = m.alert ? '#dc2626' : (m.trend === 'up' && !m.alert ? '#16a34a' : 'var(--accent)');
+        const view = m.id === 'active_threats' ? 'security' : m.id === 'workflow_success' ? 'workflows' : 'command';
+        return `<button class="action-card" data-open-view="${view}" type="button" style="min-width:130px;text-align:left;padding:10px 14px;gap:4px;">
+          <div style="font-size:28px;font-weight:800;color:${alertColor};line-height:1;">${m.value}${esc(m.unit || '')}</div>
+          <strong style="font-size:11px;">${esc(m.label)}</strong>
+          <span style="font-size:11px;color:var(--text-muted);">${m.alert ? '⚠ Needs attention' : (m.trend === 'up' ? '↑ Trending up' : 'Nominal')}</span>
+        </button>`;
+      }),
+    ];
+
+    strip.innerHTML = cards.join('');
+    strip.querySelectorAll('[data-open-view]').forEach(btn => {
+      btn.addEventListener('click', () => showView(btn.dataset.openView));
+    });
+  }
+
+  // ── OCR Engine ───────────────────────────────────────────────────────────────
+
+  let _ocrFile       = null;   // selected file for single scan
+  let _ocrLastResult = null;   // last scan result (for copy/download)
+  let _ocrBatchFiles = [];     // batch file list
+  let _ocrReady      = false;  // setup runs exactly once
+  let _ocrEmails     = [];     // cached email list to avoid large data-attributes
+
+  function initOCRView() {
+    if (_ocrReady) {
+      // Re-entry: just reload the active tab's data
+      const activeTab = document.querySelector('.ocr-tab.active')?.dataset?.ocrTab;
+      if (activeTab === 'history') _loadOcrHistory();
+      if (activeTab === 'email')   _loadOcrEmails();
+      return;
+    }
+    _ocrReady = true;
+    _setupOcrTabs();
+    _setupDropZone();
+    _setupBatchZone();
+    _loadOcrHistory();
+  }
+
+  function _setupOcrTabs() {
+    $$('.ocr-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const id = tab.dataset.ocrTab;
+        $$('.ocr-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+        $$('.ocr-panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        tab.setAttribute('aria-selected', 'true');
+        const panel = document.getElementById(`ocrTab-${id}`);
+        if (panel) panel.classList.add('active');
+        if (id === 'history') _loadOcrHistory();
+        if (id === 'email')   _loadOcrEmails();
+      });
+    });
+    $('ocrRefreshEmailsBtn')?.addEventListener('click', _loadOcrEmails);
+    $('ocrClearHistoryBtn')?.addEventListener('click', async () => {
+      await api('/api/v1/ocr/history', { method: 'DELETE' });
+      toast('Cleared', 'OCR history cleared.', 'ok');
+      _loadOcrHistory();
+    });
+  }
+
+  function _setupDropZone() {
+    const zone  = $('ocrDropZone');
+    const input = $('ocrFileInput');
+    const btn   = $('ocrScanBtn');
+    if (!zone || !input || !btn) return;
+
+    // Open file picker on zone click (stop propagation to prevent double-fire)
+    zone.addEventListener('click', e => { if (e.target !== input) input.click(); });
+    zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } });
+
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', e => { if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      const f = e.dataTransfer.files[0];
+      if (f) _setOcrFile(f);
+    });
+
+    input.addEventListener('change', () => {
+      if (input.files && input.files[0]) _setOcrFile(input.files[0]);
+    });
+
+    btn.addEventListener('click', _runOcrScan);
+
+    $('ocrCopyBtn')?.addEventListener('click', () => {
+      if (!_ocrLastResult?.raw_text) return;
+      navigator.clipboard.writeText(_ocrLastResult.raw_text)
+        .then(() => toast('Copied', 'Text copied to clipboard.', 'ok'));
+    });
+    $('ocrDownloadBtn')?.addEventListener('click', () => {
+      if (!_ocrLastResult) return;
+      _downloadJson(_ocrLastResult, _ocrLastResult.filename || 'ocr-result');
+    });
+  }
+
+  function _setOcrFile(file) {
+    _ocrFile = file;
+    const info = $('ocrFileInfo');
+    const btn  = $('ocrScanBtn');
+    if (info) { info.classList.remove('hidden'); info.textContent = `${file.name}  ·  ${(file.size / 1024).toFixed(1)} KB`; }
+    if (btn)  btn.disabled = false;
+  }
+
+  async function _runOcrScan() {
+    if (!_ocrFile) { toast('No file', 'Select or drop a file first.', 'error'); return; }
+    const btn  = $('ocrScanBtn');
+    const mode = document.querySelector('input[name="ocrMode"]:checked')?.value || 'auto';
+
+    if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
+    _renderResult($('ocrResultBody'), null, 'loading');
+
+    const fd = new FormData();
+    fd.append('file', _ocrFile);
+    fd.append('mode', mode);
+
+    try {
+      const res  = await fetch('/api/v1/ocr/scan', { method: 'POST', credentials: 'same-origin', body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `Server error ${res.status}`);
+      _ocrLastResult = data;
+      _renderResult($('ocrResultBody'), data);
+      const cb = $('ocrCopyBtn'); if (cb) cb.hidden = false;
+      const db = $('ocrDownloadBtn'); if (db) db.hidden = false;
+    } catch (err) {
+      _renderResult($('ocrResultBody'), null, 'error', err.message);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="16" height="12" rx="1"/><path d="M5 7h6M5 10h4"/></svg> Scan Document`;
+      }
+    }
+  }
+
+  function _renderResult(el, data, state = 'done', errMsg = '') {
+    if (!el) return;
+    if (state === 'loading') {
+      el.innerHTML = '<div class="empty-state"><div class="spinner" aria-hidden="true"></div><p style="margin-top:10px;font-size:13px;">Extracting text…</p></div>';
+      return;
+    }
+    if (state === 'error') {
+      el.innerHTML = `<div class="empty-state" style="padding:20px;">
+        <p style="color:var(--red);font-size:13px;font-weight:500;">Scan failed</p>
+        <p style="color:var(--text-muted);font-size:12px;margin-top:6px;">${esc(errMsg || 'Unknown error')}</p>
+      </div>`;
+      return;
+    }
+    if (!data) return;
+
+    const fields    = data.fields || {};
+    const fieldKeys = Object.keys(fields).filter(k => !k.startsWith('_'));
+    const dtype     = fields._detected_type || data.mode || 'document';
+
+    el.innerHTML = `
+      <div style="display:flex;gap:8px;align-items:center;padding:10px 0 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+        <span style="padding:2px 8px;border-radius:10px;background:var(--accent-subtle);color:var(--accent);font-size:11px;font-weight:600;">${esc(dtype)}</span>
+        <span style="font-size:12px;color:var(--text-muted);">${data.page_count || 1} page(s)</span>
+        <span style="font-size:12px;color:var(--text-muted);">${data.word_count || 0} words</span>
+        <span style="font-size:12px;color:var(--text-muted);flex:1;">${esc(data.filename || '')}</span>
+      </div>
+      ${fieldKeys.length ? `
+        <h3 style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin:14px 0 8px;">Extracted Fields</h3>
+        <table style="width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+          <tbody>${fieldKeys.map(k => `<tr>
+            <td style="padding:7px 12px;font-size:12px;color:var(--text-muted);width:36%;border-bottom:1px solid var(--border);white-space:nowrap;">${esc(k.replace(/_/g, ' '))}</td>
+            <td style="padding:7px 12px;font-size:13px;font-weight:500;border-bottom:1px solid var(--border);">${esc(String(fields[k]))}</td>
+          </tr>`).join('')}</tbody>
+        </table>` : '<p style="margin:14px 0 8px;font-size:12px;color:var(--text-muted);">No structured fields detected.</p>'}
+      <h3 style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin:14px 0 8px;">Raw Text</h3>
+      <pre style="white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.65;background:var(--bg);border:1px solid var(--border);padding:14px;border-radius:6px;max-height:400px;overflow-y:auto;">${esc((data.raw_text || '').substring(0, 15000))}</pre>`;
+  }
+
+  async function _loadOcrEmails() {
+    const list = $('ocrEmailList');
+    if (!list) return;
+    list.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+
+    const res = await api('/api/v1/emails?limit=50');
+    _ocrEmails = (res.ok && Array.isArray(res.data?.emails)) ? res.data.emails : [];
+
+    if (!_ocrEmails.length) {
+      list.innerHTML = `<div class="empty-state" style="padding:40px 20px;">
+        <p style="font-weight:500;">No emails loaded</p>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Connect a mailbox account first, or use the Scan Document tab.</p>
+      </div>`;
+      return;
+    }
+
+    list.innerHTML = `<table style="width:100%;border-collapse:collapse;">
+      <thead><tr style="background:var(--bg);">
+        <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);">Subject</th>
+        <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);">From</th>
+        <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);">Category</th>
+        <th style="padding:9px 14px;border-bottom:1px solid var(--border);width:80px;"></th>
+      </tr></thead>
+      <tbody>${_ocrEmails.map((e, i) => `<tr>
+        <td style="padding:9px 14px;font-size:13px;border-bottom:1px solid var(--border);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(e.subject||'')}">${esc(e.subject || '(no subject)')}</td>
+        <td style="padding:9px 14px;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(e.sender || e.sender_email || '')}</td>
+        <td style="padding:9px 14px;font-size:12px;border-bottom:1px solid var(--border);">${esc(e.category || '—')}</td>
+        <td style="padding:9px 14px;border-bottom:1px solid var(--border);">
+          <button class="btn sm ocr-email-scan-btn" type="button" data-ocr-idx="${i}">Scan</button>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+
+    // Event delegation — attach once; remove-and-re-add to avoid duplicates on refresh
+    list.removeEventListener('click', _ocrEmailListClick);
+    list.addEventListener('click', _ocrEmailListClick);
+  }
+
+  function _ocrEmailListClick(e) {
+    const btn = e.target.closest('[data-ocr-idx]');
+    if (!btn) return;
+    e.stopPropagation();
+    const em = _ocrEmails[Number(btn.dataset.ocrIdx)];
+    if (!em) return;
+    _scanEmailContent({
+      subject:   em.subject   || '',
+      sender:    em.sender    || em.sender_email || '',
+      body_text: em.body_text || em.ai_summary   || '',
+      body_html: em.body_html || '',
+    });
+  }
+
+  async function _scanEmailContent(payload) {
+    const resultPanel = $('ocrEmailResultPanel');
+    const resultBody  = $('ocrEmailResultBody');
+    const resultTitle = $('ocrEmailResultTitle');
+    if (!resultPanel || !resultBody) return;
+
+    resultPanel.hidden = false;
+    if (resultTitle) resultTitle.textContent = payload.subject || 'Email Scan';
+    _renderResult(resultBody, null, 'loading');
+    resultPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    try {
+      const res  = await fetch('/api/v1/ocr/scan-email', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `Server error ${res.status}`);
+      _ocrLastResult = data;
+      _renderResult(resultBody, data);
+      const copyBtn = $('ocrEmailCopyBtn');
+      if (copyBtn) {
+        const newBtn = copyBtn.cloneNode(true); // remove old listeners
+        copyBtn.replaceWith(newBtn);
+        newBtn.addEventListener('click', () => {
+          navigator.clipboard.writeText(data.raw_text || '').then(() => toast('Copied', '', 'ok'));
+        });
+      }
+    } catch (err) {
+      _renderResult(resultBody, null, 'error', err.message);
+    }
+  }
+
+  async function _loadOcrHistory() {
+    const list = $('ocrHistoryList');
+    if (!list) return;
+    list.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+
+    const res  = await api('/api/v1/ocr/history?limit=50');
+    const jobs = res.ok ? (res.data?.jobs || []) : [];
+
+    if (!jobs.length) {
+      list.innerHTML = '<div class="empty-state" style="padding:40px 20px;"><p style="font-weight:500;">No scans yet</p><p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Upload a document or scan an email to get started.</p></div>';
+      return;
+    }
+
+    list.innerHTML = `<table style="width:100%;border-collapse:collapse;">
+      <thead><tr style="background:var(--bg);">
+        <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);">File / Email</th>
+        <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);">Mode</th>
+        <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);">Words</th>
+        <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);">Scanned</th>
+        <th style="padding:9px 14px;border-bottom:1px solid var(--border);"></th>
+      </tr></thead>
+      <tbody>${jobs.map(j => `<tr>
+        <td style="padding:9px 14px;font-size:13px;border-bottom:1px solid var(--border);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(j.filename||'—')}</td>
+        <td style="padding:9px 14px;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border);">${esc(j.mode||'auto')}</td>
+        <td style="padding:9px 14px;font-size:12px;border-bottom:1px solid var(--border);">${j.word_count||0}</td>
+        <td style="padding:9px 14px;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border);">${j.created_at ? new Date(j.created_at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+        <td style="padding:9px 14px;border-bottom:1px solid var(--border);">
+          <div style="display:flex;gap:6px;">
+            <button class="btn sm" type="button" data-hview="${esc(j.id)}">View</button>
+            <button class="btn sm" style="color:var(--red);" type="button" data-hdel="${esc(j.id)}">Delete</button>
+          </div>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+
+    list.querySelectorAll('[data-hview]').forEach(btn => btn.addEventListener('click', async () => {
+      const r = await api(`/api/v1/ocr/result/${btn.dataset.hview}`);
+      if (r.ok) { _ocrLastResult = r.data; _showOcrModal(r.data); }
+      else toast('Error', 'Could not load result.', 'error');
+    }));
+    list.querySelectorAll('[data-hdel]').forEach(btn => btn.addEventListener('click', async () => {
+      await api(`/api/v1/ocr/history/${btn.dataset.hdel}`, { method: 'DELETE' });
+      _loadOcrHistory();
+    }));
+  }
+
+  function _showOcrModal(data) {
+    document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-overlay';
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:740px;width:96%;display:flex;flex-direction:column;max-height:90vh;">
+        <div class="modal-head" style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);">
+          <strong style="flex:1;font-size:14px;">${esc(data.filename || 'OCR Result')}</strong>
+          <button class="btn sm" type="button" id="_ocrMCopy">Copy Text</button>
+          <button class="btn sm primary" type="button" id="_ocrMDl">Download JSON</button>
+          <button class="icon-btn" type="button" id="_ocrMClose" style="font-size:18px;line-height:1;padding:2px 6px;">×</button>
+        </div>
+        <div style="padding:16px 18px;overflow-y:auto;flex:1;" id="_ocrMBody"></div>
+      </div>`;
+    document.body.appendChild(wrap);
+    _renderResult(document.getElementById('_ocrMBody'), data);
+    document.getElementById('_ocrMClose').onclick = () => wrap.remove();
+    document.getElementById('_ocrMCopy').onclick  = () => { navigator.clipboard.writeText(data.raw_text||''); toast('Copied','','ok'); };
+    document.getElementById('_ocrMDl').onclick    = () => _downloadJson(data, data.filename || 'ocr');
+    wrap.addEventListener('click', e => { if (e.target === wrap) wrap.remove(); });
+  }
+
+  function _downloadJson(obj, name) {
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name.replace(/[^a-z0-9_\-\.]/gi, '_') + '.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
+  function _setupBatchZone() {
+    const zone     = $('batchDropZone');
+    const input    = $('batchFileInput');
+    const runBtn   = $('batchRunBtn');
+    const clearBtn = $('batchClearBtn');
+    if (!zone || !input) return;
+
+    zone.addEventListener('click', e => { if (e.target !== input) input.click(); });
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', e => { if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
+    zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag-over'); _addBatch(Array.from(e.dataTransfer.files)); });
+    input.addEventListener('change', () => _addBatch(Array.from(input.files)));
+    runBtn?.addEventListener('click', _runBatch);
+    clearBtn?.addEventListener('click', () => { _ocrBatchFiles = []; _renderBatchList(); });
+  }
+
+  function _addBatch(files) {
+    files.slice(0, 20 - _ocrBatchFiles.length).forEach(f => {
+      if (!_ocrBatchFiles.find(x => x.name === f.name && x.size === f.size)) _ocrBatchFiles.push(f);
+    });
+    _renderBatchList();
+  }
+
+  function _renderBatchList() {
+    const list   = $('batchFileList');
+    const runBtn = $('batchRunBtn');
+    if (!list) return;
+    if (!_ocrBatchFiles.length) { list.innerHTML = ''; if (runBtn) runBtn.disabled = true; return; }
+    if (runBtn) runBtn.disabled = false;
+    list.innerHTML = _ocrBatchFiles.map((f, i) => `
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:5px;margin-bottom:4px;font-size:12px;">
+        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h8l4 4v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M12 4v4h4"/></svg>
+        <span style="flex:1;">${esc(f.name)}</span>
+        <span style="color:var(--text-muted);">${(f.size / 1024).toFixed(1)} KB</span>
+        <button class="icon-btn" type="button" data-brm="${i}" style="font-size:16px;">×</button>
+      </div>`).join('');
+    list.querySelectorAll('[data-brm]').forEach(btn => btn.addEventListener('click', () => {
+      _ocrBatchFiles.splice(Number(btn.dataset.brm), 1); _renderBatchList();
+    }));
+  }
+
+  async function _runBatch() {
+    const out    = $('batchResults');
+    const runBtn = $('batchRunBtn');
+    if (!out || !_ocrBatchFiles.length) return;
+    runBtn.disabled = true; runBtn.textContent = 'Processing…';
+    out.innerHTML = `<div class="empty-state"><div class="spinner"></div><p style="margin-top:10px;font-size:13px;">Processing ${_ocrBatchFiles.length} file(s)…</p></div>`;
+
+    const results = [];
+    for (let i = 0; i < _ocrBatchFiles.length; i++) {
+      const f = _ocrBatchFiles[i];
+      runBtn.textContent = `Processing ${i + 1}/${_ocrBatchFiles.length}…`;
+      const fd = new FormData();
+      fd.append('file', f); fd.append('mode', 'auto');
+      try {
+        const res  = await fetch('/api/v1/ocr/scan', { method: 'POST', credentials: 'same-origin', body: fd });
+        const data = await res.json().catch(() => ({}));
+        results.push({ name: f.name, ok: res.ok, data: res.ok ? data : null, err: res.ok ? null : (data.detail || 'Failed') });
+      } catch (e) { results.push({ name: f.name, ok: false, data: null, err: e.message }); }
+    }
+
+    out.innerHTML = `<div style="margin-bottom:12px;font-size:13px;font-weight:600;">Batch complete — ${results.filter(r=>r.ok).length}/${results.length} succeeded</div>
+      ${results.map(r => `
+        <div style="margin-bottom:10px;border:1px solid var(--border);border-radius:7px;overflow:hidden;">
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--bg);border-bottom:${r.ok?'1px solid var(--border)':'none'};">
+            <span style="font-size:11px;font-weight:700;color:${r.ok?'var(--green)':'var(--red)'};">${r.ok?'✓':'✗'}</span>
+            <span style="font-size:13px;font-weight:500;flex:1;">${esc(r.name)}</span>
+            ${r.ok ? `<span style="font-size:12px;color:var(--text-muted);">${r.data.word_count||0} words</span>
+              <button class="btn sm" data-bc="${esc(r.data.job_id)}">Copy</button>
+              <button class="btn sm" data-bd="${esc(r.data.job_id)}">JSON</button>` : `<span style="font-size:12px;color:var(--red);">${esc(r.err||'')}</span>`}
+          </div>
+          ${r.ok && r.data ? `<div style="padding:8px 14px;display:flex;flex-wrap:wrap;gap:4px;">
+            ${Object.entries(r.data.fields||{}).filter(([k])=>!k.startsWith('_')).slice(0,6).map(([k,v])=>`
+              <span style="padding:2px 8px;background:var(--accent-subtle);color:var(--accent);border-radius:10px;font-size:11px;"><b>${esc(k.replace(/_/g,' '))}:</b> ${esc(String(v))}</span>`).join('')}
+          </div>` : ''}
+        </div>`).join('')}`;
+
+    out.querySelectorAll('[data-bc]').forEach(btn => btn.addEventListener('click', async () => {
+      const r = await api(`/api/v1/ocr/result/${btn.dataset.bc}`);
+      if (r.ok) navigator.clipboard.writeText(r.data.raw_text||'').then(() => toast('Copied','','ok'));
+    }));
+    out.querySelectorAll('[data-bd]').forEach(btn => btn.addEventListener('click', async () => {
+      const r = await api(`/api/v1/ocr/result/${btn.dataset.bd}`);
+      if (r.ok) _downloadJson(r.data, r.data.filename || btn.dataset.bd);
+    }));
+
+    runBtn.disabled = false; runBtn.textContent = 'Run Batch OCR';
   }
 
   async function loadCertification() {
@@ -1912,6 +2425,2099 @@ ${section('Model Health', modelHealth)}
     });
   }
 
+  // ── Workflow Engine ──────────────────────────────────────────────────────────
+  let _wfReady = false;
+
+  function initWorkflowsView() {
+    if (_wfReady) {
+      const activeTab = document.querySelector('#view-workflows .ocr-tab.active')?.dataset?.ocrTab;
+      if (activeTab === 'active')      { _loadWfStats(); _loadWfActive(); }
+      if (activeTab === 'marketplace') _loadWfMarketplace();
+      if (activeTab === 'history')     _loadWfHistory();
+      return;
+    }
+    _wfReady = true;
+    _setupWfTabs();
+    _loadWfStats();
+    _loadWfActive();
+  }
+
+  function _setupWfTabs() {
+    const section = $('view-workflows');
+    if (!section) return;
+    const tabs   = $$('.ocr-tab', section);
+    const panels = $$('.ocr-panel', section);
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const id = tab.dataset.ocrTab;
+        tabs.forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+        panels.forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        tab.setAttribute('aria-selected', 'true');
+        const panel = $(`wfTab-${id}`);
+        if (panel) panel.classList.add('active');
+        if (id === 'active')      { _loadWfStats(); _loadWfActive(); }
+        if (id === 'marketplace') _loadWfMarketplace();
+        if (id === 'history')     _loadWfHistory();
+      });
+    });
+
+    $('wfRefreshHistoryBtn')?.addEventListener('click', _loadWfHistory);
+  }
+
+  async function _loadWfStats() {
+    const strip = $('wfStatsStrip');
+    if (!strip) return;
+    const r = await api('/api/v1/workflows/stats');
+    if (!r.ok) { strip.innerHTML = ''; return; }
+    const s = r.data;
+    const successRate = s.total_runs > 0 ? Math.round((s.total_succeeded / s.total_runs) * 100) : 100;
+    strip.innerHTML = [
+      ['Total Workflows',    s.total_workflows  ?? 0],
+      ['Active',             s.active_workflows ?? 0],
+      ['Total Runs',         s.total_runs       ?? 0],
+      ['Success Rate',       `${successRate}%`],
+      ['Last 24h Succeeded', s.last_24h?.succeeded ?? 0],
+      ['Last 24h Failed',    s.last_24h?.failed    ?? 0],
+    ].map(([label, val]) => `
+      <div style="background:var(--surface-raised);border:1px solid var(--border);border-radius:8px;padding:10px 16px;min-width:120px;">
+        <div style="font-size:22px;font-weight:700;color:var(--accent);">${esc(String(val))}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${esc(label)}</div>
+      </div>`).join('');
+  }
+
+  async function _loadWfActive() {
+    const list = $('wfActiveList');
+    if (!list) return;
+    list.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+    const r = await api('/api/v1/workflows');
+    if (!r.ok) {
+      list.innerHTML = `<div class="empty-state"><p>Failed to load workflows: ${esc(msgFromError(r.error))}</p></div>`;
+      return;
+    }
+    const items = r.data.workflows || [];
+    if (!items.length) {
+      list.innerHTML = `<div class="empty-state"><h3>No workflows yet</h3><p>Head to the <strong>Marketplace</strong> tab to activate a workflow template.</p></div>`;
+      return;
+    }
+    list.innerHTML = items.map(w => `
+      <article class="panel" style="margin-bottom:12px;" data-wf-id="${esc(w.id)}">
+        <div class="panel-head">
+          <div>
+            <h2>${esc(w.name)}</h2>
+            <p>${esc(w.description || '')}</p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <span class="badge ${w.is_active ? 'ok' : 'neutral'}">${w.is_active ? 'Active' : 'Inactive'}</span>
+            <button class="btn sm wf-run-btn"    type="button" data-wf-id="${esc(w.id)}" ${!w.is_active ? 'disabled' : ''}>Run</button>
+            <button class="btn sm ghost wf-toggle-btn" type="button" data-wf-id="${esc(w.id)}" data-wf-active="${w.is_active ? '1' : '0'}">${w.is_active ? 'Deactivate' : 'Activate'}</button>
+            <button class="btn sm ghost wf-delete-btn" type="button" data-wf-id="${esc(w.id)}" style="color:var(--danger)">Delete</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:24px;font-size:12px;color:var(--text-muted);margin-top:8px;flex-wrap:wrap;">
+          <span>Trigger: <strong>${esc(w.trigger_type || 'manual')}</strong></span>
+          <span>Category: <strong>${esc(w.category || 'general')}</strong></span>
+          <span>Runs: <strong>${esc(String(w.run_count ?? 0))}</strong></span>
+          <span>Last run: <strong>${w.last_run_at ? new Date(w.last_run_at).toLocaleString() : 'Never'}</strong></span>
+        </div>
+      </article>`).join('');
+
+    list.querySelectorAll('.wf-run-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.wfId;
+        btn.disabled = true; btn.textContent = 'Running…';
+        const r2 = await api(`/api/v1/workflows/${id}/execute`, { method: 'POST', body: JSON.stringify({}) });
+        if (r2.ok) {
+          toast('Workflow started', 'Execution dispatched in background.', 'ok');
+          setTimeout(_loadWfHistory, 1800);
+        } else {
+          toast('Run failed', msgFromError(r2.error), 'error');
+        }
+        btn.disabled = false; btn.textContent = 'Run';
+      });
+    });
+
+    list.querySelectorAll('.wf-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id     = btn.dataset.wfId;
+        const active = btn.dataset.wfActive === '1';
+        btn.disabled = true; btn.textContent = active ? 'Deactivating…' : 'Activating…';
+        const r2 = await api(`/api/v1/workflows/${id}/${active ? 'deactivate' : 'activate'}`, { method: 'POST' });
+        if (r2.ok) {
+          toast(active ? 'Workflow deactivated' : 'Workflow activated', '', 'ok');
+          _loadWfStats();
+          _loadWfActive();
+        } else {
+          toast('Failed', msgFromError(r2.error), 'error');
+          btn.disabled = false;
+          btn.textContent = active ? 'Deactivate' : 'Activate';
+        }
+      });
+    });
+
+    list.querySelectorAll('.wf-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.wfId;
+        if (!confirm('Delete this workflow permanently?')) return;
+        btn.disabled = true; btn.textContent = 'Deleting…';
+        const r2 = await api(`/api/v1/workflows/${id}`, { method: 'DELETE' });
+        if (r2.ok) {
+          toast('Deleted', 'Workflow removed.', 'ok');
+          _loadWfStats();
+          _loadWfActive();
+        } else {
+          toast('Delete failed', msgFromError(r2.error), 'error');
+          btn.disabled = false; btn.textContent = 'Delete';
+        }
+      });
+    });
+  }
+
+  async function _loadWfMarketplace() {
+    const grid      = $('wfTemplateGrid');
+    const recoLabel = $('wfRecoLabel');
+    if (!grid) return;
+    grid.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+
+    const [tmplRes, recoRes] = await Promise.all([
+      api('/api/v1/workflows/templates'),
+      api('/api/v1/workflows/recommendations'),
+    ]);
+
+    if (!tmplRes.ok) {
+      grid.innerHTML = `<div class="empty-state"><p>Failed to load templates: ${esc(msgFromError(tmplRes.error))}</p></div>`;
+      return;
+    }
+
+    const templates = tmplRes.data.templates || [];
+    const recoIds   = new Set((recoRes.ok ? recoRes.data.recommendations || [] : []).map(r => r.template_id));
+    if (recoLabel) recoLabel.style.display = recoIds.size ? '' : 'none';
+
+    if (!templates.length) {
+      grid.innerHTML = '<div class="empty-state"><h3>No templates available</h3></div>';
+      return;
+    }
+
+    const sorted = [...templates].sort((a, b) => {
+      const aRec = recoIds.has(a.template_id) ? 1 : 0;
+      const bRec = recoIds.has(b.template_id) ? 1 : 0;
+      return bRec - aRec;
+    });
+
+    grid.innerHTML = sorted.map(t => `
+      <article class="panel" style="display:flex;flex-direction:column;gap:10px;" data-tmpl-id="${esc(t.template_id)}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+          <div>
+            <h3 style="font-size:14px;font-weight:600;margin:0 0 4px;">${esc(t.name)}</h3>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">${esc(t.description || '')}</p>
+          </div>
+          ${recoIds.has(t.template_id) ? '<span class="badge ok" style="flex-shrink:0;white-space:nowrap;">Recommended</span>' : ''}
+        </div>
+        <div style="display:flex;gap:12px;font-size:11px;color:var(--text-muted);flex-wrap:wrap;">
+          <span>Trigger: <strong>${esc(t.trigger_type || 'manual')}</strong></span>
+          <span>Steps: <strong>${t.steps?.length ?? 0}</strong></span>
+          ${t.category ? `<span>Category: <strong>${esc(t.category)}</strong></span>` : ''}
+          ${t.impact   ? `<span>Impact: <strong>${esc(t.impact)}</strong></span>`    : ''}
+        </div>
+        <button class="btn sm wf-activate-tmpl-btn" type="button" data-tmpl-id="${esc(t.template_id)}">Activate</button>
+      </article>`).join('');
+
+    grid.querySelectorAll('.wf-activate-tmpl-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const tmplId = btn.dataset.tmplId;
+        btn.disabled = true; btn.textContent = 'Activating…';
+        const r2 = await api('/api/v1/workflows', {
+          method: 'POST',
+          body: JSON.stringify({ template_id: tmplId }),
+        });
+        if (r2.ok) {
+          toast('Workflow activated', 'Switch to Active Workflows to manage it.', 'ok');
+          btn.textContent = 'Activated';
+          _loadWfStats();
+        } else {
+          toast('Activation failed', msgFromError(r2.error), 'error');
+          btn.disabled = false; btn.textContent = 'Activate';
+        }
+      });
+    });
+  }
+
+  async function _loadWfHistory() {
+    const list = $('wfHistoryList');
+    if (!list) return;
+    list.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+    const r = await api('/api/v1/workflows/executions/all?limit=100');
+    if (!r.ok) {
+      list.innerHTML = `<div class="empty-state"><p>Failed to load history: ${esc(msgFromError(r.error))}</p></div>`;
+      return;
+    }
+    const items = r.data.executions || [];
+    if (!items.length) {
+      list.innerHTML = '<div class="empty-state"><h3>No executions yet</h3><p>Run a workflow to see its history here.</p></div>';
+      return;
+    }
+    const STATUS_BADGE = { succeeded: 'ok', failed: 'bad', running: 'warn', pending: 'neutral' };
+    list.innerHTML = `<div style="overflow-x:auto;"><table class="data-table"><thead><tr>
+      <th>Workflow</th><th>Trigger</th><th>Status</th><th>Steps</th><th>Duration</th><th>Started</th><th>Error</th>
+    </tr></thead><tbody>${items.map(ex => {
+      const durMs  = ex.duration_ms != null ? ex.duration_ms : (ex.finished_at && ex.started_at ? new Date(ex.finished_at) - new Date(ex.started_at) : null);
+      const dur    = durMs != null ? `${(durMs / 1000).toFixed(1)}s` : (ex.status === 'running' ? 'Running…' : '—');
+      const steps  = ex.step_count ? `${ex.steps_done ?? 0}/${ex.step_count}` : '—';
+      const badge  = STATUS_BADGE[ex.status] || 'neutral';
+      return `<tr>
+        <td>${esc(ex.workflow_name || ex.workflow_id || '—')}</td>
+        <td>${esc(ex.trigger_type || 'manual')}</td>
+        <td><span class="badge ${badge}">${esc(ex.status)}</span></td>
+        <td>${steps}</td>
+        <td>${dur}</td>
+        <td>${ex.started_at ? new Date(ex.started_at).toLocaleString() : '—'}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(ex.error || '')}">${esc(ex.error || '—')}</td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
+  }
+
+  // ── Alert Rules tab ─────────────────────────────────────────────────────────
+
+  let _alertEditId = null;
+  let _alertRulesReady = false;
+
+  function _initAlertRulesListeners() {
+    if (_alertRulesReady) return;
+    _alertRulesReady = true;
+    $('cmdAlertAddBtn')?.addEventListener('click', () => _openAlertModal(null));
+    $('cmdAlertRefreshBtn')?.addEventListener('click', _loadCmdAlerts);
+    $('cmdAlertCancelBtn')?.addEventListener('click', _closeAlertModal);
+    $('cmdAlertModal')?.addEventListener('click', (e) => { if (e.target === $('cmdAlertModal')) _closeAlertModal(); });
+    $('cmdAlertForm')?.addEventListener('submit', async (e) => { e.preventDefault(); await _saveAlertRule(); });
+  }
+
+  async function _loadCmdAlerts() {
+    _initAlertRulesListeners();
+    const metricsEl = $('cmdAlertMetrics');
+    const listEl    = $('cmdAlertRulesList');
+    if (!listEl) return;
+
+    listEl.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+
+    const r = await api('/api/v1/alert-rules/status');
+    if (!r.ok && !r.running) {
+      listEl.innerHTML = '<div class="empty-state">Failed to load alert rules.</div>';
+      return;
+    }
+
+    // Metric snapshot strip
+    const metrics = r.metrics || {};
+    if (metricsEl) {
+      const _metricLabel = {
+        active_threats: 'Active Threats', health_score: 'Health Score',
+        workflow_success_rate: 'WF Success %', running_agents: 'Agents Running',
+        emails_last_1h: 'Emails (1h)', scam_last_24h: 'Scam (24h)',
+      };
+      metricsEl.innerHTML = Object.entries(metrics).map(([k, v]) => `
+        <div class="intel-card" style="min-width:110px;">
+          <div class="intel-card-label">${esc(_metricLabel[k] || k)}</div>
+          <div class="intel-card-value">${typeof v === 'number' ? v.toFixed(v % 1 === 0 ? 0 : 1) : v}</div>
+        </div>`).join('');
+    }
+
+    const rules = r.rules || [];
+    if (!rules.length) {
+      listEl.innerHTML = `<div class="empty-state">No alert rules defined. Click <strong>+ Add Rule</strong> to monitor platform metrics and auto-trigger webhooks on threshold breaches.</div>`;
+      return;
+    }
+
+    const SEV_COLOR = { low: 'var(--text-muted)', medium: 'var(--accent)', high: 'var(--warn)', critical: 'var(--danger)' };
+    listEl.innerHTML = `<div style="display:grid;gap:10px;">${rules.map(rule => {
+      const breached = rule.breached;
+      const badge = breached
+        ? `<span style="font-size:11px;background:var(--danger);color:#fff;padding:2px 8px;border-radius:10px;">BREACHED</span>`
+        : `<span style="font-size:11px;background:var(--surface-alt);color:var(--ok);padding:2px 8px;border-radius:10px;">OK</span>`;
+      return `<div class="panel" style="padding:14px 16px;${breached ? 'border-color:var(--danger);' : ''}">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            ${badge}
+            <div>
+              <div style="font-size:14px;font-weight:600;">${esc(rule.rule_name)}</div>
+              <div style="font-size:11px;color:var(--text-muted);">${esc(rule.metric)} ${esc(rule.operator)} ${rule.threshold} — current: <strong>${rule.current_value ?? '—'}</strong></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <span style="font-size:11px;color:${SEV_COLOR[rule.severity] || 'var(--text-muted)'};">${esc(rule.severity)}</span>
+            <button class="btn sm" type="button" data-alert-edit="${esc(rule.rule_id)}">Edit</button>
+            <button class="btn sm danger" type="button" data-alert-del="${esc(rule.rule_id)}">Delete</button>
+          </div>
+        </div>
+        ${rule.last_breach ? `<div style="margin-top:6px;font-size:11px;color:var(--text-muted);">Last breach: ${esc(rule.last_breach.slice(0,19).replace('T',' '))} UTC · ${rule.breach_count} total</div>` : ''}
+      </div>`;
+    }).join('')}</div>`;
+
+    listEl.querySelectorAll('[data-alert-edit]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const r2 = await api(`/api/v1/alert-rules/${btn.dataset.alertEdit}`);
+        if (r2.ok || r2.id) _openAlertModal(r2);
+        else toast('Failed', msgFromError(r2.error), 'error');
+      });
+    });
+    listEl.querySelectorAll('[data-alert-del]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this alert rule?')) return;
+        const r2 = await api(`/api/v1/alert-rules/${btn.dataset.alertDel}`, { method: 'DELETE' });
+        if (r2.ok || r2.status === 204) { toast('Rule deleted', '', 'ok'); _loadCmdAlerts(); }
+        else toast('Delete failed', msgFromError(r2.error), 'error');
+      });
+    });
+  }
+
+  function _openAlertModal(rule) {
+    _alertEditId = rule ? rule.id : null;
+    $('cmdAlertModalTitle').textContent = rule ? 'Edit Alert Rule' : 'Add Alert Rule';
+    $('cmdAlertName').value      = rule ? rule.name      : '';
+    $('cmdAlertMetric').value    = rule ? rule.metric     : 'active_threats';
+    $('cmdAlertOperator').value  = rule ? rule.operator   : '>';
+    $('cmdAlertThreshold').value = rule ? rule.threshold  : '';
+    $('cmdAlertSeverity').value  = rule ? rule.severity   : 'medium';
+    $('cmdAlertCooldown').value  = rule ? rule.cooldown_min : 30;
+    const modal = $('cmdAlertModal');
+    modal.style.display = 'flex';
+  }
+
+  function _closeAlertModal() {
+    $('cmdAlertModal').style.display = 'none';
+    _alertEditId = null;
+  }
+
+  async function _saveAlertRule() {
+    const body = {
+      name:         $('cmdAlertName').value.trim(),
+      metric:       $('cmdAlertMetric').value,
+      operator:     $('cmdAlertOperator').value,
+      threshold:    parseFloat($('cmdAlertThreshold').value),
+      severity:     $('cmdAlertSeverity').value,
+      cooldown_min: parseInt($('cmdAlertCooldown').value, 10),
+    };
+    const isEdit = Boolean(_alertEditId);
+    const r = await api(
+      isEdit ? `/api/v1/alert-rules/${_alertEditId}` : '/api/v1/alert-rules',
+      { method: isEdit ? 'PATCH' : 'POST', body: JSON.stringify(body) }
+    );
+    if (r.ok || r.id) {
+      toast(isEdit ? 'Rule updated' : 'Rule created', body.name, 'ok');
+      _closeAlertModal();
+      _loadCmdAlerts();
+    } else {
+      toast('Save failed', msgFromError(r.error || r.detail), 'error');
+    }
+  }
+
+  // ── Outbound Webhooks ────────────────────────────────────────────────────────
+
+  let _whReady = false;
+  let _whEditId = null;
+
+  function initWebhooksView() {
+    _loadWebhooks();
+    if (_whReady) return;
+    _whReady = true;
+
+    $('whAddBtn')?.addEventListener('click', () => _openWhModal(null));
+    $('whCancelBtn')?.addEventListener('click', _closeWhModal);
+    $('whModal')?.addEventListener('click', (e) => { if (e.target === $('whModal')) _closeWhModal(); });
+    $('whForm')?.addEventListener('submit', async (e) => { e.preventDefault(); await _saveWebhook(); });
+    $('whTestBtn')?.addEventListener('click', _testWebhook);
+  }
+
+  async function _loadWebhooks() {
+    const statsEl = $('whStats');
+    const listEl  = $('whList');
+    if (!listEl) return;
+
+    const [whR, telR] = await Promise.all([
+      api('/api/v1/webhooks'),
+      api('/api/v1/telemetry/summary'),
+    ]);
+
+    if (statsEl) {
+      const webhooks = whR.ok ? (whR.webhooks || []) : [];
+      const active   = webhooks.filter(w => w.is_active).length;
+      statsEl.innerHTML = `
+        <div class="intel-card" style="min-width:130px;">
+          <div class="intel-card-label">Total Webhooks</div>
+          <div class="intel-card-value">${webhooks.length}</div>
+        </div>
+        <div class="intel-card" style="min-width:130px;">
+          <div class="intel-card-label">Active</div>
+          <div class="intel-card-value" style="color:var(--ok)">${active}</div>
+        </div>
+        <div class="intel-card" style="min-width:130px;">
+          <div class="intel-card-label">Inactive</div>
+          <div class="intel-card-value" style="color:var(--text-muted)">${webhooks.length - active}</div>
+        </div>`;
+    }
+
+    if (!whR.ok) {
+      listEl.innerHTML = `<div class="empty-state">Failed to load webhooks.</div>`;
+      return;
+    }
+
+    const webhooks = whR.webhooks || [];
+    if (!webhooks.length) {
+      listEl.innerHTML = `<div class="empty-state">No webhooks configured yet. Click <strong>+ Add Webhook</strong> to push platform events to Slack, PagerDuty or any HTTP endpoint.</div>`;
+      return;
+    }
+
+    listEl.innerHTML = `<div style="display:grid;gap:12px;">${webhooks.map(wh => `
+      <div class="panel" style="padding:16px 18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:${wh.is_active ? 'var(--ok)' : 'var(--text-muted)'};flex-shrink:0;"></span>
+            <div>
+              <div style="font-size:14px;font-weight:600;">${esc(wh.name)}</div>
+              <div style="font-size:11px;color:var(--text-muted);word-break:break-all;">${esc(wh.url)}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-shrink:0;">
+            <button class="btn sm" type="button" data-wh-deliveries="${esc(wh.id)}">Deliveries</button>
+            <button class="btn sm" type="button" data-wh-edit="${esc(wh.id)}">Edit</button>
+            <button class="btn sm danger" type="button" data-wh-del="${esc(wh.id)}">Delete</button>
+          </div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:11px;background:var(--accent-subtle);color:var(--accent);padding:2px 8px;border-radius:10px;">${esc((wh.events || []).join(', '))}</span>
+          <span style="font-size:11px;background:var(--surface-alt);color:var(--text-muted);padding:2px 8px;border-radius:10px;">min: ${esc(wh.min_severity)}</span>
+          ${wh.secret ? `<span style="font-size:11px;background:var(--surface-alt);color:var(--text-muted);padding:2px 8px;border-radius:10px;">HMAC signed</span>` : ''}
+        </div>
+      </div>`).join('')}</div>`;
+
+    listEl.querySelectorAll('[data-wh-edit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const wh = webhooks.find(w => w.id === btn.dataset.whEdit);
+        if (wh) _openWhModal(wh);
+      });
+    });
+    listEl.querySelectorAll('[data-wh-del]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this webhook?')) return;
+        const r = await api(`/api/v1/webhooks/${btn.dataset.whDel}`, { method: 'DELETE' });
+        if (r.ok || r.status === 204) { toast('Webhook deleted', '', 'ok'); _loadWebhooks(); }
+        else toast('Delete failed', msgFromError(r.error), 'error');
+      });
+    });
+    listEl.querySelectorAll('[data-wh-deliveries]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const r = await api(`/api/v1/webhooks/${btn.dataset.whDeliveries}/deliveries`);
+        if (!r.ok) { toast('Failed', msgFromError(r.error), 'error'); return; }
+        const deliveries = r.deliveries || [];
+        if (!deliveries.length) { toast('No deliveries', 'No delivery attempts logged yet.', 'info'); return; }
+        const rows = deliveries.slice(0, 20).map(d => `
+          <tr>
+            <td style="font-size:11px;">${esc(d.event_type)}</td>
+            <td style="text-align:center;"><span style="color:${d.success ? 'var(--ok)' : 'var(--danger)'}">${d.success ? '✓' : '✗'}</span></td>
+            <td style="text-align:center;">${d.status_code ?? '—'}</td>
+            <td style="text-align:right;">${d.duration_ms}ms</td>
+            <td style="font-size:10px;color:var(--text-muted);">${d.attempt > 1 ? `retry ${d.attempt}` : 'first'}</td>
+          </tr>`).join('');
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position:fixed;inset:0;z-index:910;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;';
+        modal.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:min(640px,95vw);max-height:80vh;overflow-y:auto;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <h3 style="font-size:14px;font-weight:700;margin:0;">Delivery Log (last ${deliveries.length})</h3>
+            <button type="button" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted);">✕</button>
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead><tr style="color:var(--text-muted);border-bottom:1px solid var(--border);">
+              <th style="text-align:left;padding:4px 0;">Event</th><th>OK</th><th>Status</th><th>Duration</th><th>Attempt</th>
+            </tr></thead><tbody>${rows}</tbody>
+          </table></div>`;
+        modal.querySelector('button').addEventListener('click', () => document.body.removeChild(modal));
+        modal.addEventListener('click', (e) => { if (e.target === modal) document.body.removeChild(modal); });
+        document.body.appendChild(modal);
+      });
+    });
+  }
+
+  function _openWhModal(wh) {
+    _whEditId = wh ? wh.id : null;
+    $('whModalTitle').textContent = wh ? 'Edit Webhook' : 'Add Webhook';
+    $('whName').value     = wh ? wh.name : '';
+    $('whUrl').value      = wh ? wh.url  : '';
+    $('whEvents').value   = wh ? (wh.events || ['*']).join(', ') : '*';
+    $('whSeverity').value = wh ? (wh.min_severity || 'low') : 'low';
+    $('whSecret').value   = wh ? (wh.secret || '') : '';
+    $('whTestResult').style.display = 'none';
+    const modal = $('whModal');
+    modal.style.display = 'flex';
+  }
+
+  function _closeWhModal() {
+    $('whModal').style.display = 'none';
+    _whEditId = null;
+  }
+
+  async function _saveWebhook() {
+    const body = {
+      name:         $('whName').value.trim(),
+      url:          $('whUrl').value.trim(),
+      events:       $('whEvents').value.split(',').map(s => s.trim()).filter(Boolean),
+      min_severity: $('whSeverity').value,
+      secret:       $('whSecret').value.trim(),
+    };
+    const isEdit = Boolean(_whEditId);
+    const r = await api(
+      isEdit ? `/api/v1/webhooks/${_whEditId}` : '/api/v1/webhooks',
+      { method: isEdit ? 'PATCH' : 'POST', body: JSON.stringify(body) }
+    );
+    if (r.ok || r.id) {
+      toast(isEdit ? 'Webhook updated' : 'Webhook created', body.name, 'ok');
+      _closeWhModal();
+      _loadWebhooks();
+    } else {
+      toast('Save failed', msgFromError(r.error || r.detail), 'error');
+    }
+  }
+
+  async function _testWebhook() {
+    const url    = $('whUrl').value.trim();
+    const secret = $('whSecret').value.trim();
+    if (!url) { toast('URL required', '', 'error'); return; }
+    const resultEl = $('whTestResult');
+    resultEl.innerHTML = '<div class="spinner" style="width:16px;height:16px;"></div>';
+    resultEl.style.display = 'flex';
+    const r = await api('/api/v1/webhooks/test', {
+      method: 'POST',
+      body: JSON.stringify({ url, secret, event_type: 'test.ping' }),
+    });
+    if (r.ok !== undefined) {
+      const col = r.ok ? 'var(--ok)' : 'var(--danger)';
+      resultEl.innerHTML = `<div style="font-size:12px;color:${col};padding:8px 0;">
+        ${r.ok ? '✓ Success' : '✗ Failed'} — HTTP ${r.status_code ?? 'N/A'} in ${r.duration_ms}ms
+        ${r.error ? `<br><span style="color:var(--text-muted);">${esc(r.error)}</span>` : ''}
+      </div>`;
+    } else {
+      resultEl.innerHTML = `<div style="font-size:12px;color:var(--danger);">Request error</div>`;
+    }
+  }
+
+  // ── Operational Command Center ───────────────────────────────────────────────
+  let _cmdReady = false;
+  let _cmdWs    = null;
+  let _cmdTimelineEvents = [];
+
+  function initCommandCenterView() {
+    if (_cmdReady) {
+      const activeTab = document.querySelector('#view-command .ocr-tab.active')?.dataset?.cmdTab;
+      if (activeTab === 'intelligence') { _loadCmdIntelligence(); }
+      if (activeTab === 'timeline')     { _connectCmdTimeline(); }
+      if (activeTab === 'agents')       { _loadCmdAgents(); }
+      if (activeTab === 'health')       { _loadCmdHealth(); }
+      if (activeTab === 'alerts')       { _loadCmdAlerts(); }
+      if (activeTab === 'audit')        { _loadAuditLog(); }
+      if (activeTab === 'incidents')    { _loadIncidents(); }
+      return;
+    }
+    _cmdReady = true;
+    _setupCmdTabs();
+    _loadCmdIntelligence();
+    _connectCmdTimeline();
+  }
+
+  function _setupCmdTabs() {
+    const section = $('view-command');
+    if (!section) return;
+    const tabs   = $$('.ocr-tab', section);
+    const panels = $$('.ocr-panel', section);
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const id = tab.dataset.cmdTab;
+        tabs.forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+        panels.forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        tab.setAttribute('aria-selected', 'true');
+        const panel = $(`cmdTab-${id}`);
+        if (panel) panel.classList.add('active');
+        if (id === 'intelligence') _loadCmdIntelligence();
+        if (id === 'timeline')     _connectCmdTimeline();
+        if (id === 'agents')       { _loadCmdAgents(); _loadCmdAgentActions(); }
+        if (id === 'health')       _loadCmdHealth();
+        if (id === 'alerts')       _loadCmdAlerts();
+        if (id === 'audit')        _loadAuditLog();
+        if (id === 'incidents')    _loadIncidents();
+      });
+    });
+
+    $('cmdAnalyzeBtn')?.addEventListener('click', async () => {
+      const btn = $('cmdAnalyzeBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Analysing…'; }
+      const r = await api('/api/v1/intelligence/analyze', { method: 'POST' });
+      if (r.ok) {
+        toast('Analysis dispatched', 'Findings will appear in the timeline shortly.', 'ok');
+        setTimeout(_loadCmdIntelligence, 2000);
+      } else {
+        toast('Analysis failed', msgFromError(r.error), 'error');
+      }
+      if (btn) { btn.disabled = false; btn.textContent = 'Run Analysis'; }
+    });
+
+    $('cmdRefreshAgentsBtn')?.addEventListener('click', () => { _loadCmdAgents(); _loadCmdAgentActions(); });
+    $('cmdClearTimelineBtn')?.addEventListener('click', () => {
+      _cmdTimelineEvents = [];
+      const list = $('cmdTimelineList');
+      if (list) list.innerHTML = '<div class="empty-state"><p>Timeline cleared. New events will appear as they arrive.</p></div>';
+    });
+  }
+
+  // ── Intelligence tab ────────────────────────────────────────────────────────
+
+  async function _loadCmdIntelligence() {
+    const [healthR, insightR, predR] = await Promise.all([
+      api('/api/v1/intelligence/health'),
+      api('/api/v1/intelligence/insights'),
+      api('/api/v1/intelligence/predictions'),
+    ]);
+
+    // Health strip
+    const strip = $('cmdHealthStrip');
+    if (strip && healthR.ok) {
+      const h = healthR.data;
+      const scoreColor = h.overall >= 85 ? 'ok' : h.overall >= 70 ? 'neutral' : h.overall >= 50 ? 'warn' : 'bad';
+      strip.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;background:var(--surface-raised);border:1px solid var(--border);border-radius:8px;padding:10px 20px;">
+          <div style="font-size:34px;font-weight:800;color:var(--accent);">${h.overall}</div>
+          <div>
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);">Health Score</div>
+            <span class="badge ${scoreColor}" style="margin-top:2px;">${h.status}</span>
+          </div>
+        </div>
+        ${Object.entries(h.components || {}).map(([key, comp]) => `
+          <div style="background:var(--surface-raised);border:1px solid var(--border);border-radius:8px;padding:10px 14px;min-width:130px;">
+            <div style="font-size:19px;font-weight:700;color:var(--accent);">${comp.score}%</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:1px;">${esc(comp.label)}</div>
+          </div>`).join('')}`;
+    }
+
+    // Insights
+    const insightList = $('cmdInsightList');
+    if (insightList && insightR.ok) {
+      const items = insightR.data.insights || [];
+      if (!items.length) {
+        insightList.innerHTML = '<div class="empty-state"><h3>All systems nominal</h3><p>No operational insights at this time. The platform is running optimally.</p></div>';
+      } else {
+        const SEV_BADGE = { critical: 'bad', high: 'bad', medium: 'warn', low: 'neutral' };
+        const TYPE_ICON = {
+          anomaly:     '⚠',
+          security:    '🛡',
+          opportunity: '✦',
+          pattern:     '◈',
+        };
+        insightList.innerHTML = items.map(ins => `
+          <div class="activity-item" style="padding:12px;border-bottom:1px solid var(--border-soft);">
+            <div style="display:flex;flex-direction:column;gap:3px;flex:1;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:13px;">${TYPE_ICON[ins.type] || '●'}</span>
+                <strong style="font-size:13px;">${esc(ins.title)}</strong>
+                <span class="badge ${SEV_BADGE[ins.severity] || 'neutral'}" style="font-size:10px;">${esc(ins.severity)}</span>
+              </div>
+              <span style="font-size:12px;color:var(--text-muted);">${esc(ins.description)}</span>
+              ${ins.action ? `<span style="font-size:11px;color:var(--accent);margin-top:2px;">→ ${esc(ins.action)}</span>` : ''}
+            </div>
+            ${ins.action_type === 'activate_workflow' ? `
+              <button class="btn sm" type="button" data-activate-workflow="${esc(ins.action_target)}" style="flex-shrink:0;">Activate</button>
+            ` : ins.action_type === 'navigate' ? `
+              <button class="btn sm ghost" type="button" data-open-view="${esc(ins.action_target)}" style="flex-shrink:0;">Open</button>
+            ` : ''}
+          </div>`).join('');
+
+        // Wire activate workflow buttons
+        insightList.querySelectorAll('[data-activate-workflow]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const tmplId = btn.dataset.activateWorkflow;
+            btn.disabled = true; btn.textContent = 'Activating…';
+            const r2 = await api('/api/v1/workflows', { method: 'POST', body: JSON.stringify({ template_id: tmplId }) });
+            if (r2.ok) {
+              toast('Workflow activated', 'Check the Workflows view to manage it.', 'ok');
+              btn.textContent = 'Activated';
+            } else {
+              toast('Activation failed', msgFromError(r2.error), 'error');
+              btn.disabled = false; btn.textContent = 'Activate';
+            }
+          });
+        });
+
+        // Wire navigate buttons
+        insightList.querySelectorAll('[data-open-view]').forEach(btn => {
+          btn.addEventListener('click', () => showView(btn.dataset.openView));
+        });
+      }
+    }
+
+    // Predictions
+    const predBox = $('cmdPredictions');
+    if (predBox && predR.ok) {
+      const preds = predR.data.predictions || [];
+      predBox.innerHTML = preds.map(p => `
+        <div style="background:var(--surface-raised);border:1px solid var(--border);border-radius:8px;padding:12px 16px;min-width:160px;flex:1;">
+          <div style="font-size:24px;font-weight:700;color:var(--accent);">${esc(String(p.value))} <span style="font-size:12px;font-weight:400;color:var(--text-muted);">${esc(p.unit)}</span></div>
+          <div style="font-size:12px;font-weight:600;margin:2px 0;">${esc(p.title)}</div>
+          <div style="font-size:11px;color:var(--text-muted);">Confidence: ${p.confidence}% · ${esc(p.horizon)}</div>
+        </div>`).join('') || '<p style="color:var(--text-muted);font-size:13px;">No predictions available yet.</p>';
+    }
+  }
+
+  // ── Live Timeline tab ───────────────────────────────────────────────────────
+
+  function _connectCmdTimeline() {
+    const statusEl = $('cmdWsStatus');
+
+    if (_cmdWs && _cmdWs.readyState === WebSocket.OPEN) return;
+    if (_cmdWs) { try { _cmdWs.close(); } catch (_) {} }
+
+    try {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      _cmdWs = new WebSocket(`${proto}//${location.host}/api/v1/events/stream`);
+
+      _cmdWs.onopen = () => {
+        if (statusEl) { statusEl.textContent = 'Live'; statusEl.className = 'badge ok'; }
+      };
+
+      _cmdWs.onclose = () => {
+        if (statusEl) { statusEl.textContent = 'Disconnected'; statusEl.className = 'badge neutral'; }
+        // Reconnect after 5s
+        setTimeout(() => {
+          if (state.currentView === 'command') _connectCmdTimeline();
+        }, 5000);
+      };
+
+      _cmdWs.onerror = () => {
+        if (statusEl) { statusEl.textContent = 'Error'; statusEl.className = 'badge bad'; }
+      };
+
+      _cmdWs.onmessage = (msg) => {
+        try {
+          const data = JSON.parse(msg.data);
+          const event = data.event;
+          if (!event || event.type === 'heartbeat' || event.type === 'connection_ack' || event.type === 'pong') return;
+          _cmdTimelineEvents.unshift(event);
+          if (_cmdTimelineEvents.length > 200) _cmdTimelineEvents.pop();
+          _renderTimelineEvent(event);
+        } catch (_) {}
+      };
+
+      // Load recent history on connect
+      _loadTimelineHistory();
+
+    } catch (err) {
+      if (statusEl) { statusEl.textContent = 'Unavailable'; statusEl.className = 'badge neutral'; }
+    }
+  }
+
+  async function _loadTimelineHistory() {
+    const r = await api('/api/v1/events/history?limit=50');
+    if (!r.ok) return;
+    const events = (r.data.events || []).reverse();
+    const list = $('cmdTimelineList');
+    if (!list) return;
+    if (!events.length) {
+      list.innerHTML = '<div class="empty-state"><p>No events yet — agents will begin emitting events shortly.</p></div>';
+      return;
+    }
+    list.innerHTML = '';
+    events.forEach(ev => _renderTimelineEvent(ev, true));
+  }
+
+  function _renderTimelineEvent(event, prepend = false) {
+    const list = $('cmdTimelineList');
+    if (!list) return;
+
+    // Remove empty state if present
+    const empty = list.querySelector('.empty-state');
+    if (empty) empty.remove();
+
+    const SEV_BADGE = { critical: 'bad', high: 'bad', medium: 'warn', low: 'neutral' };
+    const TYPE_LABEL = {
+      'workflow.executed':        'Workflow Run',
+      'workflow.failed':          'Workflow Failed',
+      'threat.detected':          'Threat Detected',
+      'threat.escalated':         'Threat Escalated',
+      'agent.action':             'Agent Action',
+      'agent.insight':            'Insight',
+      'agent.anomaly':            'Anomaly',
+      'intelligence.anomaly':     'Intelligence',
+      'intelligence.recommendation': 'Recommendation',
+      'system.health_check':      'Health Check',
+      'system.circuit_open':      'Circuit Open',
+      'system.circuit_closed':    'Circuit Closed',
+      'ocr.completed':            'OCR Complete',
+      'email.classified':         'Email Classified',
+    };
+
+    const label     = TYPE_LABEL[event.type] || event.type;
+    const sev       = event.severity || 'low';
+    const badge     = SEV_BADGE[sev] || 'neutral';
+    const source    = event.source || '—';
+    const time      = event.created_at ? new Date(event.created_at).toLocaleTimeString() : '';
+    const payload   = event.payload || {};
+    const detail    = payload.title || payload.detail || payload.message || payload.description || JSON.stringify(payload).slice(0, 120);
+
+    const el = document.createElement('div');
+    el.className = 'activity-item';
+    el.style.cssText = 'padding:10px 12px;border-bottom:1px solid var(--border-soft);animation:fadeInDown .2s ease;';
+    el.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span class="badge ${badge}" style="font-size:10px;">${esc(sev)}</span>
+          <strong style="font-size:12px;">${esc(label)}</strong>
+          <span style="font-size:11px;color:var(--text-muted);">from ${esc(source)}</span>
+        </div>
+        ${detail ? `<span style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(detail)}">${esc(detail)}</span>` : ''}
+      </div>
+      <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;margin-left:8px;">${time}</span>`;
+
+    if (prepend) {
+      list.insertBefore(el, list.firstChild);
+    } else {
+      list.insertBefore(el, list.firstChild);
+      // Keep list bounded
+      while (list.children.length > 200) list.removeChild(list.lastChild);
+    }
+  }
+
+  // ── Agents tab ──────────────────────────────────────────────────────────────
+
+  async function _loadCmdAgents() {
+    const list = $('cmdAgentList');
+    if (!list) return;
+    list.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+    const r = await api('/api/v1/agents');
+    if (!r.ok) {
+      list.innerHTML = `<div class="empty-state"><p>Failed to load agents: ${esc(msgFromError(r.error))}</p></div>`;
+      return;
+    }
+    const agents = r.data.agents || [];
+    list.innerHTML = agents.map(ag => `
+      <div class="activity-item" style="padding:12px;border-bottom:1px solid var(--border-soft);" data-agent-id="${esc(ag.id)}">
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <strong style="font-size:13px;">${esc(ag.name)}</strong>
+            <span class="badge ${ag.running && !ag.paused ? 'ok' : ag.paused ? 'warn' : 'neutral'}">${ag.running && !ag.paused ? 'Running' : ag.paused ? 'Paused' : 'Stopped'}</span>
+            ${ag.error_count > 0 ? `<span class="badge bad">${ag.error_count} error(s)</span>` : ''}
+          </div>
+          <p style="font-size:12px;color:var(--text-muted);margin:0 0 4px;">${esc(ag.description)}</p>
+          <div style="font-size:11px;color:var(--text-muted);display:flex;gap:16px;flex-wrap:wrap;">
+            <span>Domain: <strong>${esc(ag.domain)}</strong></span>
+            <span>Runs: <strong>${ag.run_count}</strong></span>
+            <span>Interval: <strong>${ag.interval_s}s</strong></span>
+            <span>Last run: <strong>${ag.last_run ? new Date(ag.last_run).toLocaleTimeString() : 'Not yet'}</strong></span>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;align-items:flex-start;">
+          <button class="btn sm agent-trigger-btn" type="button" data-agent-id="${esc(ag.id)}">Trigger</button>
+          <button class="btn sm ghost agent-pause-btn" type="button" data-agent-id="${esc(ag.id)}" data-paused="${ag.paused ? '1' : '0'}">${ag.paused ? 'Resume' : 'Pause'}</button>
+        </div>
+      </div>`).join('');
+
+    list.querySelectorAll('.agent-trigger-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.agentId;
+        btn.disabled = true; btn.textContent = 'Running…';
+        const r2 = await api(`/api/v1/agents/${id}/trigger`, { method: 'POST' });
+        if (r2.ok) {
+          toast('Agent triggered', `${id} cycle dispatched.`, 'ok');
+          setTimeout(_loadCmdAgentActions, 1500);
+        } else {
+          toast('Trigger failed', msgFromError(r2.error), 'error');
+        }
+        btn.disabled = false; btn.textContent = 'Trigger';
+      });
+    });
+
+    list.querySelectorAll('.agent-pause-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id     = btn.dataset.agentId;
+        const paused = btn.dataset.paused === '1';
+        const r2 = await api(`/api/v1/agents/${id}/${paused ? 'resume' : 'pause'}`, { method: 'POST' });
+        if (r2.ok) { toast(paused ? 'Resumed' : 'Paused', '', 'ok'); _loadCmdAgents(); }
+        else { toast('Failed', msgFromError(r2.error), 'error'); }
+      });
+    });
+  }
+
+  async function _loadCmdAgentActions() {
+    const box = $('cmdAgentActions');
+    if (!box) return;
+    const r = await api('/api/v1/agents/actions?limit=30');
+    if (!r.ok) { box.innerHTML = `<p style="padding:12px;color:var(--text-muted);">Failed: ${esc(msgFromError(r.error))}</p>`; return; }
+    const actions = r.data.actions || [];
+    if (!actions.length) {
+      box.innerHTML = '<div class="empty-state"><p>No agent actions yet. Trigger an agent above to see its output here.</p></div>';
+      return;
+    }
+    const SEV_BADGE = { critical: 'bad', high: 'bad', medium: 'warn', low: 'neutral' };
+    box.innerHTML = actions.map(a => `
+      <div class="activity-item" style="padding:10px 12px;border-bottom:1px solid var(--border-soft);">
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+            <span class="badge ${SEV_BADGE[a.severity] || 'neutral'}" style="font-size:10px;">${esc(a.severity || 'low')}</span>
+            <strong style="font-size:12px;">${esc(a.title || a.action_type)}</strong>
+            <span style="font-size:11px;color:var(--text-muted);">${esc(a.agent_name || a.agent_id)}</span>
+          </div>
+          ${a.detail ? `<span style="font-size:12px;color:var(--text-muted);">${esc(a.detail)}</span>` : ''}
+        </div>
+        <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;margin-left:8px;">${a.created_at ? new Date(a.created_at).toLocaleTimeString() : ''}</span>
+      </div>`).join('');
+  }
+
+  // ── Health tab ──────────────────────────────────────────────────────────────
+
+  function _svgSparkline(values, min, max, w, h) {
+    w = w || 100; h = h || 32;
+    if (!values || values.length < 2) {
+      return `<svg width="${w}" height="${h}"><line x1="0" y1="${h/2}" x2="${w}" y2="${h/2}" stroke="var(--accent)" stroke-width="1.5" opacity="0.4"/></svg>`;
+    }
+    const range = (max - min) || 1;
+    const pts = values.map((v, i) => {
+      const x = (i / (values.length - 1)) * w;
+      const y = h - ((v - min) / range) * (h - 6) - 3;
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="display:block;"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  }
+
+  const _SPARK_META = {
+    active_threats:        { label: 'Active Threats',   warn: v => v >= 10 },
+    health_score:          { label: 'Health Score',     warn: v => v < 70 },
+    workflow_success_rate: { label: 'WF Success Rate',  warn: v => v < 80 },
+    running_agents:        { label: 'Running Agents',   warn: null },
+    emails_last_1h:        { label: 'Emails / hr',      warn: null },
+    scam_last_24h:         { label: 'Scam Detections',  warn: v => v > 0 },
+  };
+
+  async function _loadCmdHealth() {
+    const box = $('cmdHealthDetail');
+    if (!box) return;
+    box.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+    const [healthR, anonR, patternsR, reconcR, schedR, sparkR] = await Promise.all([
+      api('/api/v1/intelligence/health'),
+      api('/api/v1/intelligence/anomalies'),
+      api('/api/v1/intelligence/patterns'),
+      api('/api/v1/reconciler/status'),
+      api('/api/v1/workflow-scheduler/status'),
+      api('/api/v1/metric-snapshots/sparklines'),
+    ]);
+    if (!healthR.ok) {
+      box.innerHTML = `<div class="empty-state"><p>Failed: ${esc(msgFromError(healthR.error))}</p></div>`;
+      return;
+    }
+    const h        = healthR.data;
+    const anomalies = anonR.ok ? anonR.data.anomalies || [] : [];
+    const patterns  = patternsR.ok ? patternsR.data.patterns || [] : [];
+    const recStatus  = reconcR.ok ? reconcR.data : null;
+    const schedStatus = schedR.ok ? schedR.data : null;
+    const sparklines  = sparkR.ok ? (sparkR.data.sparklines || {}) : {};
+    const SEV_BADGE = { critical: 'bad', high: 'bad', medium: 'warn', low: 'neutral' };
+
+    const sparklinesHtml = Object.keys(sparklines).length ? `
+      <article class="panel" style="margin-bottom:14px;">
+        <div class="panel-head"><div><h2>Metric Trends</h2><p>Hourly snapshots — last 24 hours</p></div></div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px;">
+          ${Object.entries(_SPARK_META).map(([key, meta]) => {
+            const s = sparklines[key] || { values: [], min: 0, max: 0, last: 0, count: 0 };
+            const decimals = (key === 'health_score' || key === 'workflow_success_rate') ? 1 : 0;
+            const isWarn = meta.warn && s.count > 0 && meta.warn(s.last);
+            return `
+              <div style="background:var(--bg-deep);border-radius:6px;padding:10px;">
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+                  <span style="font-size:11px;color:var(--text-muted);">${esc(meta.label)}</span>
+                  <strong style="font-size:14px;color:${isWarn ? 'var(--danger,#e55)' : 'inherit'};">${s.count ? Number(s.last).toFixed(decimals) : '—'}</strong>
+                </div>
+                ${_svgSparkline(s.values, s.min, s.max)}
+                <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-top:4px;">
+                  <span>${s.count ? Number(s.min).toFixed(0) : ''}</span>
+                  <span>${s.count ? s.count + ' pts' : 'No data'}</span>
+                  <span>${s.count ? Number(s.max).toFixed(0) : ''}</span>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+      </article>` : '';
+
+    const reconcilerHtml = recStatus ? (() => {
+      const s = recStatus;
+      const lastRun = s.last_run ? new Date(s.last_run).toLocaleString() : 'Never';
+      const summary = s.last_summary || {};
+      const issues  = summary.actions || [];
+      return `
+        <article class="panel" style="margin-bottom:14px;">
+          <div class="panel-head">
+            <div>
+              <h2>Self-Healing Reconciler</h2>
+              <p>Automatic drift detection &amp; repair every ${Math.round(s.cycle_interval_s / 60)} minutes</p>
+            </div>
+            <button class="btn ghost" id="triggerReconcilerBtn" style="font-size:12px;">Run Now</button>
+          </div>
+          <div class="report-cards" style="margin-bottom:10px;">
+            <div class="report-card">
+              <span>Status</span>
+              <strong><span class="badge ${s.running ? 'ok' : 'bad'}">${s.running ? 'Running' : 'Stopped'}</span></strong>
+            </div>
+            <div class="report-card">
+              <span>Cycles Run</span>
+              <strong>${s.run_count}</strong>
+            </div>
+            <div class="report-card">
+              <span>Last Run</span>
+              <strong style="font-size:11px;">${esc(lastRun)}</strong>
+            </div>
+            <div class="report-card">
+              <span>Actions Taken</span>
+              <strong>${summary.actions_taken || 0}</strong>
+            </div>
+          </div>
+          ${issues.length ? `
+            <div class="activity-list">
+              ${issues.map(a => `
+                <div class="activity-item" style="padding:8px 12px;">
+                  <span style="font-size:12px;color:var(--text-muted);">→ ${esc(a)}</span>
+                </div>`).join('')}
+            </div>` : `<p style="font-size:12px;color:var(--text-muted);padding:0 12px 10px;">No issues in last cycle.</p>`}
+        </article>`;
+    })() : '';
+
+    box.innerHTML = `
+      ${sparklinesHtml}
+
+      <!-- Component health grid -->
+      <div class="report-cards" style="margin-bottom:16px;">
+        ${Object.entries(h.components || {}).map(([, comp]) => `
+          <div class="report-card">
+            <span>${esc(comp.label)}</span>
+            <strong>${comp.score}%</strong>
+            <small style="color:var(--text-muted);font-size:10px;">${esc(comp.detail || '')}</small>
+          </div>`).join('')}
+      </div>
+
+      ${reconcilerHtml}
+
+      ${schedStatus ? (() => {
+        const s = schedStatus;
+        const upcoming = s.upcoming || [];
+        const nextFire = upcoming[0];
+        return `
+          <article class="panel" style="margin-bottom:14px;">
+            <div class="panel-head">
+              <div>
+                <h2>Workflow Scheduler</h2>
+                <p>${s.scheduled_workflows} scheduled workflow${s.scheduled_workflows !== 1 ? 's' : ''} · ${s.checks_run} checks run</p>
+              </div>
+              <button class="btn ghost" id="triggerSchedulerBtn" style="font-size:12px;">Check Now</button>
+            </div>
+            <div class="report-cards" style="margin-bottom:10px;">
+              <div class="report-card">
+                <span>Status</span>
+                <strong><span class="badge ${s.running ? 'ok' : 'bad'}">${s.running ? 'Running' : 'Stopped'}</span></strong>
+              </div>
+              <div class="report-card">
+                <span>Scheduled WFs</span>
+                <strong>${s.scheduled_workflows}</strong>
+              </div>
+              ${nextFire ? `<div class="report-card">
+                <span>Next Fire</span>
+                <strong style="font-size:11px;">${esc(nextFire.workflow_name || '')}</strong>
+                <small style="font-size:10px;color:var(--text-muted);">${nextFire.minutes_until != null ? `in ${nextFire.minutes_until} min` : ''}</small>
+              </div>` : ''}
+              <div class="report-card">
+                <span>Recently Fired</span>
+                <strong>${(s.recently_fired || []).length}</strong>
+              </div>
+            </div>
+          </article>`;
+      })() : ''}
+
+      ${anomalies.length ? `
+        <article class="panel" style="margin-bottom:14px;">
+          <div class="panel-head"><div><h2>Active Anomalies (${anomalies.length})</h2></div></div>
+          <div class="activity-list">
+            ${anomalies.map(a => `
+              <div class="activity-item" style="padding:10px 12px;">
+                <div style="flex:1;">
+                  <div style="display:flex;gap:6px;align-items:center;margin-bottom:3px;">
+                    <span class="badge ${SEV_BADGE[a.severity] || 'neutral'}">${esc(a.severity)}</span>
+                    <strong style="font-size:13px;">${esc(a.title)}</strong>
+                  </div>
+                  <p style="font-size:12px;color:var(--text-muted);margin:0 0 3px;">${esc(a.description)}</p>
+                  ${a.recommended_action ? `<span style="font-size:11px;color:var(--accent);">→ ${esc(a.recommended_action)}</span>` : ''}
+                </div>
+              </div>`).join('')}
+          </div>
+        </article>` : `<article class="panel" style="margin-bottom:14px;"><div class="panel-head"><div><h2>Anomalies</h2><p>No active anomalies detected.</p></div></div></article>`}
+
+      ${patterns.length ? `
+        <article class="panel">
+          <div class="panel-head"><div><h2>Detected Patterns</h2></div></div>
+          <div class="report-cards">
+            ${patterns.map(p => `
+              <div class="report-card">
+                <span>${esc(p.title)}</span>
+                <strong>${esc(String(p.value))}${esc(p.unit ? ' ' + p.unit : '')}</strong>
+                <small style="font-size:10px;color:var(--text-muted);">${esc(p.description || '')}</small>
+              </div>`).join('')}
+          </div>
+        </article>` : ''}`;
+
+    // Wire "Run Now" button (reconciler)
+    const triggerBtn = document.getElementById('triggerReconcilerBtn');
+    if (triggerBtn) {
+      triggerBtn.addEventListener('click', async () => {
+        triggerBtn.disabled = true;
+        triggerBtn.textContent = 'Running…';
+        const r = await api('/api/v1/reconciler/trigger', { method: 'POST' });
+        triggerBtn.textContent = r.ok ? 'Dispatched' : 'Error';
+        setTimeout(() => _loadCmdHealth(), 2000);
+      });
+    }
+
+    // Wire "Check Now" button (scheduler)
+    const schedBtn = document.getElementById('triggerSchedulerBtn');
+    if (schedBtn) {
+      schedBtn.addEventListener('click', async () => {
+        schedBtn.disabled = true;
+        schedBtn.textContent = 'Checking…';
+        const r = await api('/api/v1/workflow-scheduler/trigger', { method: 'POST' });
+        schedBtn.textContent = r.ok ? 'Done' : 'Error';
+        setTimeout(() => _loadCmdHealth(), 1500);
+      });
+    }
+  }
+
+  // ── Playbooks ─────────────────────────────────────────────────────────────────
+
+  let _pbReady = false;
+  let _pbEditId = null;
+  const _PB_STATUS_BADGE = { completed: 'ok', running: 'neutral', failed: 'bad' };
+  const _PB_STEP_BADGE   = { ok: 'ok', error: 'bad', skipped: 'neutral' };
+
+  function initPlaybooksView() {
+    _loadPlaybookList();
+    _loadPbRuns();
+    if (_pbReady) return;
+    _pbReady = true;
+
+    $('pbAddBtn')?.addEventListener('click', () => _openPbModal());
+    $('pbRefreshBtn')?.addEventListener('click', () => { _loadPlaybookList(); _loadPbRuns(); });
+    $('pbCancelBtn')?.addEventListener('click', () => { $('pbModal').style.display = 'none'; _pbEditId = null; });
+    $('pbRunModalCloseBtn')?.addEventListener('click', () => { $('pbRunModal').style.display = 'none'; });
+
+    $('pbTriggerType')?.addEventListener('change', () => {
+      const t = $('pbTriggerType').value;
+      $('pbTriggerFilterRow').style.display = t === 'manual' ? 'none' : '';
+      $('pbTriggerFilterLabel').textContent = t === 'incident' ? 'Min severity' : 'Event type';
+      $('pbTriggerFilter').placeholder = t === 'incident' ? 'high' : 'alert.threshold.breach';
+    });
+
+    $('pbForm')?.addEventListener('submit', async e => {
+      e.preventDefault();
+      let steps = [];
+      try { steps = JSON.parse($('pbSteps').value || '[]'); }
+      catch { alert('Steps must be valid JSON.'); return; }
+      const body = {
+        name:           $('pbName').value.trim(),
+        description:    $('pbDesc').value.trim(),
+        trigger_type:   $('pbTriggerType').value,
+        trigger_filter: $('pbTriggerFilter').value.trim(),
+        steps,
+        enabled:        true,
+      };
+      const url    = _pbEditId ? `/api/v1/playbooks/${_pbEditId}` : '/api/v1/playbooks';
+      const method = _pbEditId ? 'PATCH' : 'POST';
+      const r = await api(url, { method, body: JSON.stringify(body) });
+      if (r.ok) {
+        $('pbModal').style.display = 'none';
+        _pbEditId = null;
+        _loadPlaybookList();
+      }
+    });
+  }
+
+  async function _loadPlaybookList() {
+    const list = $('pbList');
+    if (!list) return;
+    const r = await api('/api/v1/playbooks');
+    if (!r.ok) { list.innerHTML = '<div class="empty-state"><p>Failed to load.</p></div>'; return; }
+    const playbooks = r.data.playbooks || [];
+    if (!playbooks.length) {
+      list.innerHTML = '<div class="empty-state"><p>No playbooks defined yet. Create one to automate platform responses.</p></div>';
+      return;
+    }
+    const _TRIGGER_ICON = { manual: '⚙', event: '⚡', incident: '🚨' };
+    list.innerHTML = `
+      <div class="activity-list">
+        ${playbooks.map(pb => {
+          const stepCount = (pb.steps || []).length;
+          return `
+            <div class="activity-item" data-pb-id="${esc(pb.id)}" style="padding:10px 12px;gap:10px;cursor:pointer;">
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:3px;flex-wrap:wrap;">
+                  <span style="font-size:14px;">${_TRIGGER_ICON[pb.trigger_type] || '•'}</span>
+                  <strong style="font-size:13px;">${esc(pb.name)}</strong>
+                  ${!pb.enabled ? '<span class="badge neutral" style="font-size:9px;">disabled</span>' : ''}
+                </div>
+                <p style="margin:0;font-size:11px;color:var(--text-muted);">
+                  ${esc(pb.trigger_type)}${pb.trigger_filter ? ': ' + esc(pb.trigger_filter) : ''} ·
+                  ${stepCount} step${stepCount !== 1 ? 's' : ''} ·
+                  ${pb.run_count} run${pb.run_count !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <div style="flex-shrink:0;display:flex;gap:5px;align-items:center;">
+                <button class="btn sm ghost" data-pb-run="${esc(pb.id)}" style="font-size:10px;">Run</button>
+                <button class="btn sm ghost" data-pb-edit="${esc(pb.id)}" style="font-size:10px;">Edit</button>
+                <button class="btn sm ghost" data-pb-del="${esc(pb.id)}" style="font-size:10px;color:var(--danger,#e55);">Del</button>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>`;
+
+    list.querySelectorAll('[data-pb-id]').forEach(row => {
+      row.addEventListener('click', e => {
+        if (e.target.closest('[data-pb-run],[data-pb-edit],[data-pb-del]')) return;
+        _loadPbRuns(row.dataset.pbId, playbooks.find(p => p.id === row.dataset.pbId)?.name);
+      });
+    });
+    list.querySelectorAll('[data-pb-run]').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        btn.disabled = true; btn.textContent = '…';
+        const r = await api(`/api/v1/playbooks/${btn.dataset.pbRun}/run`, { method: 'POST' });
+        btn.textContent = r.ok ? 'Dispatched' : 'Error';
+        setTimeout(() => { btn.disabled = false; btn.textContent = 'Run'; _loadPbRuns(); }, 1500);
+      });
+    });
+    list.querySelectorAll('[data-pb-edit]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        _openPbModal(btn.dataset.pbEdit, playbooks.find(p => p.id === btn.dataset.pbEdit));
+      });
+    });
+    list.querySelectorAll('[data-pb-del]').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        if (!confirm('Delete this playbook and all its run history?')) return;
+        await api(`/api/v1/playbooks/${btn.dataset.pbDel}`, { method: 'DELETE' });
+        _loadPlaybookList();
+        _loadPbRuns();
+      });
+    });
+  }
+
+  async function _loadPbRuns(playbookId, playbookName) {
+    const list = $('pbRunList');
+    const title = $('pbRunsTitle');
+    if (!list) return;
+    if (title) title.textContent = playbookName ? `Runs — ${playbookName}` : 'Recent Runs';
+    list.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+
+    const url = playbookId
+      ? `/api/v1/playbooks/runs?limit=20&playbook_id=${encodeURIComponent(playbookId)}`
+      : '/api/v1/playbooks/runs?limit=20';
+    const r = await api(url);
+    if (!r.ok) { list.innerHTML = '<div class="empty-state"><p>Failed to load runs.</p></div>'; return; }
+    const runs = r.data.runs || [];
+    if (!runs.length) {
+      list.innerHTML = '<div class="empty-state"><p>No runs yet.</p></div>';
+      return;
+    }
+    list.innerHTML = `
+      <div class="activity-list">
+        ${runs.map(run => {
+          const badge = _PB_STATUS_BADGE[run.status] || 'neutral';
+          const ts    = run.started_at ? new Date(run.started_at).toLocaleString() : '';
+          const dur   = (run.started_at && run.finished_at)
+            ? `${((new Date(run.finished_at) - new Date(run.started_at)) / 1000).toFixed(1)}s`
+            : (run.status === 'running' ? 'running…' : '—');
+          return `
+            <div class="activity-item" style="padding:9px 12px;gap:10px;cursor:pointer;" data-run-id="${esc(run.id)}">
+              <span class="badge ${badge}" style="font-size:10px;flex-shrink:0;">${esc(run.status)}</span>
+              <div style="flex:1;min-width:0;">
+                <p style="margin:0;font-size:12px;font-weight:600;">${esc(run.playbook_name)}</p>
+                <p style="margin:2px 0 0;font-size:11px;color:var(--text-muted);">${esc(run.triggered_by)} · ${run.steps_done}/${run.steps_total} steps · ${dur}</p>
+              </div>
+              <span style="font-size:10px;color:var(--text-muted);white-space:nowrap;">${esc(ts)}</span>
+            </div>`;
+        }).join('')}
+      </div>`;
+
+    list.querySelectorAll('[data-run-id]').forEach(row => {
+      row.addEventListener('click', () => _openPbRunModal(row.dataset.runId));
+    });
+  }
+
+  async function _openPbRunModal(runId) {
+    const modal = $('pbRunModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    $('pbRunModalTitle').textContent = 'Loading…';
+    $('pbRunModalSteps').innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+
+    const r = await api(`/api/v1/playbooks/runs/${runId}`);
+    if (!r.ok) { $('pbRunModalTitle').textContent = 'Failed to load'; return; }
+    const run = r.data;
+    $('pbRunModalTitle').textContent = run.playbook_name || 'Run Detail';
+    const badge = _PB_STATUS_BADGE[run.status] || 'neutral';
+    $('pbRunModalMeta').innerHTML = `
+      <span class="badge ${badge}">${esc(run.status)}</span>
+      <span>Triggered by: ${esc(run.triggered_by)}</span>
+      <span>${run.started_at ? new Date(run.started_at).toLocaleString() : ''}</span>
+      <span>${run.steps_done}/${run.steps_total} steps</span>`;
+
+    const steps = Array.isArray(run.step_log) ? run.step_log : [];
+    $('pbRunModalSteps').innerHTML = steps.length ? steps.map((s, i) => {
+      const sb = _PB_STEP_BADGE[s.status] || 'neutral';
+      return `
+        <div style="background:var(--bg-deep);border-radius:6px;padding:8px 10px;">
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:3px;">
+            <span style="font-size:10px;color:var(--text-muted);">${i+1}.</span>
+            <code style="font-size:11px;background:transparent;">${esc(s.type)}</code>
+            <span class="badge ${sb}" style="font-size:9px;margin-left:auto;">${esc(s.status)}</span>
+          </div>
+          ${s.output ? `<p style="margin:0;font-size:11px;color:var(--text-muted);">${esc(s.output)}</p>` : ''}
+          ${s.error  ? `<p style="margin:0;font-size:11px;color:var(--danger,#e55);">Error: ${esc(s.error)}</p>` : ''}
+        </div>`;
+    }).join('') : '<p style="font-size:12px;color:var(--text-muted);">No step log.</p>';
+  }
+
+  function _openPbModal(pbId, pb) {
+    _pbEditId = pbId || null;
+    $('pbModalTitle').textContent = pbId ? 'Edit Playbook' : 'New Playbook';
+    $('pbName').value          = pb?.name        || '';
+    $('pbDesc').value          = pb?.description || '';
+    $('pbTriggerType').value   = pb?.trigger_type   || 'manual';
+    $('pbTriggerFilter').value = pb?.trigger_filter || '';
+    $('pbSteps').value = JSON.stringify(pb?.steps || [], null, 2);
+    const t = pb?.trigger_type || 'manual';
+    $('pbTriggerFilterRow').style.display = t === 'manual' ? 'none' : '';
+    $('pbTriggerFilterLabel').textContent = t === 'incident' ? 'Min severity' : 'Event type';
+    $('pbModal').style.display = 'flex';
+  }
+
+  // ── Dispatches (Scheduled Reports) ───────────────────────────────────────────
+
+  let _dispReady = false;
+  let _dispEditId = null;
+  const _INTERVAL_LABELS = { 1:'Hourly', 6:'Every 6h', 12:'Every 12h', 24:'Daily', 168:'Weekly' };
+
+  function initDispatchesView() {
+    _loadDispatches();
+    if (_dispReady) return;
+    _dispReady = true;
+
+    const addBtn    = $('dispAddBtn');
+    const refreshBtn = $('dispRefreshBtn');
+    const cancelBtn = $('dispCancelBtn');
+    const closeRun  = $('dispRunModalCloseBtn');
+    const delivery  = $('dispDelivery');
+    const form      = $('dispForm');
+
+    addBtn?.addEventListener('click', () => _openDispModal());
+    refreshBtn?.addEventListener('click', () => _loadDispatches());
+    cancelBtn?.addEventListener('click', () => { $('dispModal').style.display = 'none'; _dispEditId = null; });
+    closeRun?.addEventListener('click', () => { $('dispRunModal').style.display = 'none'; });
+    delivery?.addEventListener('change', () => {
+      $('dispWebhookRow').style.display = delivery.value === 'webhook' ? '' : 'none';
+    });
+
+    form?.addEventListener('submit', async e => {
+      e.preventDefault();
+      const sections = Array.from(form.querySelectorAll('[name="section"]:checked')).map(c => c.value).join(',');
+      if (!sections) { alert('Select at least one section.'); return; }
+      const body = {
+        name:           $('dispName')?.value?.trim(),
+        interval_hours: parseInt($('dispInterval')?.value || '24'),
+        sections,
+        delivery:       $('dispDelivery')?.value || 'store',
+        webhook_url:    $('dispWebhookUrl')?.value?.trim() || '',
+        enabled:        true,
+      };
+      const url    = _dispEditId ? `/api/v1/scheduled-reports/${_dispEditId}` : '/api/v1/scheduled-reports';
+      const method = _dispEditId ? 'PATCH' : 'POST';
+      const r = await api(url, { method, body: JSON.stringify(body) });
+      if (r.ok) {
+        $('dispModal').style.display = 'none';
+        _dispEditId = null;
+        _loadDispatches();
+      }
+    });
+  }
+
+  async function _loadDispatches() {
+    await Promise.all([_loadDispConfigs(), _loadDispRuns()]);
+    _updateDispStats();
+  }
+
+  async function _updateDispStats() {
+    const strip = $('dispStatsStrip');
+    if (!strip) return;
+    const [cfgR, runR] = await Promise.all([
+      api('/api/v1/scheduled-reports'),
+      api('/api/v1/scheduled-reports/runs?limit=50'),
+    ]);
+    const configs = cfgR.ok ? (cfgR.data.configs || []) : [];
+    const runs    = runR.ok ? (runR.data.runs    || []) : [];
+    const enabled = configs.filter(c => c.enabled).length;
+    const ok      = runs.filter(r => r.status === 'ok').length;
+    const err     = runs.filter(r => r.status === 'error').length;
+    strip.innerHTML = `
+      <div class="report-card" style="padding:8px 12px;min-width:90px;"><span>Schedules</span><strong>${configs.length}</strong></div>
+      <div class="report-card" style="padding:8px 12px;min-width:90px;"><span>Active</span><strong>${enabled}</strong></div>
+      <div class="report-card" style="padding:8px 12px;min-width:90px;"><span>Runs OK</span><strong style="color:var(--ok,#5a5);">${ok}</strong></div>
+      ${err ? `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>Errors</span><strong style="color:var(--danger,#e55);">${err}</strong></div>` : ''}`;
+  }
+
+  async function _loadDispConfigs() {
+    const list = $('dispConfigList');
+    if (!list) return;
+    const r = await api('/api/v1/scheduled-reports');
+    if (!r.ok) { list.innerHTML = '<div class="empty-state"><p>Failed to load.</p></div>'; return; }
+    const configs = r.data.configs || [];
+    if (!configs.length) {
+      list.innerHTML = '<div class="empty-state"><p>No report schedules configured yet.</p></div>';
+      return;
+    }
+    list.innerHTML = `
+      <table style="width:100%;font-size:12px;border-collapse:collapse;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:8px 12px;font-weight:600;color:var(--text-muted);">Name</th>
+          <th style="text-align:left;padding:8px 12px;font-weight:600;color:var(--text-muted);">Interval</th>
+          <th style="text-align:left;padding:8px 12px;font-weight:600;color:var(--text-muted);">Sections</th>
+          <th style="text-align:left;padding:8px 12px;font-weight:600;color:var(--text-muted);">Last Run</th>
+          <th style="text-align:left;padding:8px 12px;font-weight:600;color:var(--text-muted);">Next Run</th>
+          <th style="padding:8px 12px;"></th>
+        </tr></thead>
+        <tbody>
+          ${configs.map(c => {
+            const intLabel = _INTERVAL_LABELS[c.interval_hours] || `${c.interval_hours}h`;
+            const lastRun  = c.last_run ? new Date(c.last_run).toLocaleString() : '—';
+            const nextRun  = c.next_run ? new Date(c.next_run).toLocaleString() : '—';
+            const sects    = (c.sections || '').split(',').length;
+            return `<tr style="border-bottom:1px solid var(--border);" data-cfg-id="${esc(c.id)}">
+              <td style="padding:9px 12px;font-weight:600;">${esc(c.name)} ${c.enabled ? '' : '<span class="badge neutral" style="font-size:9px;">paused</span>'}</td>
+              <td style="padding:9px 12px;color:var(--text-muted);">${esc(intLabel)}</td>
+              <td style="padding:9px 12px;color:var(--text-muted);">${sects} section${sects !== 1 ? 's' : ''}</td>
+              <td style="padding:9px 12px;color:var(--text-muted);">${esc(lastRun)}</td>
+              <td style="padding:9px 12px;color:var(--text-muted);">${esc(nextRun)}</td>
+              <td style="padding:9px 12px;white-space:nowrap;">
+                <button class="btn sm ghost" data-run-now="${esc(c.id)}" style="font-size:10px;">Run Now</button>
+                <button class="btn sm ghost" data-edit-cfg="${esc(c.id)}" style="font-size:10px;">Edit</button>
+                <button class="btn sm ghost" data-del-cfg="${esc(c.id)}" style="font-size:10px;color:var(--danger,#e55);">Del</button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+
+    list.querySelectorAll('[data-run-now]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true; btn.textContent = '…';
+        const r = await api(`/api/v1/scheduled-reports/${btn.dataset.runNow}/run`, { method: 'POST' });
+        btn.textContent = r.ok ? 'Dispatched' : 'Error';
+        setTimeout(() => _loadDispatches(), 1500);
+      });
+    });
+    list.querySelectorAll('[data-edit-cfg]').forEach(btn => {
+      btn.addEventListener('click', () => _openDispModal(btn.dataset.editCfg, configs.find(c => c.id === btn.dataset.editCfg)));
+    });
+    list.querySelectorAll('[data-del-cfg]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this report schedule and all its run history?')) return;
+        await api(`/api/v1/scheduled-reports/${btn.dataset.delCfg}`, { method: 'DELETE' });
+        _loadDispatches();
+      });
+    });
+  }
+
+  async function _loadDispRuns(configId) {
+    const list = $('dispRunList');
+    if (!list) return;
+    const url = configId
+      ? `/api/v1/scheduled-reports/runs?limit=20&config_id=${encodeURIComponent(configId)}`
+      : '/api/v1/scheduled-reports/runs?limit=20';
+    const r = await api(url);
+    if (!r.ok) { list.innerHTML = '<div class="empty-state"><p>Failed to load runs.</p></div>'; return; }
+    const runs = r.data.runs || [];
+    if (!runs.length) {
+      list.innerHTML = '<div class="empty-state"><p>No runs yet.</p></div>';
+      return;
+    }
+    list.innerHTML = `
+      <div class="activity-list">
+        ${runs.map(run => {
+          const ts = run.generated_at ? new Date(run.generated_at).toLocaleString() : '';
+          const ok = run.status === 'ok';
+          return `
+            <div class="activity-item" style="padding:9px 12px;gap:10px;cursor:pointer;" data-run-id="${esc(run.id)}">
+              <span class="badge ${ok ? 'ok' : 'bad'}" style="font-size:10px;flex-shrink:0;">${esc(run.status)}</span>
+              <div style="flex:1;min-width:0;">
+                <p style="margin:0;font-size:12px;font-weight:600;">${esc(run.config_name)}</p>
+                ${run.error_msg ? `<p style="margin:2px 0 0;font-size:11px;color:var(--danger,#e55);">${esc(run.error_msg)}</p>` : ''}
+              </div>
+              <span style="font-size:10px;color:var(--text-muted);white-space:nowrap;">${esc(ts)}</span>
+              ${run.delivered ? '<span style="font-size:10px;color:var(--ok,#5a5);">✓ delivered</span>' : ''}
+            </div>`;
+        }).join('')}
+      </div>`;
+
+    list.querySelectorAll('[data-run-id]').forEach(row => {
+      row.addEventListener('click', () => _openRunModal(row.dataset.runId));
+    });
+  }
+
+  async function _openRunModal(runId) {
+    const modal = $('dispRunModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    $('dispRunModalTitle').textContent = 'Loading report…';
+    $('dispRunModalContent').textContent = '';
+
+    const r = await api(`/api/v1/scheduled-reports/runs/${runId}`);
+    if (!r.ok) { $('dispRunModalTitle').textContent = 'Failed to load run'; return; }
+    const run = r.data;
+    $('dispRunModalTitle').textContent = run.config_name || 'Report Run';
+    $('dispRunModalMeta').innerHTML = `
+      <span class="badge ${run.status === 'ok' ? 'ok' : 'bad'}">${esc(run.status)}</span>
+      <span>${run.generated_at ? new Date(run.generated_at).toLocaleString() : ''}</span>
+      ${run.delivered ? '<span style="color:var(--ok,#5a5);">✓ Delivered</span>' : ''}`;
+    $('dispRunModalContent').textContent = run.content
+      ? JSON.stringify(run.content, null, 2)
+      : (run.error_msg || 'No content');
+  }
+
+  function _openDispModal(configId, cfg) {
+    _dispEditId = configId || null;
+    const modal = $('dispModal');
+    if (!modal) return;
+    $('dispModalTitle').textContent = configId ? 'Edit Schedule' : 'New Report Schedule';
+    $('dispName').value        = cfg?.name || '';
+    $('dispInterval').value    = cfg?.interval_hours || 24;
+    $('dispDelivery').value    = cfg?.delivery || 'store';
+    $('dispWebhookUrl').value  = cfg?.webhook_url || '';
+    $('dispWebhookRow').style.display = (cfg?.delivery === 'webhook') ? '' : 'none';
+    // Restore section checkboxes
+    const active = new Set((cfg?.sections || '').split(',').map(s => s.trim()));
+    modal.querySelectorAll('[name="section"]').forEach(cb => {
+      cb.checked = !configId || active.has(cb.value);
+    });
+    modal.style.display = 'flex';
+  }
+
+  // ── Incidents ─────────────────────────────────────────────────────────────────
+
+  let _activeIncidentId = null;
+  const _INC_SEV_BADGE = { critical: 'bad', high: 'bad', medium: 'warn', low: 'neutral' };
+  const _INC_STATUS_BADGE = { open: 'bad', acknowledged: 'warn', resolved: 'ok' };
+
+  async function _loadIncidents() {
+    await Promise.all([_loadIncidentStats(), _loadIncidentList()]);
+    _wireIncidentControls();
+  }
+
+  async function _loadIncidentStats() {
+    const strip = $('incidentStatsStrip');
+    if (!strip) return;
+    const r = await api('/api/v1/incidents/stats');
+    if (!r.ok) { strip.innerHTML = ''; return; }
+    const d = r.data;
+    const bs = d.by_status || {};
+    strip.innerHTML = `
+      <div class="report-card" style="padding:8px 12px;min-width:90px;"><span>Total</span><strong>${d.total}</strong></div>
+      <div class="report-card" style="padding:8px 12px;min-width:90px;"><span>Open</span><strong style="color:${bs.open ? 'var(--danger,#e55)' : 'inherit'};">${bs.open || 0}</strong></div>
+      <div class="report-card" style="padding:8px 12px;min-width:90px;"><span>Acknowledged</span><strong style="color:${bs.acknowledged ? 'var(--warn,#f90)' : 'inherit'};">${bs.acknowledged || 0}</strong></div>
+      <div class="report-card" style="padding:8px 12px;min-width:90px;"><span>Resolved</span><strong style="color:var(--ok,#5a5);">${bs.resolved || 0}</strong></div>
+      <div class="report-card" style="padding:8px 12px;min-width:90px;"><span>Opened 24h</span><strong>${d.opened_24h}</strong></div>`;
+  }
+
+  async function _loadIncidentList() {
+    const list = $('incidentList');
+    if (!list) return;
+    list.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+    const params = new URLSearchParams({ limit: 50 });
+    const status = $('incStatusFilter')?.value;
+    const sev    = $('incSevFilter')?.value;
+    if (status) params.set('status',   status);
+    if (sev)    params.set('severity', sev);
+    const r = await api(`/api/v1/incidents?${params}`);
+    if (!r.ok) {
+      list.innerHTML = '<div class="empty-state"><p>Failed to load incidents.</p></div>';
+      return;
+    }
+    const { incidents, total } = r.data;
+    if (!incidents.length) {
+      list.innerHTML = '<div class="empty-state"><p>No incidents found.</p></div>';
+      return;
+    }
+    list.innerHTML = `
+      <div class="activity-list">
+        ${incidents.map(inc => {
+          const sevBadge    = _INC_SEV_BADGE[inc.severity]    || 'neutral';
+          const statusBadge = _INC_STATUS_BADGE[inc.status]   || 'neutral';
+          const ts = inc.created_at ? new Date(inc.created_at).toLocaleString() : '';
+          return `
+            <div class="activity-item" data-inc-id="${esc(inc.id)}" style="padding:10px 12px;cursor:pointer;gap:10px;">
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:3px;flex-wrap:wrap;">
+                  <span class="badge ${sevBadge}">${esc(inc.severity)}</span>
+                  <span class="badge ${statusBadge}" style="font-size:10px;">${esc(inc.status)}</span>
+                  ${inc.metric ? `<code style="font-size:10px;color:var(--text-muted);background:var(--bg-deep);padding:1px 5px;border-radius:3px;">${esc(inc.metric)}</code>` : ''}
+                </div>
+                <p style="margin:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(inc.title)}</p>
+                ${inc.assigned_to ? `<span style="font-size:11px;color:var(--text-muted);">→ ${esc(inc.assigned_to)}</span>` : ''}
+              </div>
+              <div style="flex-shrink:0;text-align:right;">
+                <span style="font-size:10px;color:var(--text-muted);white-space:nowrap;">${esc(ts)}</span>
+                <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end;">
+                  ${inc.status === 'open' ? `<button class="btn sm ghost" data-ack="${esc(inc.id)}" style="font-size:10px;padding:2px 7px;">Ack</button>` : ''}
+                  ${inc.status !== 'resolved' ? `<button class="btn sm ghost" data-resolve="${esc(inc.id)}" style="font-size:10px;padding:2px 7px;">Resolve</button>` : ''}
+                </div>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>
+      ${total > 50 ? `<p style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px;">${total} total — showing 50</p>` : ''}`;
+
+    // Row click → detail modal
+    list.querySelectorAll('[data-inc-id]').forEach(row => {
+      row.addEventListener('click', e => {
+        if (e.target.closest('[data-ack],[data-resolve]')) return;
+        _openIncidentModal(row.dataset.incId);
+      });
+    });
+    // Inline ack/resolve
+    list.querySelectorAll('[data-ack]').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        btn.disabled = true; btn.textContent = '…';
+        await api(`/api/v1/incidents/${btn.dataset.ack}/acknowledge`, { method: 'POST' });
+        _loadIncidents();
+      });
+    });
+    list.querySelectorAll('[data-resolve]').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        btn.disabled = true; btn.textContent = '…';
+        await api(`/api/v1/incidents/${btn.dataset.resolve}/resolve`, { method: 'POST' });
+        _loadIncidents();
+      });
+    });
+  }
+
+  async function _openIncidentModal(incidentId) {
+    _activeIncidentId = incidentId;
+    const modal = $('incidentModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    $('incModalTitle').textContent = 'Loading…';
+    $('incModalTimeline').innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+
+    const r = await api(`/api/v1/incidents/${incidentId}`);
+    if (!r.ok) {
+      $('incModalTitle').textContent = 'Failed to load incident';
+      return;
+    }
+    const { incident: inc, timeline } = r.data;
+    $('incModalTitle').textContent = inc.title;
+    const sevBadge    = _INC_SEV_BADGE[inc.severity]  || 'neutral';
+    const statusBadge = _INC_STATUS_BADGE[inc.status] || 'neutral';
+    $('incModalMeta').innerHTML = `
+      <span class="badge ${sevBadge}">${esc(inc.severity)}</span>
+      <span class="badge ${statusBadge}">${esc(inc.status)}</span>
+      ${inc.metric ? `<code style="font-size:11px;background:var(--bg-deep);padding:2px 6px;border-radius:3px;">${esc(inc.metric)}</code>` : ''}
+      <span style="font-size:11px;color:var(--text-muted);">Created ${inc.created_at ? new Date(inc.created_at).toLocaleString() : ''}</span>`;
+    $('incModalDesc').textContent = inc.description || '—';
+
+    const actions = [];
+    if (inc.status === 'open') actions.push(`<button class="btn sm" id="incAckBtn">Acknowledge</button>`);
+    if (inc.status !== 'resolved') actions.push(`<button class="btn sm primary" id="incResolveBtn">Resolve</button>`);
+    $('incModalActions').innerHTML = actions.join('');
+
+    $('incAckBtn')?.addEventListener('click', async () => {
+      await api(`/api/v1/incidents/${incidentId}/acknowledge`, { method: 'POST' });
+      modal.style.display = 'none';
+      _loadIncidents();
+    });
+    $('incResolveBtn')?.addEventListener('click', async () => {
+      await api(`/api/v1/incidents/${incidentId}/resolve`, { method: 'POST' });
+      modal.style.display = 'none';
+      _loadIncidents();
+    });
+
+    const _TL_ACTION_ICON = {
+      created: '🆕', acknowledged: '👁', resolved: '✅',
+      repeated_breach: '⚠️', commented: '💬', assigned: '👤',
+    };
+    $('incModalTimeline').innerHTML = timeline.length ? `
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        ${timeline.map(t => `
+          <div style="display:flex;gap:8px;align-items:flex-start;">
+            <span style="font-size:14px;flex-shrink:0;">${_TL_ACTION_ICON[t.action] || '•'}</span>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;">
+                <strong style="font-size:12px;">${esc(t.action)}</strong>
+                <span style="font-size:10px;color:var(--text-muted);">${t.actor}</span>
+                <span style="font-size:10px;color:var(--text-muted);margin-left:auto;">${t.ts ? new Date(t.ts).toLocaleTimeString() : ''}</span>
+              </div>
+              ${t.note ? `<p style="font-size:12px;color:var(--text-muted);margin:2px 0 0;">${esc(t.note)}</p>` : ''}
+            </div>
+          </div>`).join('')}
+      </div>` : '<p style="font-size:12px;color:var(--text-muted);">No timeline entries.</p>';
+  }
+
+  function _wireIncidentControls() {
+    const closeBtn = $('incModalCloseBtn');
+    if (closeBtn && !closeBtn._incWired) {
+      closeBtn._incWired = true;
+      closeBtn.addEventListener('click', () => {
+        $('incidentModal').style.display = 'none';
+        _activeIncidentId = null;
+      });
+    }
+    const commentBtn = $('incCommentBtn');
+    if (commentBtn && !commentBtn._incWired) {
+      commentBtn._incWired = true;
+      commentBtn.addEventListener('click', async () => {
+        const input = $('incCommentInput');
+        const note  = input?.value?.trim();
+        if (!note || !_activeIncidentId) return;
+        commentBtn.disabled = true;
+        const r = await api(`/api/v1/incidents/${_activeIncidentId}/comment`, {
+          method: 'POST', body: JSON.stringify({ note }),
+        });
+        commentBtn.disabled = false;
+        if (r.ok) {
+          input.value = '';
+          _openIncidentModal(_activeIncidentId);
+        }
+      });
+    }
+    const refreshBtn = $('incRefreshBtn');
+    if (refreshBtn && !refreshBtn._incWired) {
+      refreshBtn._incWired = true;
+      refreshBtn.addEventListener('click', () => _loadIncidents());
+    }
+    [$('incStatusFilter'), $('incSevFilter')].forEach(el => {
+      if (el && !el._incWired) {
+        el._incWired = true;
+        el.addEventListener('change', () => _loadIncidentList());
+      }
+    });
+    const createBtn = $('incCreateBtn');
+    if (createBtn && !createBtn._incWired) {
+      createBtn._incWired = true;
+      createBtn.addEventListener('click', () => {
+        $('incCreateModal').style.display = 'flex';
+      });
+    }
+    const cancelBtn = $('incCreateCancelBtn');
+    if (cancelBtn && !cancelBtn._incWired) {
+      cancelBtn._incWired = true;
+      cancelBtn.addEventListener('click', () => {
+        $('incCreateModal').style.display = 'none';
+      });
+    }
+    const createForm = $('incCreateForm');
+    if (createForm && !createForm._incWired) {
+      createForm._incWired = true;
+      createForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        const title = $('incCreateTitle')?.value?.trim();
+        const desc  = $('incCreateDesc')?.value?.trim();
+        const sev   = $('incCreateSev')?.value;
+        if (!title) return;
+        const r = await api('/api/v1/incidents', {
+          method: 'POST',
+          body: JSON.stringify({ title, description: desc, severity: sev }),
+        });
+        if (r.ok) {
+          $('incCreateModal').style.display = 'none';
+          createForm.reset();
+          _loadIncidents();
+        }
+      });
+    }
+  }
+
+  // ── Audit Log ────────────────────────────────────────────────────────────────
+
+  const _auditState = { offset: 0, limit: 50, total: 0 };
+  const _SEV_BADGE = { critical: 'bad', high: 'bad', medium: 'warn', low: 'neutral', info: 'neutral' };
+
+  async function _loadAuditLog() {
+    await Promise.all([_loadAuditStats(), _loadAuditEntries(0)]);
+    _wireAuditControls();
+  }
+
+  async function _loadAuditStats() {
+    const strip = $('auditStatsStrip');
+    if (!strip) return;
+    const r = await api('/api/v1/audit-log/stats');
+    if (!r.ok) { strip.innerHTML = ''; return; }
+    const d = r.data;
+    const sev = d.by_severity || {};
+    strip.innerHTML = `
+      <div class="report-card" style="padding:8px 12px;min-width:90px;"><span>Total</span><strong>${d.total}</strong></div>
+      <div class="report-card" style="padding:8px 12px;min-width:90px;"><span>Last 24h</span><strong>${d.last_24h}</strong></div>
+      ${(sev.critical || sev.high) ? `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>Critical/High</span><strong style="color:var(--danger,#e55);">${(sev.critical||0)+(sev.high||0)}</strong></div>` : ''}
+      ${sev.medium ? `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>Medium</span><strong style="color:var(--warn,#f90);">${sev.medium}</strong></div>` : ''}`;
+
+    // Populate event-type filter
+    const sel = $('auditTypeFilter');
+    if (sel && d.top_event_types) {
+      const existing = new Set(Array.from(sel.options).map(o => o.value));
+      d.top_event_types.forEach(({ event_type }) => {
+        if (!existing.has(event_type)) {
+          const opt = document.createElement('option');
+          opt.value = event_type; opt.textContent = event_type;
+          sel.appendChild(opt);
+        }
+      });
+    }
+  }
+
+  async function _loadAuditEntries(offset) {
+    const list = $('auditEntriesList');
+    if (!list) return;
+    _auditState.offset = offset;
+    list.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+
+    const params = new URLSearchParams({
+      limit:  _auditState.limit,
+      offset: offset,
+    });
+    const sev  = $('auditSevFilter')?.value;
+    const type = $('auditTypeFilter')?.value;
+    const q    = $('auditSearchInput')?.value?.trim();
+    if (sev)  params.set('severity',   sev);
+    if (type) params.set('event_type', type);
+    if (q)    params.set('q', q);
+
+    const r = await api(`/api/v1/audit-log?${params}`);
+    if (!r.ok) {
+      list.innerHTML = `<div class="empty-state"><p>Failed to load audit log.</p></div>`;
+      return;
+    }
+    const { entries, total } = r.data;
+    _auditState.total = total;
+
+    if (!entries.length) {
+      list.innerHTML = '<div class="empty-state"><p>No audit entries match the current filters.</p></div>';
+      _renderAuditPagination();
+      return;
+    }
+
+    list.innerHTML = `
+      <div class="activity-list">
+        ${entries.map(e => {
+          const badge = _SEV_BADGE[e.severity] || 'neutral';
+          const ts    = e.ts ? new Date(e.ts).toLocaleString() : '';
+          return `
+            <div class="activity-item" style="padding:9px 12px;gap:10px;">
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:2px;flex-wrap:wrap;">
+                  <span class="badge ${badge}" style="font-size:10px;">${esc(e.severity)}</span>
+                  <code style="font-size:10px;color:var(--text-muted);background:var(--bg-deep);padding:1px 5px;border-radius:3px;">${esc(e.event_type)}</code>
+                  <span style="font-size:10px;color:var(--text-muted);">${esc(e.actor)}</span>
+                </div>
+                <p style="margin:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(e.summary)}</p>
+              </div>
+              <span style="font-size:10px;color:var(--text-muted);white-space:nowrap;flex-shrink:0;">${esc(ts)}</span>
+            </div>`;
+        }).join('')}
+      </div>`;
+    _renderAuditPagination();
+  }
+
+  function _renderAuditPagination() {
+    const pg = $('auditPagination');
+    if (!pg) return;
+    const { offset, limit, total } = _auditState;
+    const page    = Math.floor(offset / limit) + 1;
+    const maxPage = Math.max(1, Math.ceil(total / limit));
+    pg.innerHTML = `
+      <button class="btn sm ghost" ${page <= 1 ? 'disabled' : ''} id="auditPrevBtn">← Prev</button>
+      <span style="color:var(--text-muted);">Page ${page} / ${maxPage} · ${total} entries</span>
+      <button class="btn sm ghost" ${page >= maxPage ? 'disabled' : ''} id="auditNextBtn">Next →</button>`;
+    pg.querySelector('#auditPrevBtn')?.addEventListener('click', () => _loadAuditEntries(offset - limit));
+    pg.querySelector('#auditNextBtn')?.addEventListener('click', () => _loadAuditEntries(offset + limit));
+  }
+
+  function _wireAuditControls() {
+    const refresh = $('auditRefreshBtn');
+    const exportB = $('auditExportBtn');
+    const search  = $('auditSearchInput');
+    const sevSel  = $('auditSevFilter');
+    const typeSel = $('auditTypeFilter');
+
+    if (refresh && !refresh._auditWired) {
+      refresh._auditWired = true;
+      refresh.addEventListener('click', () => _loadAuditLog());
+    }
+    if (exportB && !exportB._auditWired) {
+      exportB._auditWired = true;
+      exportB.addEventListener('click', () => {
+        const p = new URLSearchParams();
+        const sev  = $('auditSevFilter')?.value;
+        const type = $('auditTypeFilter')?.value;
+        if (sev)  p.set('severity', sev);
+        if (type) p.set('event_type', type);
+        const url = `/api/v1/audit-log/export?${p}`;
+        const a = document.createElement('a');
+        a.href = url; a.download = ''; a.click();
+      });
+    }
+    [search, sevSel, typeSel].forEach(el => {
+      if (el && !el._auditWired) {
+        el._auditWired = true;
+        el.addEventListener('change', () => _loadAuditEntries(0));
+        if (el === search) el.addEventListener('keydown', e => { if (e.key === 'Enter') _loadAuditEntries(0); });
+      }
+    });
+  }
+
+  // ── Notification Center ──────────────────────────────────────────────────────
+
+  let _notifOpen = false;
+  let _notifPollTimer = null;
+
+  function _initNotificationCenter() {
+    const bell    = $('notifBellBtn');
+    const panel   = $('notifPanel');
+    const overlay = $('notifOverlay');
+    if (!bell || !panel) return;
+
+    bell.addEventListener('click', () => _notifOpen ? _closeNotifPanel() : _openNotifPanel());
+    $('notifCloseBtn')?.addEventListener('click', _closeNotifPanel);
+    overlay.addEventListener('click', _closeNotifPanel);
+    $('notifMarkAllBtn')?.addEventListener('click', async () => {
+      await api('/api/v1/notifications/read-all', { method: 'POST' });
+      _refreshNotifList();
+      _refreshNotifBadge();
+    });
+    $('notifClearBtn')?.addEventListener('click', async () => {
+      if (!confirm('Clear all notifications?')) return;
+      await api('/api/v1/notifications', { method: 'DELETE' });
+      _refreshNotifList();
+      _refreshNotifBadge();
+    });
+
+    // Poll badge count every 30s
+    _notifPollTimer = setInterval(_refreshNotifBadge, 30_000);
+    _refreshNotifBadge();
+  }
+
+  async function _refreshNotifBadge() {
+    const r = await api('/api/v1/notifications/count');
+    const badge = $('notifBadge');
+    if (!badge) return;
+    const n = r.unread ?? 0;
+    badge.textContent = n > 99 ? '99+' : String(n);
+    badge.style.display = n > 0 ? 'block' : 'none';
+    $('notifBellBtn')?.setAttribute('aria-label', n > 0 ? `${n} unread notifications` : 'Notifications');
+  }
+
+  function _openNotifPanel() {
+    _notifOpen = true;
+    const panel   = $('notifPanel');
+    const overlay = $('notifOverlay');
+    panel.hidden   = false;
+    overlay.hidden = false;
+    panel.style.right = '0';
+    $('notifBellBtn')?.setAttribute('aria-expanded', 'true');
+    _refreshNotifList();
+  }
+
+  function _closeNotifPanel() {
+    _notifOpen = false;
+    const panel   = $('notifPanel');
+    const overlay = $('notifOverlay');
+    panel.style.right = '-360px';
+    setTimeout(() => {
+      panel.hidden   = true;
+      overlay.hidden = true;
+    }, 260);
+    $('notifBellBtn')?.setAttribute('aria-expanded', 'false');
+    _refreshNotifBadge();
+  }
+
+  async function _refreshNotifList() {
+    const listEl = $('notifList');
+    if (!listEl) return;
+
+    const r = await api('/api/v1/notifications?limit=60');
+    const notifs  = r.notifications || [];
+    const unread  = r.unread ?? 0;
+
+    $('notifSubtitle').textContent = unread > 0 ? `${unread} unread` : 'All caught up';
+
+    const SEV_COLOR = {
+      low:      'var(--text-muted)',
+      medium:   'var(--accent)',
+      high:     'var(--warn, #f59e0b)',
+      critical: 'var(--danger)',
+    };
+    const VIEW_LABEL = {
+      command:   'Command Center',
+      workflows: 'Workflows',
+    };
+
+    if (!notifs.length) {
+      listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No notifications yet</div>`;
+      return;
+    }
+
+    listEl.innerHTML = notifs.map(n => `
+      <div data-notif-id="${esc(n.id)}" style="display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);${!n.is_read ? 'background:var(--accent-subtle);' : ''}cursor:pointer;transition:background .15s;">
+        <div style="flex-shrink:0;width:6px;height:6px;border-radius:50%;margin-top:6px;background:${SEV_COLOR[n.severity] || 'var(--text-muted)'};"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:${n.is_read ? '400' : '600'};line-height:1.3;">${esc(n.title)}</div>
+          ${n.body ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(n.body)}">${esc(n.body)}</div>` : ''}
+          <div style="font-size:10px;color:var(--text-muted);margin-top:4px;display:flex;gap:8px;">
+            <span>${esc(n.created_at?.slice(0,19)?.replace('T',' '))} UTC</span>
+            ${n.view_hint ? `<span style="color:var(--accent);cursor:pointer;" data-notif-nav="${esc(n.view_hint)}">${esc(VIEW_LABEL[n.view_hint] || n.view_hint)} →</span>` : ''}
+          </div>
+        </div>
+        <button type="button" data-notif-del="${esc(n.id)}" aria-label="Dismiss"
+                style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:14px;flex-shrink:0;padding:0 2px;opacity:.5;line-height:1;">✕</button>
+      </div>`).join('');
+
+    // Click on row → mark read
+    listEl.querySelectorAll('[data-notif-id]').forEach(row => {
+      row.addEventListener('click', async (e) => {
+        if (e.target.closest('[data-notif-del]') || e.target.closest('[data-notif-nav]')) return;
+        const id = row.dataset.notifId;
+        await api(`/api/v1/notifications/${id}/read`, { method: 'POST' });
+        row.style.background = '';
+        row.querySelector('div > div:first-child').style.fontWeight = '400';
+        _refreshNotifBadge();
+      });
+    });
+
+    // Navigate link
+    listEl.querySelectorAll('[data-notif-nav]').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.stopPropagation();
+        _closeNotifPanel();
+        showView(link.dataset.notifNav);
+      });
+    });
+
+    // Delete button
+    listEl.querySelectorAll('[data-notif-del]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const row = btn.closest('[data-notif-id]');
+        await api(`/api/v1/notifications/${btn.dataset.notifDel}`, { method: 'DELETE' });
+        row?.remove();
+        _refreshNotifBadge();
+      });
+    });
+  }
+
   // ── Init ────────────────────────────────────────────────────────────────────
   function init() {
     renderProviders();
@@ -1928,6 +4534,1009 @@ ${section('Model Health', modelHealth)}
     loadAccounts();
     loadTemplates();
     loadReports(false);
+    refreshConnectorFeatureNavigation();
+    _initNotificationCenter();
+  }
+
+  // ── SLA Tracker ──────────────────────────────────────────────────────────
+
+  let _slaEditId = null;
+
+  function initSlaView() {
+    _loadSlaPolicies();
+    _loadSlaBreaches();
+    _loadSlaStats();
+
+    _bind('slaAddBtn', 'click', () => _openSlaModal(null));
+    _bind('slaPolicyModalClose',  'click', _closeSlaModal);
+    _bind('slaPolicyModalCancel', 'click', _closeSlaModal);
+    _bind('slaBreachTypeFilter',  'change', _loadSlaBreaches);
+    _bind('slaBreachSevFilter',   'change', _loadSlaBreaches);
+
+    _q('#slaPolicyModal').addEventListener('click', e => {
+      if (e.target === _q('#slaPolicyModal')) _closeSlaModal();
+    });
+
+    _q('#slaPolicyForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const name     = _q('#slaPolName').value.trim();
+      const severity = _q('#slaPolSeverity').value;
+      const resp     = parseInt(_q('#slaPolResponse').value, 10);
+      const res      = parseInt(_q('#slaPolResolve').value, 10);
+      const enabled  = _q('#slaPolEnabled').checked;
+      if (!name) return;
+      const body = { name, severity, response_minutes: resp, resolve_minutes: res, enabled };
+      try {
+        if (_slaEditId) {
+          await _api(`/sla/policies/${_slaEditId}`, 'PATCH', body);
+        } else {
+          await _api('/sla/policies', 'POST', body);
+        }
+        _closeSlaModal();
+        _loadSlaPolicies();
+        _loadSlaStats();
+      } catch (err) {
+        alert('Save failed: ' + (err.message || err));
+      }
+    });
+  }
+
+  async function _loadSlaPolicies() {
+    const tbody = _q('#slaPoliciesTbody');
+    try {
+      const data = await _api('/sla/policies');
+      const list = data.policies || [];
+      _q('#slaPoliciesCount').textContent = `${list.length} polic${list.length === 1 ? 'y' : 'ies'}`;
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No SLA policies defined yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(p => {
+        const sevLabel = p.severity || '<span style="color:var(--text-muted)">All</span>';
+        const statusBadge = p.enabled
+          ? '<span class="badge success">Active</span>'
+          : '<span class="badge muted">Disabled</span>';
+        return `<tr>
+          <td><strong>${_esc(p.name)}</strong></td>
+          <td>${sevLabel}</td>
+          <td>${p.response_minutes} min</td>
+          <td>${p.resolve_minutes} min</td>
+          <td>${statusBadge}</td>
+          <td style="text-align:right;">
+            <button class="btn xs" onclick="_openSlaModal('${p.id}')">Edit</button>
+            <button class="btn xs danger" onclick="_deleteSlaPolicy('${p.id}', '${_esc(p.name)}')">Delete</button>
+          </td>
+        </tr>`;
+      }).join('');
+    } catch (_) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Failed to load policies.</td></tr>';
+    }
+  }
+
+  async function _loadSlaBreaches() {
+    const tbody   = _q('#slaBreachesTbody');
+    const type    = (_q('#slaBreachTypeFilter') || {}).value || '';
+    const sev     = (_q('#slaBreachSevFilter')  || {}).value || '';
+    let url = '/sla/breaches?limit=50';
+    if (type) url += '&breach_type=' + encodeURIComponent(type);
+    if (sev)  url += '&severity='    + encodeURIComponent(sev);
+    try {
+      const data = await _api(url);
+      const list = data.breaches || [];
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">No breaches recorded.</td></tr>';
+        return;
+      }
+      const typeLabel = t => t === 'response'
+        ? '<span class="badge warning">Response</span>'
+        : '<span class="badge danger">Resolution</span>';
+      tbody.innerHTML = list.map(b => `<tr>
+        <td title="${_esc(b.incident_id)}">${_esc(b.incident_title)}</td>
+        <td><span class="badge ${_sevClass(b.incident_severity)}">${b.incident_severity || '—'}</span></td>
+        <td>${typeLabel(b.breach_type)}</td>
+        <td>${_esc(b.policy_name)}</td>
+        <td style="font-size:11px;color:var(--text-muted);">${_relativeTime(b.breached_at)}</td>
+      </tr>`).join('');
+    } catch (_) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Failed to load breaches.</td></tr>';
+    }
+  }
+
+  async function _loadSlaStats() {
+    try {
+      const data = await _api('/sla/policies/stats');
+      const strip = _q('#slaStatsStrip');
+      strip.innerHTML = [
+        { label: 'Active Policies',   value: data.enabled_policies ?? 0,   cls: '' },
+        { label: 'Open Breaches',     value: data.open_breaches ?? 0,       cls: (data.open_breaches > 0) ? 'danger' : '' },
+        { label: 'Breaches Today',    value: data.breaches_today ?? 0,      cls: (data.breaches_today > 0) ? 'warning' : '' },
+        { label: 'Response Breaches', value: (data.breaches_by_type || {}).response ?? 0, cls: '' },
+        { label: 'Resolve Breaches',  value: (data.breaches_by_type || {}).resolve  ?? 0, cls: '' },
+      ].map(s => `<div class="stat-card ${s.cls}"><div class="stat-value">${s.value}</div><div class="stat-label">${s.label}</div></div>`).join('');
+    } catch (_) {}
+  }
+
+  async function _openSlaModal(policyId) {
+    _slaEditId = policyId;
+    _q('#slaPolicyModalTitle').textContent = policyId ? 'Edit SLA Policy' : 'New SLA Policy';
+    _q('#slaPolName').value      = '';
+    _q('#slaPolSeverity').value  = '';
+    _q('#slaPolResponse').value  = '60';
+    _q('#slaPolResolve').value   = '240';
+    _q('#slaPolEnabled').checked = true;
+    if (policyId) {
+      try {
+        const p = await _api(`/sla/policies/${policyId}`);
+        _q('#slaPolName').value      = p.name || '';
+        _q('#slaPolSeverity').value  = p.severity || '';
+        _q('#slaPolResponse').value  = p.response_minutes ?? 60;
+        _q('#slaPolResolve').value   = p.resolve_minutes  ?? 240;
+        _q('#slaPolEnabled').checked = !!p.enabled;
+      } catch (_) {}
+    }
+    _q('#slaPolicyModal').hidden = false;
+  }
+
+  function _closeSlaModal() {
+    _q('#slaPolicyModal').hidden = true;
+    _slaEditId = null;
+  }
+
+  async function _deleteSlaPolicy(id, name) {
+    if (!confirm(`Delete SLA policy "${name}"? All associated breach records will also be removed.`)) return;
+    try {
+      await _api(`/sla/policies/${id}`, 'DELETE');
+      _loadSlaPolicies();
+      _loadSlaBreaches();
+      _loadSlaStats();
+    } catch (err) {
+      alert('Delete failed: ' + (err.message || err));
+    }
+  }
+
+  // ── On-call ───────────────────────────────────────────────────────────────
+
+  let _oncallEditSchId = null;
+
+  function initOncallView() {
+    _loadOncallCurrent();
+    _loadOncallSchedules();
+
+    _bind('oncallAddScheduleBtn',    'click', () => _openOncallScheduleModal(null));
+    _bind('oncallScheduleModalClose','click', _closeOncallScheduleModal);
+    _bind('oncallScheduleModalCancel','click', _closeOncallScheduleModal);
+    _bind('oncallSlotModalClose',    'click', () => { _q('#oncallSlotModal').hidden = true; });
+    _bind('oncallSlotModalCancel',   'click', () => { _q('#oncallSlotModal').hidden = true; });
+    _bind('oncallEscModalClose',     'click', () => { _q('#oncallEscModal').hidden = true; });
+    _bind('oncallEscModalCancel',    'click', () => { _q('#oncallEscModal').hidden = true; });
+
+    _q('#oncallScheduleModal').addEventListener('click', e => {
+      if (e.target === _q('#oncallScheduleModal')) _closeOncallScheduleModal();
+    });
+
+    _q('#oncallScheduleForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const body = {
+        name:        _q('#oncallSchName').value.trim(),
+        description: _q('#oncallSchDesc').value.trim(),
+        timezone:    _q('#oncallSchTz').value.trim() || 'UTC',
+        enabled:     _q('#oncallSchEnabled').checked,
+      };
+      if (!body.name) return;
+      try {
+        if (_oncallEditSchId) {
+          await _api(`/oncall/schedules/${_oncallEditSchId}`, 'PATCH', body);
+        } else {
+          await _api('/oncall/schedules', 'POST', body);
+        }
+        _closeOncallScheduleModal();
+        _loadOncallSchedules();
+      } catch (err) { alert('Save failed: ' + (err.message || err)); }
+    });
+
+    _q('#oncallSlotForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const body = {
+        schedule_id:  _q('#oncallSlotScheduleId').value,
+        member_name:  _q('#oncallSlotName').value.trim(),
+        member_email: _q('#oncallSlotEmail').value.trim(),
+        starts_at:    _q('#oncallSlotStart').value.trim(),
+        ends_at:      _q('#oncallSlotEnd').value.trim(),
+        is_override:  _q('#oncallSlotOverride').checked,
+        note:         _q('#oncallSlotNote').value.trim(),
+      };
+      try {
+        await _api('/oncall/slots', 'POST', body);
+        _q('#oncallSlotModal').hidden = true;
+        _loadOncallSchedules();
+        _loadOncallCurrent();
+      } catch (err) { alert('Add slot failed: ' + (err.message || err)); }
+    });
+
+    _q('#oncallEscForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const body = {
+        schedule_id:   _q('#oncallEscScheduleId').value,
+        level:         parseInt(_q('#oncallEscLevel').value, 10),
+        contact_name:  _q('#oncallEscName').value.trim(),
+        contact_email: _q('#oncallEscEmail').value.trim(),
+        delay_minutes: parseInt(_q('#oncallEscDelay').value, 10),
+      };
+      try {
+        await _api('/oncall/escalations', 'POST', body);
+        _q('#oncallEscModal').hidden = true;
+        _loadOncallSchedules();
+      } catch (err) { alert('Add tier failed: ' + (err.message || err)); }
+    });
+  }
+
+  async function _loadOncallCurrent() {
+    try {
+      const data = await _api('/oncall/schedules/current');
+      const slots = data.on_call || [];
+      const el = _q('#oncallCurrentList');
+      if (!slots.length) {
+        el.innerHTML = '<span style="color:var(--text-muted);">No one is currently on call.</span>';
+      } else {
+        el.innerHTML = slots.map(s =>
+          `<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+            <span class="badge success" style="min-width:60px;text-align:center;">${_esc(s.schedule_name)}</span>
+            <strong>${_esc(s.member_name)}</strong>
+            ${s.member_email ? `<span style="color:var(--text-muted);font-size:11px;">&lt;${_esc(s.member_email)}&gt;</span>` : ''}
+            ${s.is_override ? '<span class="badge warning" style="font-size:10px;">override</span>' : ''}
+            <span style="color:var(--text-muted);font-size:11px;">until ${_relativeTime(s.ends_at)}</span>
+          </div>`
+        ).join('');
+      }
+    } catch (_) {}
+  }
+
+  async function _loadOncallSchedules() {
+    const container = _q('#oncallSchedulesList');
+    try {
+      const data = await _api('/oncall/schedules');
+      const list = data.schedules || [];
+      if (!list.length) {
+        container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:32px;">No schedules defined yet.</p>';
+        return;
+      }
+      const cards = await Promise.all(list.map(async s => {
+        let detail = s;
+        try { detail = await _api(`/oncall/schedules/${s.id}`); } catch (_) {}
+        const current   = (detail.current_oncall || []);
+        const slots     = (detail.upcoming_slots || []).slice(0, 5);
+        const escs      = (detail.escalation_policy || []);
+        const statusBadge = s.enabled
+          ? '<span class="badge success">Active</span>'
+          : '<span class="badge muted">Disabled</span>';
+        const currentHtml = current.length
+          ? current.map(c => `<span class="badge success">${_esc(c.member_name)}</span>`).join(' ')
+          : '<span style="color:var(--text-muted);font-size:11px;">No one on call</span>';
+        const slotsHtml = slots.length
+          ? `<table class="data-table" style="margin-top:8px;"><thead><tr><th>Member</th><th>Starts</th><th>Ends</th><th>Type</th><th></th></tr></thead><tbody>
+              ${slots.map(slot => `<tr>
+                <td>${_esc(slot.member_name)} ${slot.member_email ? `<span style="color:var(--text-muted);font-size:11px;">&lt;${_esc(slot.member_email)}&gt;</span>` : ''}</td>
+                <td style="font-size:11px;">${_relativeTime(slot.starts_at)}</td>
+                <td style="font-size:11px;">${_relativeTime(slot.ends_at)}</td>
+                <td>${slot.is_override ? '<span class="badge warning">Override</span>' : '<span class="badge info">Rotation</span>'}</td>
+                <td><button class="btn xs danger" onclick="_deleteOncallSlot('${slot.id}')">Remove</button></td>
+              </tr>`).join('')}
+            </tbody></table>`
+          : '<p style="color:var(--text-muted);font-size:12px;margin:8px 0;">No upcoming slots.</p>';
+        const escHtml = escs.length
+          ? `<table class="data-table" style="margin-top:8px;"><thead><tr><th>Level</th><th>Contact</th><th>After</th><th></th></tr></thead><tbody>
+              ${escs.map(e => `<tr>
+                <td><strong>L${e.level}</strong></td>
+                <td>${_esc(e.contact_name)} ${e.contact_email ? `<span style="color:var(--text-muted);font-size:11px;">&lt;${_esc(e.contact_email)}&gt;</span>` : ''}</td>
+                <td style="font-size:11px;">${e.delay_minutes} min</td>
+                <td><button class="btn xs danger" onclick="_deleteOncallEsc('${e.id}')">Remove</button></td>
+              </tr>`).join('')}
+            </tbody></table>`
+          : '<p style="color:var(--text-muted);font-size:12px;margin:8px 0;">No escalation policy.</p>';
+        return `<article class="panel" style="margin-bottom:16px;">
+          <div class="panel-head" style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="panel-title">${_esc(s.name)}</span>
+              ${statusBadge}
+              <span style="font-size:11px;color:var(--text-muted);">TZ: ${_esc(s.timezone || 'UTC')}</span>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <button class="btn xs" onclick="_openOncallScheduleModal('${s.id}')">Edit</button>
+              <button class="btn xs primary" onclick="_openOncallSlotModal('${s.id}')">+ Slot</button>
+              <button class="btn xs" onclick="_openOncallEscModal('${s.id}')">+ Escalation</button>
+              <button class="btn xs danger" onclick="_deleteOncallSchedule('${s.id}','${_esc(s.name)}')">Delete</button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div style="margin-bottom:12px;">
+              <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">ON CALL NOW</div>
+              ${currentHtml}
+            </div>
+            <details open>
+              <summary style="font-size:12px;font-weight:600;cursor:pointer;margin-bottom:4px;">Upcoming Slots</summary>
+              ${slotsHtml}
+            </details>
+            <details style="margin-top:12px;">
+              <summary style="font-size:12px;font-weight:600;cursor:pointer;margin-bottom:4px;">Escalation Policy</summary>
+              ${escHtml}
+            </details>
+          </div>
+        </article>`;
+      }));
+      container.innerHTML = cards.join('');
+    } catch (_) {
+      container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:32px;">Failed to load schedules.</p>';
+    }
+  }
+
+  function _openOncallScheduleModal(scheduleId) {
+    _oncallEditSchId = scheduleId;
+    _q('#oncallScheduleModalTitle').textContent = scheduleId ? 'Edit Schedule' : 'New Schedule';
+    _q('#oncallSchName').value    = '';
+    _q('#oncallSchDesc').value    = '';
+    _q('#oncallSchTz').value      = 'UTC';
+    _q('#oncallSchEnabled').checked = true;
+    if (scheduleId) {
+      _api(`/oncall/schedules/${scheduleId}`).then(s => {
+        _q('#oncallSchName').value     = s.name        || '';
+        _q('#oncallSchDesc').value     = s.description || '';
+        _q('#oncallSchTz').value       = s.timezone    || 'UTC';
+        _q('#oncallSchEnabled').checked = !!s.enabled;
+      }).catch(() => {});
+    }
+    _q('#oncallScheduleModal').hidden = false;
+  }
+
+  function _closeOncallScheduleModal() {
+    _q('#oncallScheduleModal').hidden = true;
+    _oncallEditSchId = null;
+  }
+
+  function _openOncallSlotModal(scheduleId) {
+    _q('#oncallSlotScheduleId').value = scheduleId;
+    _q('#oncallSlotName').value  = '';
+    _q('#oncallSlotEmail').value = '';
+    _q('#oncallSlotStart').value = '';
+    _q('#oncallSlotEnd').value   = '';
+    _q('#oncallSlotOverride').checked = false;
+    _q('#oncallSlotNote').value  = '';
+    _q('#oncallSlotModal').hidden = false;
+  }
+
+  function _openOncallEscModal(scheduleId) {
+    _q('#oncallEscScheduleId').value = scheduleId;
+    _q('#oncallEscLevel').value = '1';
+    _q('#oncallEscName').value  = '';
+    _q('#oncallEscEmail').value = '';
+    _q('#oncallEscDelay').value = '15';
+    _q('#oncallEscModal').hidden = false;
+  }
+
+  async function _deleteOncallSchedule(id, name) {
+    if (!confirm(`Delete on-call schedule "${name}" and all its slots?`)) return;
+    try {
+      await _api(`/oncall/schedules/${id}`, 'DELETE');
+      _loadOncallSchedules();
+      _loadOncallCurrent();
+    } catch (err) { alert('Delete failed: ' + (err.message || err)); }
+  }
+
+  async function _deleteOncallSlot(id) {
+    try {
+      await _api(`/oncall/slots/${id}`, 'DELETE');
+      _loadOncallSchedules();
+      _loadOncallCurrent();
+    } catch (err) { alert('Remove slot failed: ' + (err.message || err)); }
+  }
+
+  async function _deleteOncallEsc(id) {
+    try {
+      await _api(`/oncall/escalations/${id}`, 'DELETE');
+      _loadOncallSchedules();
+    } catch (err) { alert('Remove tier failed: ' + (err.message || err)); }
+  }
+
+  // ── API Keys ──────────────────────────────────────────────────────────────
+
+  let _akEditId = null;
+
+  function initApiKeysView() {
+    _loadApiKeys();
+    _loadAkStats();
+
+    _bind('akAddBtn',      'click', () => _openAkModal(null));
+    _bind('akModalClose',  'click', _closeAkModal);
+    _bind('akModalCancel', 'click', _closeAkModal);
+    _bind('akRevealClose', 'click', () => { _q('#akRevealModal').hidden = true; _loadApiKeys(); _loadAkStats(); });
+    _bind('akRevealDone',  'click', () => { _q('#akRevealModal').hidden = true; _loadApiKeys(); _loadAkStats(); });
+    _bind('akEnabledOnly', 'change', _loadApiKeys);
+
+    _q('#akModal').addEventListener('click', e => {
+      if (e.target === _q('#akModal')) _closeAkModal();
+    });
+
+    _q('#akForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const name    = _q('#akName').value.trim();
+      const desc    = _q('#akDesc').value.trim();
+      const expires = _q('#akExpires').value.trim() || null;
+      const enabled = _q('#akEnabled').checked;
+      const scopes  = [..._q('#akScopesGroup').querySelectorAll('input[type=checkbox]:checked')]
+                        .map(cb => cb.value);
+      if (!name) return;
+      const body = { name, description: desc, scopes, expires_at: expires, enabled };
+      try {
+        let data;
+        if (_akEditId) {
+          await _api(`/api-keys/${_akEditId}`, 'PATCH', body);
+          _closeAkModal();
+          _loadApiKeys();
+          _loadAkStats();
+        } else {
+          data = await _api('/api-keys', 'POST', body);
+          _closeAkModal();
+          _showAkReveal(data.key, data.warning || '');
+        }
+      } catch (err) {
+        alert('Save failed: ' + (err.message || err));
+      }
+    });
+  }
+
+  async function _loadApiKeys() {
+    const tbody       = _q('#akTbody');
+    const enabledOnly = (_q('#akEnabledOnly') || {}).checked || false;
+    let url = '/api-keys?limit=200';
+    if (enabledOnly) url += '&enabled_only=true';
+    try {
+      const data = await _api(url);
+      const list = data.keys || [];
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">No API keys yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(k => {
+        const scopes  = Array.isArray(k.scopes) ? k.scopes : (k.scopes || '').split(',').filter(Boolean);
+        const scopeHtml = scopes.length ? scopes.map(s => `<span class="badge info" style="margin-right:2px;">${_esc(s)}</span>`).join('') : '<span style="color:var(--text-muted);font-size:11px;">full</span>';
+        const expiry  = k.expires_at ? _relativeTime(k.expires_at) : '<span style="color:var(--text-muted);">Never</span>';
+        const lastUsed = k.last_used_at ? _relativeTime(k.last_used_at) : '<span style="color:var(--text-muted);">—</span>';
+        const statusBadge = k.enabled
+          ? '<span class="badge success">Active</span>'
+          : '<span class="badge muted">Disabled</span>';
+        return `<tr>
+          <td>
+            <strong>${_esc(k.name)}</strong>
+            ${k.description ? `<div style="font-size:11px;color:var(--text-muted);">${_esc(k.description)}</div>` : ''}
+          </td>
+          <td><code style="font-size:11px;">${_esc(k.key_prefix)}</code></td>
+          <td>${scopeHtml}</td>
+          <td style="font-size:11px;">${expiry}</td>
+          <td style="font-size:11px;">${lastUsed}</td>
+          <td style="text-align:right;">${k.use_count ?? 0}</td>
+          <td>${statusBadge}</td>
+          <td style="text-align:right;white-space:nowrap;">
+            <button class="btn xs" onclick="_openAkModal('${k.id}')">Edit</button>
+            <button class="btn xs warning" onclick="_rotateAkKey('${k.id}','${_esc(k.name)}')">Rotate</button>
+            <button class="btn xs danger"  onclick="_deleteAkKey('${k.id}','${_esc(k.name)}')">Delete</button>
+          </td>
+        </tr>`;
+      }).join('');
+    } catch (_) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Failed to load keys.</td></tr>';
+    }
+  }
+
+  async function _loadAkStats() {
+    try {
+      const d = await _api('/api-keys/stats');
+      _q('#akStatsStrip').innerHTML = [
+        { label: 'Total Keys',    value: d.total       ?? 0, cls: '' },
+        { label: 'Active',        value: d.enabled     ?? 0, cls: '' },
+        { label: 'Disabled',      value: d.disabled    ?? 0, cls: d.disabled > 0 ? 'muted' : '' },
+        { label: 'Expired',       value: d.expired     ?? 0, cls: d.expired  > 0 ? 'danger' : '' },
+        { label: 'Total API Calls', value: d.total_calls ?? 0, cls: '' },
+      ].map(s => `<div class="stat-card ${s.cls}"><div class="stat-value">${s.value}</div><div class="stat-label">${s.label}</div></div>`).join('');
+    } catch (_) {}
+  }
+
+  async function _openAkModal(keyId) {
+    _akEditId = keyId;
+    _q('#akModalTitle').textContent = keyId ? 'Edit API Key' : 'New API Key';
+    _q('#akSaveBtn').textContent    = keyId ? 'Save Changes' : 'Create Key';
+    _q('#akName').value    = '';
+    _q('#akDesc').value    = '';
+    _q('#akExpires').value = '';
+    _q('#akEnabled').checked = true;
+    _q('#akScopesGroup').querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
+    if (keyId) {
+      try {
+        const k = await _api(`/api-keys/${keyId}`);
+        _q('#akName').value    = k.name        || '';
+        _q('#akDesc').value    = k.description || '';
+        _q('#akExpires').value = k.expires_at  || '';
+        _q('#akEnabled').checked = !!k.enabled;
+        const scopes = Array.isArray(k.scopes) ? k.scopes : [];
+        _q('#akScopesGroup').querySelectorAll('input[type=checkbox]').forEach(cb => {
+          cb.checked = scopes.includes(cb.value);
+        });
+      } catch (_) {}
+    }
+    _q('#akModal').hidden = false;
+  }
+
+  function _closeAkModal() {
+    _q('#akModal').hidden = true;
+    _akEditId = null;
+  }
+
+  function _showAkReveal(key, warning) {
+    _q('#akRevealKey').textContent     = key;
+    _q('#akRevealWarning').textContent = warning;
+    _q('#akRevealModal').hidden = false;
+  }
+
+  function _copyAkKey() {
+    const key = _q('#akRevealKey').textContent;
+    navigator.clipboard.writeText(key).then(() => {
+      _q('#akCopyBtn').textContent = 'Copied!';
+      setTimeout(() => { _q('#akCopyBtn').textContent = 'Copy'; }, 2000);
+    }).catch(() => {});
+  }
+
+  async function _rotateAkKey(id, name) {
+    if (!confirm(`Rotate API key "${name}"? The old key will stop working immediately.`)) return;
+    try {
+      const data = await _api(`/api-keys/${id}/rotate`, 'POST');
+      _showAkReveal(data.key, data.warning || '');
+    } catch (err) {
+      alert('Rotate failed: ' + (err.message || err));
+    }
+  }
+
+  async function _deleteAkKey(id, name) {
+    if (!confirm(`Permanently delete API key "${name}"?`)) return;
+    try {
+      await _api(`/api-keys/${id}`, 'DELETE');
+      _loadApiKeys();
+      _loadAkStats();
+    } catch (err) {
+      alert('Delete failed: ' + (err.message || err));
+    }
+  }
+
+  // ── Maintenance Windows ───────────────────────────────────────────────────
+
+  let _maintEditId = null;
+
+  function initMaintenanceView() {
+    _loadMaintenanceWindows();
+    _loadMaintenanceStatus();
+
+    _bind('maintAddBtn',           'click', () => _openMaintModal(null));
+    _bind('maintWindowModalClose', 'click', _closeMaintModal);
+    _bind('maintWindowModalCancel','click', _closeMaintModal);
+    _bind('maintLogModalClose',    'click', _closeMaintLogModal);
+    _bind('maintLogModalCloseBtn', 'click', _closeMaintLogModal);
+    _bind('maintStatusFilter',     'change', _loadMaintenanceWindows);
+    _bind('maintRefreshBtn',       'click', () => { _loadMaintenanceWindows(); _loadMaintenanceStatus(); });
+
+    _q('#maintWindowModal').addEventListener('click', e => {
+      if (e.target === _q('#maintWindowModal')) _closeMaintModal();
+    });
+    _q('#maintLogModal').addEventListener('click', e => {
+      if (e.target === _q('#maintLogModal')) _closeMaintLogModal();
+    });
+
+    _q('#maintWindowForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const name      = _q('#maintWinName').value.trim();
+      const desc      = _q('#maintWinDesc').value.trim();
+      const startsAt  = _q('#maintWinStartsAt').value.trim();
+      const endsAt    = _q('#maintWinEndsAt').value.trim();
+      const suppAlerts   = _q('#maintWinAlerts').checked;
+      const suppInc      = _q('#maintWinIncidents').checked;
+      const suppSla      = _q('#maintWinSla').checked;
+      if (!name || !startsAt || !endsAt) return;
+      const body = {
+        name, description: desc, starts_at: startsAt, ends_at: endsAt,
+        suppress_alerts: suppAlerts, suppress_incidents: suppInc, suppress_sla: suppSla,
+      };
+      try {
+        if (_maintEditId) {
+          await _api(`/maintenance/${_maintEditId}`, 'PATCH', body);
+        } else {
+          await _api('/maintenance', 'POST', body);
+        }
+        _closeMaintModal();
+        _loadMaintenanceWindows();
+        _loadMaintenanceStatus();
+      } catch (err) {
+        alert('Save failed: ' + (err.message || err));
+      }
+    });
+  }
+
+  async function _loadMaintenanceWindows() {
+    const tbody  = _q('#maintWindowsTbody');
+    const status = (_q('#maintStatusFilter') || {}).value || '';
+    let url = '/maintenance?limit=100';
+    if (status) url += '&status=' + encodeURIComponent(status);
+    try {
+      const data = await _api(url);
+      const list = data.windows || [];
+      _q('#maintWindowsCount').textContent = `${data.total ?? list.length} window${list.length !== 1 ? 's' : ''}`;
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No maintenance windows found.</td></tr>';
+        return;
+      }
+      const statusBadge = s => ({
+        scheduled: '<span class="badge info">Scheduled</span>',
+        active:    '<span class="badge warning">Active</span>',
+        completed: '<span class="badge success">Completed</span>',
+        cancelled: '<span class="badge muted">Cancelled</span>',
+      }[s] || `<span class="badge">${s}</span>`);
+
+      tbody.innerHTML = list.map(w => {
+        const suppressed = [
+          w.suppress_alerts    ? 'Alerts'    : '',
+          w.suppress_incidents ? 'Incidents' : '',
+          w.suppress_sla       ? 'SLA'       : '',
+        ].filter(Boolean).join(', ') || '—';
+        const actions = w.status === 'scheduled'
+          ? `<button class="btn xs success" onclick="_maintActivate('${w.id}')">Activate</button>
+             <button class="btn xs danger"  onclick="_maintCancel('${w.id}', '${_esc(w.name)}')">Cancel</button>`
+          : w.status === 'active'
+          ? `<button class="btn xs" onclick="_maintComplete('${w.id}')">Complete</button>
+             <button class="btn xs danger" onclick="_maintCancel('${w.id}', '${_esc(w.name)}')">Cancel</button>`
+          : '';
+        return `<tr>
+          <td>
+            <a href="#" onclick="event.preventDefault();_openMaintLogModal('${w.id}','${_esc(w.name)}')" style="font-weight:600;">${_esc(w.name)}</a>
+            ${w.description ? `<div style="font-size:11px;color:var(--text-muted);">${_esc(w.description)}</div>` : ''}
+          </td>
+          <td style="font-size:11px;">${_relativeTime(w.starts_at)}</td>
+          <td style="font-size:11px;">${_relativeTime(w.ends_at)}</td>
+          <td>${statusBadge(w.status)}</td>
+          <td style="font-size:11px;color:var(--text-muted);">${suppressed}</td>
+          <td style="text-align:right;white-space:nowrap;">
+            ${actions}
+            ${w.status !== 'active' ? `<button class="btn xs" onclick="_openMaintModal('${w.id}')">Edit</button>` : ''}
+            ${w.status !== 'active' ? `<button class="btn xs danger" onclick="_deleteMaintWindow('${w.id}','${_esc(w.name)}')">Delete</button>` : ''}
+          </td>
+        </tr>`;
+      }).join('');
+    } catch (_) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Failed to load windows.</td></tr>';
+    }
+  }
+
+  async function _loadMaintenanceStatus() {
+    try {
+      const data = await _api('/maintenance/status');
+      const banner = _q('#maintActiveBanner');
+      if (data.is_active && data.active_window) {
+        banner.hidden = false;
+        _q('#maintActiveBannerText').textContent =
+          `Maintenance active: "${data.active_window.name}" — ends ${_relativeTime(data.active_window.ends_at)}`;
+      } else {
+        banner.hidden = true;
+      }
+      const c = data.counts || {};
+      const strip = _q('#maintStatsStrip');
+      strip.innerHTML = [
+        { label: 'Scheduled',  value: c.scheduled  ?? 0, cls: '' },
+        { label: 'Active',     value: c.active      ?? 0, cls: c.active > 0 ? 'warning' : '' },
+        { label: 'Completed',  value: c.completed   ?? 0, cls: '' },
+        { label: 'Cancelled',  value: c.cancelled   ?? 0, cls: '' },
+      ].map(s => `<div class="stat-card ${s.cls}"><div class="stat-value">${s.value}</div><div class="stat-label">${s.label}</div></div>`).join('');
+    } catch (_) {}
+  }
+
+  async function _openMaintModal(windowId) {
+    _maintEditId = windowId;
+    _q('#maintWindowModalTitle').textContent = windowId ? 'Edit Maintenance Window' : 'New Maintenance Window';
+    _q('#maintWinName').value     = '';
+    _q('#maintWinDesc').value     = '';
+    _q('#maintWinStartsAt').value = '';
+    _q('#maintWinEndsAt').value   = '';
+    _q('#maintWinAlerts').checked    = true;
+    _q('#maintWinIncidents').checked = true;
+    _q('#maintWinSla').checked       = true;
+    if (windowId) {
+      try {
+        const w = await _api(`/maintenance/${windowId}`);
+        _q('#maintWinName').value     = w.name        || '';
+        _q('#maintWinDesc').value     = w.description || '';
+        _q('#maintWinStartsAt').value = w.starts_at   || '';
+        _q('#maintWinEndsAt').value   = w.ends_at     || '';
+        _q('#maintWinAlerts').checked    = !!w.suppress_alerts;
+        _q('#maintWinIncidents').checked = !!w.suppress_incidents;
+        _q('#maintWinSla').checked       = !!w.suppress_sla;
+      } catch (_) {}
+    }
+    _q('#maintWindowModal').hidden = false;
+  }
+
+  function _closeMaintModal() {
+    _q('#maintWindowModal').hidden = true;
+    _maintEditId = null;
+  }
+
+  async function _openMaintLogModal(windowId, name) {
+    _q('#maintLogModalTitle').textContent = `Window Log: ${name}`;
+    _q('#maintLogModalBody').innerHTML = '<p style="color:var(--text-muted);text-align:center;">Loading…</p>';
+    _q('#maintLogModal').hidden = false;
+    try {
+      const w = await _api(`/maintenance/${windowId}`);
+      const log = w.log || [];
+      if (!log.length) {
+        _q('#maintLogModalBody').innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No log entries.</p>';
+        return;
+      }
+      _q('#maintLogModalBody').innerHTML = `
+        <table class="data-table">
+          <thead><tr><th>Event</th><th>Note</th><th>Time</th></tr></thead>
+          <tbody>${log.map(e => `<tr>
+            <td><strong>${_esc(e.event)}</strong></td>
+            <td style="font-size:11px;color:var(--text-muted);">${_esc(e.note)}</td>
+            <td style="font-size:11px;color:var(--text-muted);">${_relativeTime(e.ts)}</td>
+          </tr>`).join('')}</tbody>
+        </table>`;
+    } catch (_) {
+      _q('#maintLogModalBody').innerHTML = '<p style="color:var(--text-muted);text-align:center;">Failed to load log.</p>';
+    }
+  }
+
+  function _closeMaintLogModal() { _q('#maintLogModal').hidden = true; }
+
+  async function _maintActivate(id) {
+    try {
+      await _api(`/maintenance/${id}/activate`, 'POST');
+      _loadMaintenanceWindows();
+      _loadMaintenanceStatus();
+    } catch (err) { alert('Activate failed: ' + (err.message || err)); }
+  }
+
+  async function _maintComplete(id) {
+    try {
+      await _api(`/maintenance/${id}/complete`, 'POST');
+      _loadMaintenanceWindows();
+      _loadMaintenanceStatus();
+    } catch (err) { alert('Complete failed: ' + (err.message || err)); }
+  }
+
+  async function _maintCancel(id, name) {
+    if (!confirm(`Cancel maintenance window "${name}"?`)) return;
+    try {
+      await _api(`/maintenance/${id}/cancel`, 'POST');
+      _loadMaintenanceWindows();
+      _loadMaintenanceStatus();
+    } catch (err) { alert('Cancel failed: ' + (err.message || err)); }
+  }
+
+  async function _deleteMaintWindow(id, name) {
+    if (!confirm(`Delete maintenance window "${name}"?`)) return;
+    try {
+      await _api(`/maintenance/${id}`, 'DELETE');
+      _loadMaintenanceWindows();
+      _loadMaintenanceStatus();
+    } catch (err) { alert('Delete failed: ' + (err.message || err)); }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RUNBOOKS
+  // ═══════════════════════════════════════════════════════════════════════════
+  let _rbOffset = 0;
+  const _RB_LIMIT = 25;
+  let _rbCurrentId = null;
+
+  function initRunbooksView() {
+    _loadRbCategories();
+    _loadRbStats();
+    _loadRunbooks();
+
+    _q('#rbAddBtn').onclick = () => _openRbModal();
+    _q('#rbRefreshBtn').onclick = () => { _loadRbStats(); _loadRunbooks(); };
+    _q('#rbSearchBtn').onclick = () => { _rbOffset = 0; _loadRunbooks(); };
+    _q('#rbSearchInput').onkeydown = e => { if (e.key === 'Enter') { _rbOffset = 0; _loadRunbooks(); } };
+    _q('#rbCategoryFilter').onchange = () => { _rbOffset = 0; _loadRunbooks(); };
+
+    _q('#rbEditModalClose').onclick   = () => _closeRbModal();
+    _q('#rbEditModalCancel').onclick  = () => _closeRbModal();
+    _q('#rbEditForm').onsubmit        = e  => { e.preventDefault(); _saveRunbook(); };
+
+    _q('#rbVersionModalClose').onclick    = () => { _q('#rbVersionModal').hidden = true; };
+    _q('#rbVersionModalCloseBtn').onclick  = () => { _q('#rbVersionModal').hidden = true; };
+    _q('#rbDetailEditBtn').onclick = () => {
+      if (_rbCurrentId) _loadRbForEdit(_rbCurrentId);
+    };
+    _q('#rbVersionHistoryBtn').onclick = () => {
+      if (_rbCurrentId) _loadRbVersions(_rbCurrentId);
+    };
+  }
+
+  async function _loadRbStats() {
+    try {
+      const s = await _api('/runbooks/stats');
+      const strip = _q('#rbStatsStrip');
+      strip.innerHTML = [
+        ['Total', s.total],
+        ['Versions', s.total_versions],
+        ['Categories', (s.by_category || []).length],
+      ].map(([l, v]) =>
+        `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 16px;min-width:90px;">
+           <div style="font-size:20px;font-weight:700;">${v}</div>
+           <div style="font-size:11px;color:var(--text-muted);">${l}</div>
+         </div>`
+      ).join('');
+    } catch (_) {}
+  }
+
+  async function _loadRbCategories() {
+    try {
+      const data = await _api('/runbooks/categories');
+      const sel = _q('#rbCategoryFilter');
+      const current = sel.value;
+      sel.innerHTML = '<option value="">All categories</option>' +
+        (data.categories || []).map(c => `<option value="${_esc(c)}">${_esc(c)}</option>`).join('');
+      sel.value = current;
+    } catch (_) {}
+  }
+
+  async function _loadRunbooks() {
+    const q  = _q('#rbSearchInput').value.trim();
+    const cat = _q('#rbCategoryFilter').value;
+    const params = new URLSearchParams({ limit: _RB_LIMIT, offset: _rbOffset });
+    if (q)   params.set('q', q);
+    if (cat) params.set('category', cat);
+    const tbody = _q('#rbListTbody');
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading…</td></tr>';
+    try {
+      const data = await _api(`/runbooks?${params}`);
+      const rbs = data.runbooks || [];
+      _q('#rbListCount').textContent = `${data.total} total`;
+      if (!rbs.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No runbooks found.</td></tr>';
+      } else {
+        tbody.innerHTML = rbs.map(r => {
+          const tags = (r.tags || []).map(t => `<span style="background:var(--accent-bg);color:var(--accent);border-radius:4px;padding:1px 5px;font-size:10px;margin-right:2px;">${_esc(t)}</span>`).join('');
+          return `<tr style="cursor:pointer;" onclick="_rbOpenDetail('${r.id}')">
+            <td><strong>${_esc(r.title)}</strong><br><small style="color:var(--text-muted);">${_esc((r.content_preview||'').slice(0,80))}</small></td>
+            <td>${_esc(r.category||'—')}</td>
+            <td>${tags||'—'}</td>
+            <td>${r.view_count||0}</td>
+            <td style="font-size:11px;">${(r.updated_at||'').slice(0,10)}</td>
+            <td>
+              <button class="btn xs" onclick="event.stopPropagation();_loadRbForEdit('${r.id}')">Edit</button>
+              <button class="btn xs danger" onclick="event.stopPropagation();_deleteRunbook('${r.id}','${_esc(r.title).replace(/'/g,"\\'")}')">Del</button>
+            </td>
+          </tr>`;
+        }).join('');
+      }
+      _renderRbPagination(data.total, _rbOffset, _RB_LIMIT);
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:24px;">${_esc(err.message||'Error')}</td></tr>`;
+    }
+  }
+
+  function _renderRbPagination(total, offset, limit) {
+    const pag = _q('#rbPagination');
+    const page = Math.floor(offset / limit) + 1;
+    const pages = Math.ceil(total / limit) || 1;
+    pag.innerHTML = `
+      <button class="btn xs" ${offset === 0 ? 'disabled' : ''} onclick="_rbOffset=Math.max(0,_rbOffset-${limit});_loadRunbooks()">Prev</button>
+      <span style="color:var(--text-muted);">Page ${page} / ${pages}</span>
+      <button class="btn xs" ${offset + limit >= total ? 'disabled' : ''} onclick="_rbOffset=_rbOffset+${limit};_loadRunbooks()">Next</button>`;
+  }
+
+  async function _rbOpenDetail(id) {
+    _rbCurrentId = id;
+    try {
+      const rb = await _api(`/runbooks/${id}`);
+      const panel = _q('#rbDetailPanel');
+      panel.hidden = false;
+      _q('#rbDetailTitle').textContent = rb.title;
+      const tags = (rb.tags || []).join(', ');
+      _q('#rbDetailMeta').innerHTML =
+        `<strong>Category:</strong> ${_esc(rb.category||'—')} &nbsp;|&nbsp;
+         <strong>Tags:</strong> ${_esc(tags||'—')} &nbsp;|&nbsp;
+         <strong>Owner:</strong> ${_esc(rb.owner||'—')} &nbsp;|&nbsp;
+         <strong>Views:</strong> ${rb.view_count}` +
+        (rb.latest_version ? `<br><strong>v${rb.latest_version.version_number}</strong> — ${_esc(rb.latest_version.change_note||'')} by ${_esc(rb.latest_version.edited_by||'?')} on ${(rb.latest_version.edited_at||'').slice(0,10)}` : '');
+      _q('#rbDetailContent').textContent = rb.content_md || '(empty)';
+    } catch (err) { alert('Load failed: ' + (err.message || err)); }
+  }
+
+  function _openRbModal(rb) {
+    _q('#rbEditModalTitle').textContent = rb ? 'Edit Runbook' : 'New Runbook';
+    _q('#rbFormId').value           = rb ? rb.id : '';
+    _q('#rbFormTitle').value        = rb ? rb.title : '';
+    _q('#rbFormCategory').value     = rb ? (rb.category||'') : '';
+    _q('#rbFormTags').value         = rb ? (Array.isArray(rb.tags) ? rb.tags.join(', ') : (rb.tags||'')) : '';
+    _q('#rbFormOwner').value        = rb ? (rb.owner||'') : '';
+    _q('#rbFormContent').value      = rb ? (rb.content_md||'') : '';
+    _q('#rbFormChangeNote').value   = '';
+    _q('#rbEditModal').hidden = false;
+  }
+
+  function _closeRbModal() { _q('#rbEditModal').hidden = true; }
+
+  async function _loadRbForEdit(id) {
+    try {
+      const rb = await _api(`/runbooks/${id}`);
+      _openRbModal(rb);
+    } catch (err) { alert('Load failed: ' + (err.message || err)); }
+  }
+
+  async function _saveRunbook() {
+    const id   = _q('#rbFormId').value;
+    const body = {
+      title:      _q('#rbFormTitle').value.trim(),
+      category:   _q('#rbFormCategory').value.trim(),
+      tags:       _q('#rbFormTags').value.trim(),
+      owner:      _q('#rbFormOwner').value.trim(),
+      content_md: _q('#rbFormContent').value,
+      change_note: _q('#rbFormChangeNote').value.trim() || 'Updated',
+      edited_by:  'user',
+    };
+    try {
+      if (id) {
+        await _api(`/runbooks/${id}`, 'PATCH', body);
+      } else {
+        await _api('/runbooks', 'POST', body);
+      }
+      _closeRbModal();
+      _loadRbStats();
+      _loadRbCategories();
+      _loadRunbooks();
+      if (_rbCurrentId === id) _rbOpenDetail(id);
+    } catch (err) { alert('Save failed: ' + (err.message || err)); }
+  }
+
+  async function _loadRbVersions(id) {
+    try {
+      const data = await _api(`/runbooks/${id}/versions`);
+      const versions = data.versions || [];
+      _q('#rbVersionModalTitle').textContent = 'Version History';
+      _q('#rbVersionList').innerHTML = versions.length
+        ? versions.map(v =>
+            `<div style="border-bottom:1px solid var(--border);padding:12px 0;">
+               <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                 <strong>v${v.version_number}</strong>
+                 <span style="font-size:11px;color:var(--text-muted);">${(v.edited_at||'').slice(0,16).replace('T',' ')} UTC</span>
+                 <span style="font-size:11px;color:var(--text-muted);">by ${_esc(v.edited_by||'?')}</span>
+               </div>
+               <div style="font-size:12px;">${_esc(v.change_note||'')}</div>
+               <button class="btn xs" style="margin-top:6px;" onclick="_viewRbVersion('${id}',${v.version_number})">View content</button>
+             </div>`
+          ).join('')
+        : '<p style="color:var(--text-muted);padding:16px;">No versions recorded.</p>';
+      _q('#rbVersionModal').hidden = false;
+    } catch (err) { alert('Load failed: ' + (err.message || err)); }
+  }
+
+  async function _viewRbVersion(id, num) {
+    try {
+      const v = await _api(`/runbooks/${id}/versions/${num}`);
+      const w = window.open('', '_blank', 'width=700,height=560,scrollbars=yes');
+      if (w) {
+        w.document.write(`<pre style="font-family:monospace;white-space:pre-wrap;padding:20px;">${v.content_md||'(empty)'}</pre>`);
+        w.document.close();
+      }
+    } catch (err) { alert('Load failed: ' + (err.message || err)); }
+  }
+
+  async function _deleteRunbook(id, name) {
+    if (!confirm(`Delete runbook "${name}"?`)) return;
+    try {
+      await _api(`/runbooks/${id}`, 'DELETE');
+      if (_rbCurrentId === id) {
+        _rbCurrentId = null;
+        _q('#rbDetailPanel').hidden = true;
+      }
+      _loadRbStats();
+      _loadRunbooks();
+    } catch (err) { alert('Delete failed: ' + (err.message || err)); }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

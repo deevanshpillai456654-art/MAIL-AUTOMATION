@@ -797,6 +797,36 @@ async def record_lookalike_alert(data: LookalikRecordRequest) -> Dict:
                 ),
             )
             conn.commit()
+            # Emit to operational event bus + WS broadcast
+            try:
+                import asyncio
+                from backend.api.event_bus import emit as _emit
+                sev = "critical" if data.confidence_score >= 90 else "high" if data.confidence_score >= 70 else "medium"
+                asyncio.create_task(_emit(
+                    "threat.detected",
+                    source="threat_intelligence",
+                    payload={
+                        "detected_domain":     detected_domain,
+                        "impersonated_brand":  impersonated_brand,
+                        "threat_type":         threat_type,
+                        "confidence_score":    data.confidence_score,
+                        "sender_email":        data.sender_email,
+                        "email_subject":       data.email_subject,
+                    },
+                    severity=sev,
+                ))
+                from backend.api.ws_alerts import emit_lookalike_detected
+                asyncio.create_task(emit_lookalike_detected(
+                    detected_domain=detected_domain,
+                    impersonated_brand=impersonated_brand,
+                    confidence_score=data.confidence_score,
+                    threat_type=threat_type,
+                    reasons=data.reasons or [],
+                    sender_email=data.sender_email or "",
+                    subject=data.email_subject or "",
+                ))
+            except Exception:
+                pass
             return {"ok": True}
         except Exception as exc:
             logger.error("Record lookalike error: %s", exc)
@@ -939,6 +969,25 @@ def _run_scan_sync() -> Dict:
                         ),
                     )
                     inserted_alerts += 1
+                    # Emit to operational event bus
+                    try:
+                        import asyncio as _asyncio
+                        from backend.api.event_bus import emit as _emit_bus
+                        _sev = "critical" if domain_result.confidence_score >= 90 else "high" if domain_result.confidence_score >= 70 else "medium"
+                        _asyncio.create_task(_emit_bus(
+                            "threat.detected",
+                            source="threat_intelligence",
+                            payload={
+                                "detected_domain":    domain,
+                                "impersonated_brand": domain_result.impersonated_brand,
+                                "threat_type":        domain_result.threat_type,
+                                "confidence_score":   domain_result.confidence_score,
+                                "sender_email":       sender_email,
+                            },
+                            severity=_sev,
+                        ))
+                    except Exception:
+                        pass
         except Exception as exc:
             logger.debug("Domain scan error for %s: %s", domain, exc)
 

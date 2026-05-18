@@ -208,7 +208,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "default-src 'self'; "
             "base-uri 'none'; "
             "object-src 'none'; "
-            f"img-src 'self' data: blob:; "
+            f"img-src 'self' data: blob: https://www.google.com; "
             "font-src 'self' data:; "
             "style-src 'self' 'unsafe-inline'; "
             f"script-src {script_src}; "

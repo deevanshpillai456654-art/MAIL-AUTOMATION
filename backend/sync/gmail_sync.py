@@ -250,6 +250,18 @@ class GmailSync:
                     RuleActionExecutor(self.db, enable_provider_write=True).apply_rules_to_email_id(email_id)
                 except Exception as exc:
                     warnings.append(f"Rule action failed for {detail['message_id']}: {exc}")
+                try:
+                    from backend.api.event_bus import emit_sync
+                    emit_sync("email.received", "gmail_sync", {
+                        "email_id":     email_id,
+                        "subject":      detail["subject"],
+                        "sender_email": detail["sender_email"],
+                        "category":     classification["category"],
+                        "confidence":   classification["confidence"],
+                        "account_id":   self.account_id,
+                    })
+                except Exception:
+                    pass
 
                 processed += 1
                 self.db.update_sync_status(sync_id, "in_progress", progress=int((idx + 1) / max(total, 1) * 100), processed_emails=processed, total_emails=total)

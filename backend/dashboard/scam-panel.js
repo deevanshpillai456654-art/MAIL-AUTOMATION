@@ -181,8 +181,9 @@ async function loadFeed() {
   try {
     const data = await api(url);
     const items = data.feed || [];
-    document.getElementById('feedBody').innerHTML = items.length
-      ? items.map(f => `<tr>
+    const feedBody = document.getElementById('feedBody');
+    feedBody.innerHTML = items.length
+      ? items.map(f => `<tr data-alert-id="${esc(f.id)}">
           <td><b class="text-primary">${esc(f.detected_domain) || '—'}</b></td>
           <td>${f.impersonated_brand ? `<b>${esc(f.impersonated_brand)}</b><br><small class="text-muted">${esc(f.impersonated_domain || '')}</small>` : '—'}</td>
           <td>${threatTypeBadge(f.threat_type)}</td>
@@ -190,9 +191,17 @@ async function loadFeed() {
           <td class="text-muted-xs">${esc(f.sender_email || '—')}</td>
           <td class="text-xs">${fmtDate(f.created_at)}</td>
           <td>${severityBadge(f.status === 'confirmed' ? 'critical' : f.status === 'active' ? 'high' : 'low')}</td>
-          <td><button class="btn btn-ghost btn-sm" data-action="dismiss-alert" data-id="${esc(f.id)}" type="button">Dismiss</button></td>
+          <td><button class="btn btn-ghost btn-sm dismiss-btn" type="button">Dismiss</button></td>
         </tr>`).join('')
       : '<tr><td colspan="8" class="empty-state"><p>No threats detected</p></td></tr>';
+
+    // Attach direct listeners — no event delegation, guaranteed to fire
+    feedBody.querySelectorAll('.dismiss-btn').forEach(btn => {
+      const row = btn.closest('tr');
+      const alertId = row?.dataset?.alertId;
+      if (!alertId) return;
+      btn.addEventListener('click', () => dismissAlert(alertId, btn, row));
+    });
 
     document.getElementById('feedPagination').innerHTML = `
       <span class="page-info">Showing ${feedOffset+1}–${Math.min(feedOffset+FEED_LIMIT, Number(data.total))} of ${esc(data.total)}</span>
@@ -209,12 +218,19 @@ function feedPage(dir) {
   loadFeed();
 }
 
-async function dismissAlert(id) {
+async function dismissAlert(id, btn, row) {
+  // Immediate visual feedback
+  if (btn)  { btn.disabled = true; btn.textContent = 'Dismissing…'; }
+  if (row)  { row.style.opacity = '0.4'; row.style.pointerEvents = 'none'; }
   try {
     await api(`/lookalike/${id}/dismiss`, { method: 'POST' });
+    if (row) row.remove();
     showToast('Alert dismissed', '', 'low');
-    loadFeed();
-  } catch (e) { showToast('Dismiss failed', e.message, 'high'); }
+  } catch (e) {
+    if (btn)  { btn.disabled = false; btn.textContent = 'Dismiss'; }
+    if (row)  { row.style.opacity = ''; row.style.pointerEvents = ''; }
+    showToast('Dismiss failed', e.message, 'high');
+  }
 }
 
 // ── Scam Emails ───────────────────────────────────────────
@@ -360,7 +376,7 @@ document.addEventListener('click', event => {
   if (action === 'show-whitelist-form') return showAddWhitelist();
   if (action === 'hide-whitelist-form') return hideAddWhitelist();
   if (action === 'add-whitelist') return addToWhitelist();
-  if (action === 'dismiss-alert') return dismissAlert(target.dataset.id);
+  if (action === 'dismiss-alert') return dismissAlert(target.dataset.alertId || target.closest('tr')?.dataset?.alertId, target, target.closest('tr'));
   if (action === 'feed-page') return feedPage(Number(target.dataset.dir || 0));
   if (action === 'restore-email') return restoreEmail(target.dataset.id);
   if (action === 'confirm-scam') return confirmScam(target.dataset.id);

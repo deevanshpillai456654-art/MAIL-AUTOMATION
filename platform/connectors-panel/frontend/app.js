@@ -183,6 +183,19 @@ function reloadCurrentSection() {
   if (_currentSection !== 'installed') loadInstalled();
 }
 
+function notifyParentConnectorChange() {
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: 'connectors:changed' }, window.location.origin);
+  }
+}
+
+function refreshConnectorSurfaces() {
+  loadInstalled();
+  loadMarketplace();
+  loadDashboard();
+  notifyParentConnectorChange();
+}
+
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 
 async function loadDashboard() {
@@ -367,7 +380,7 @@ const CONNECTOR_ICONS = {
 };
 
 function renderConnectorCard(c) {
-  const icon = CONNECTOR_ICONS[c.id] || CONNECTOR_ICONS[c.connector_id] || '🔌';
+  const icon = connectorBrandIcon(c);
   const installed = c.is_installed;
   const isBeta = c.is_beta;
   const tier = c.price_tier || 'free';
@@ -397,6 +410,14 @@ function renderConnectorCard(c) {
       }
     </div>
   </div>`;
+}
+
+function connectorBrandIcon(c) {
+  const src = String(c?.icon_url || '');
+  if (src.startsWith('https://www.google.com/s2/favicons?')) {
+    return `<img src="${esc(src)}" alt="" width="28" height="28" loading="lazy" referrerpolicy="no-referrer">`;
+  }
+  return CONNECTOR_ICONS[c.id] || CONNECTOR_ICONS[c.connector_id] || '🔌';
 }
 
 async function installConnector(connectorId, name) {
@@ -440,7 +461,7 @@ async function submitInstall(connectorId) {
   if (res.ok) {
     closeModal();
     toast(`${connectorId} installed successfully`, 'success');
-    loadMarketplace(); loadInstalled();
+    refreshConnectorSurfaces();
   } else {
     toast('Install failed: ' + res.error, 'error');
   }
@@ -483,32 +504,19 @@ async function viewConnectorDetails(id) {
 
 function updateSidebarVisibility(rows) {
   const cats = new Set((rows || []).map(c => (c.category || '').toLowerCase()));
-  const any = cats.size > 0;
-  const visibility = {
-    'sidebar-erp':        cats.has('erp') || cats.has('accounting'),
-    'sidebar-crm':        cats.has('crm'),
-    'sidebar-tracking':   cats.has('tracking') || cats.has('shipping'),
-    'sidebar-support':    cats.has('support'),
-    'sidebar-automation': any,
-    'sidebar-operations': any,
-  };
-  const sectionGroup = {
-    erp:'sidebar-erp', vendors:'sidebar-erp', 'purchase-orders':'sidebar-erp',
-    invoices:'sidebar-erp', inventory:'sidebar-erp', warehouses:'sidebar-erp',
-    crm:'sidebar-crm', pipeline:'sidebar-crm', leads:'sidebar-crm',
-    contacts:'sidebar-crm', opportunities:'sidebar-crm',
-    tracking:'sidebar-tracking',
-    support:'sidebar-support',
-    workflows:'sidebar-automation', events:'sidebar-automation',
-    queues:'sidebar-operations', logs:'sidebar-operations',
-    health:'sidebar-operations', oauth:'sidebar-operations', webhooks:'sidebar-operations',
-  };
-  for (const [id, visible] of Object.entries(visibility)) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = visible ? '' : 'none';
-  }
-  const activeGroup = sectionGroup[_currentSection];
-  if (activeGroup && !visibility[activeGroup]) showSection('dashboard');
+  const any = (rows || []).length > 0;
+  document.querySelectorAll('[data-requires-connector-category], [data-requires-active-connector]').forEach(el => {
+    const requiredCategories = String(el.dataset.requiresConnectorCategory || '').toLowerCase().split(/\s+/).filter(Boolean);
+    const needsAnyConnector = el.hasAttribute('data-requires-active-connector');
+    const visible = (
+      (!requiredCategories.length || requiredCategories.some(category => cats.has(category))) &&
+      (!needsAnyConnector || any)
+    );
+    el.hidden = !visible;
+    el.setAttribute('aria-hidden', visible ? 'false' : 'true');
+  });
+  const activeNav = document.querySelector(`.nav-item[data-section="${_currentSection}"]`);
+  if (activeNav?.closest('.sidebar-section')?.hidden) showSection('dashboard');
 }
 
 async function loadInstalled() {
@@ -557,7 +565,7 @@ function healthClass(score) {
 }
 
 async function configureConnector(id) {
-  const res = await apiFetch(`/connectors/${id}`);
+  const res = await apiFetch(`/connectors/${id}?tenant_id=${_tenantId}`);
   if (!res.ok) { toast('Failed to load connector', 'error'); return; }
   const c = res.data;
   showModal(`
@@ -590,16 +598,16 @@ async function saveConnectorConfig(id) {
   let config = {};
   try { config = JSON.parse(document.getElementById('connConfig').value || '{}'); } catch { toast('Invalid JSON config', 'error'); setBtnLoading(btn, false); return; }
   const is_active = document.getElementById('connActive').checked;
-  const res = await apiFetch(`/connectors/${id}`, { method:'PUT', body:JSON.stringify({ config, is_active }) });
+  const res = await apiFetch(`/connectors/${id}?tenant_id=${_tenantId}`, { method:'PUT', body:JSON.stringify({ config, is_active }) });
   setBtnLoading(btn, false);
-  if (res.ok) { closeModal(); toast('Connector updated', 'success'); loadInstalled(); }
+  if (res.ok) { closeModal(); toast('Connector updated', 'success'); refreshConnectorSurfaces(); }
   else toast('Update failed: ' + res.error, 'error');
 }
 
 async function testConnector(id) {
   const btn = event.target;
   setBtnLoading(btn, true);
-  const res = await apiFetch(`/connectors/${id}/test`, { method:'POST' });
+  const res = await apiFetch(`/connectors/${id}/test?tenant_id=${_tenantId}`, { method:'POST' });
   setBtnLoading(btn, false);
   if (res.ok) toast(`Connection test: ${res.data.message || 'success'}`, 'success');
   else toast('Test failed: ' + res.error, 'error');
@@ -607,8 +615,8 @@ async function testConnector(id) {
 
 async function uninstallConnector(id, name) {
   confirm(`Remove connector "${name}"? This cannot be undone.`, async () => {
-    const res = await apiFetch(`/connectors/${id}`, { method:'DELETE' });
-    if (res.ok) { toast(`${name} removed`, 'success'); loadInstalled(); }
+    const res = await apiFetch(`/connectors/${id}?tenant_id=${_tenantId}`, { method:'DELETE' });
+    if (res.ok) { toast(`${name} removed`, 'success'); refreshConnectorSurfaces(); }
     else toast('Remove failed: ' + res.error, 'error');
   });
 }

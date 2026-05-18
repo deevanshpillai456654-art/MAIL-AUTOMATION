@@ -68,6 +68,7 @@ async def list_connectors(
     tenant_id: str = Query(..., description="Tenant ID"),
     category: Optional[str] = Query(None),
     connector_status: Optional[str] = Query(None, alias="status"),
+    include_inactive: bool = Query(False, description="Include uninstalled or disabled connectors"),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
@@ -75,6 +76,8 @@ async def list_connectors(
     sql = "SELECT * FROM connectors WHERE tenant_id = ?"
     params: list[Any] = [tenant_id]
 
+    if not include_inactive:
+        sql += " AND is_active = 1"
     if category:
         sql += " AND category = ?"
         params.append(category)
