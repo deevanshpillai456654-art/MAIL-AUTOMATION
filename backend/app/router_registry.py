@@ -38,6 +38,7 @@ from backend.api.scheduler import router as scheduler_router
 from backend.api.security import router as security_router
 from backend.api.session import router as session_router
 from backend.api.system import router as system_router
+from backend.api.tally import router as tally_router
 from backend.api.threat_intelligence import router as threat_intelligence_router
 from backend.api.ws_alerts import router as ws_alerts_router
 from backend.api.alert_rules import router as alert_rules_router
@@ -89,6 +90,7 @@ API_ROUTER_SPECS: tuple[RouterSpec, ...] = (
     RouterSpec("discovery", discovery_router),
     RouterSpec("learning", learning_router),
     RouterSpec("system", system_router),
+    RouterSpec("tally", tally_router),
     RouterSpec("frontend_runtime", frontend_runtime_router),
     RouterSpec("security", security_router),
     RouterSpec("ai_enterprise", ai_enterprise_router),

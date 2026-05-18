@@ -1,0 +1,47 @@
+{
+  "name": "tally_connector",
+  "version": "1.0.0",
+  "type": "connector",
+  "category": "accounting",
+  "description": "TallyPrime and Tally ERP 9 connector for companies, ledgers, vouchers, GST, inventory, banking, analytics, and workflows",
+  "author": "MailPilot",
+  "enabled": false,
+  "multiTenant": true,
+  "supports_oauth": false,
+  "supports_api_key": true,
+  "supports_webhook": true,
+  "queue_enabled": true,
+  "permissions": [
+    "tally.connect",
+    "tally.companies.read",
+    "tally.ledgers.write",
+    "tally.vouchers.write",
+    "tally.gst.read",
+    "tally.inventory.read",
+    "tally.analytics.read",
+    "tally.audit.read"
+  ],
+  "events": [
+    "tally.sync.started",
+    "tally.sync.completed",
+    "tally.sync.failed",
+    "tally.voucher.created",
+    "tally.voucher.updated",
+    "tally.payment.received",
+    "tally.stock.low",
+    "tally.gst.mismatch",
+    "tally.ledger.created"
+  ],
+  "config_schema": {
+    "mode": {"type": "string", "default": "localhost", "enum": ["localhost", "remote"]},
+    "host": {"type": "string", "default": "localhost", "required": true},
+    "port": {"type": "integer", "default": 9000, "required": true},
+    "company_name": {"type": "string", "required": true},
+    "username": {"type": "string", "required": false},
+    "password": {"type": "secret", "required": false},
+    "api_key": {"type": "secret", "required": false},
+    "use_tls": {"type": "boolean", "default": false},
+    "enable_xml_api": {"type": "boolean", "default": true},
+    "sync_interval": {"type": "string", "default": "15m"}
+  }
+}

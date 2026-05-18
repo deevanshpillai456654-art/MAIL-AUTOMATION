@@ -662,6 +662,21 @@ _CATALOG: list[dict[str, Any]] = [
 
     # ── Accounting ────────────────────────────────────────────────────────────
     {
+        "id": "tally",
+        "name": "Tally",
+        "version": "1.0.0",
+        "category": "accounting",
+        "description": "Connect TallyPrime or Tally ERP 9 over local or remote XML API for companies, ledgers, vouchers, GST, inventory, banking, analytics, and accounting workflows.",
+        "author": "MailPilot",
+        "icon_url": "https://tallysolutions.com/favicon.ico",
+        "status": "inactive",
+        "permissions": ["tally.connect", "tally.companies.read", "tally.ledgers.write", "tally.vouchers.write", "tally.gst.read", "tally.inventory.read", "tally.analytics.read", "tally.audit.read"],
+        "events": ["tally.sync.started", "tally.sync.completed", "tally.sync.failed", "tally.voucher.created", "tally.voucher.updated", "tally.payment.received", "tally.stock.low", "tally.gst.mismatch", "tally.ledger.created"],
+        "supports_oauth": False, "supports_webhook": True, "supports_api_key": True,
+        "multiTenant": True, "queue_enabled": True, "health_endpoint": "/api/v1/tally/status",
+        "install_count": 0, "rating": 4.8, "is_beta": False, "price_tier": "enterprise",
+    },
+    {
         "id": "quickbooks",
         "name": "QuickBooks",
         "version": "1.4.0",
@@ -826,6 +841,7 @@ _BRAND_ICON_DOMAINS = {
     "teams": "teams.microsoft.com",
     "telegram": "telegram.org",
     "discord": "discord.com",
+    "tally": "tallysolutions.com",
     "quickbooks": "quickbooks.intuit.com",
     "xero": "xero.com",
     "zoho_books": "zoho.com/books",
@@ -873,6 +889,7 @@ _CARD_DESCRIPTIONS = {
     "teams": "Send Microsoft Teams channel alerts, meeting notices, bot replies, and workflow updates.",
     "telegram": "Send Telegram bot notifications, collect channel replies, and route group alerts.",
     "discord": "Post Discord webhook alerts, route bot messages, and notify teams from workflow events.",
+    "tally": "Sync TallyPrime and Tally ERP 9 companies, ledgers, vouchers, GST reports, inventory, banking, and accounting workflows.",
     "quickbooks": "Sync QuickBooks Online invoices, payments, expenses, and accounts for finance handoff and reconciliation.",
     "xero": "Sync Xero invoices, bank feeds, contacts, payroll, and expense claims for accounting review.",
     "zoho_books": "Sync Zoho Books invoices, purchase orders, payments, contacts, and GST/tax reporting data.",

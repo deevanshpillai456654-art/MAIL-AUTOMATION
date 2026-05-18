@@ -26,6 +26,23 @@ async function apiFetch(path, opts = {}) {
   }
 }
 
+async function apiV1Fetch(path, opts = {}) {
+  await ensureSession();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(_localToken ? { 'X-Local-Token': _localToken } : {}),
+    ...(opts.headers || {}),
+  };
+  try {
+    const res = await fetch(`/api/v1${path}`, { ...opts, credentials: 'same-origin', headers });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
+    return res.ok ? { ok: true, data } : { ok: false, error: data.detail || data.message || 'Request failed', status: res.status };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Network error', status: 0 };
+  }
+}
+
 async function ensureSession() {
   if (!_sessionReady) {
     _sessionReady = fetch(`${API}/session`, {
@@ -138,6 +155,7 @@ const navTitles = {
   // ERP
   erp:'ERP Overview', vendors:'Vendors', 'purchase-orders':'Purchase Orders',
   invoices:'Invoices', inventory:'Inventory', warehouses:'Warehouses',
+  tally:'Tally',
   // CRM
   crm:'CRM Overview', pipeline:'Sales Pipeline', leads:'Leads',
   contacts:'Contacts', opportunities:'Opportunities',
@@ -164,6 +182,7 @@ const navSubs = {
   invoices:'Invoice tracking and payments',
   inventory:'Stock levels and reorder management',
   warehouses:'Warehouse locations and capacity',
+  tally:'TallyPrime and Tally ERP 9 accounting sync',
   // CRM
   crm:'CRM summary and pipeline overview',
   pipeline:'Visual pipeline board by stage',
@@ -384,6 +403,7 @@ function renderConnectorCard(c) {
   const installed = c.is_installed;
   const isBeta = c.is_beta;
   const tier = c.price_tier || 'free';
+  const tally = isTallyConnector(c);
   return `
   <div class="connector-card">
     <div class="connector-card-header">
@@ -403,9 +423,9 @@ function renderConnectorCard(c) {
     </div>
     <div class="connector-actions">
       ${installed
-        ? `<button class="btn btn-secondary btn-sm" onclick="configureConnector('${esc(c.id||c.connector_id)}')">Configure</button>
+        ? `<button class="btn btn-secondary btn-sm" onclick="${tally ? 'showTallyConfigureModal()' : `configureConnector('${esc(c.id||c.connector_id)}')`}">Configure</button>
            <button class="btn btn-sm" style="color:var(--success);border:1px solid rgba(72,187,120,.3)">✓ Installed</button>`
-        : `<button class="btn btn-primary btn-sm" onclick="installConnector('${esc(c.id||c.connector_id)}','${esc(c.name)}')">Install</button>
+        : `<button class="btn btn-primary btn-sm" onclick="${tally ? 'showTallyConfigureModal()' : `installConnector('${esc(c.id||c.connector_id)}','${esc(c.name)}')`}">Install</button>
            <button class="btn btn-secondary btn-sm" onclick="viewConnectorDetails('${esc(c.id||c.connector_id)}')">Details</button>`
       }
     </div>
@@ -418,6 +438,12 @@ function connectorBrandIcon(c) {
     return `<img src="${esc(src)}" alt="" width="28" height="28" loading="lazy" referrerpolicy="no-referrer">`;
   }
   return CONNECTOR_ICONS[c.id] || CONNECTOR_ICONS[c.connector_id] || '🔌';
+}
+
+function isTallyConnector(c) {
+  const id = String(c?.id || c?.connector_id || '').toLowerCase();
+  const name = String(c?.name || '').toLowerCase();
+  return id === 'tally' || name === 'tally';
 }
 
 async function installConnector(connectorId, name) {
@@ -565,6 +591,10 @@ function healthClass(score) {
 }
 
 async function configureConnector(id) {
+  if (String(id).toLowerCase() === 'tally') {
+    showTallyConfigureModal();
+    return;
+  }
   const res = await apiFetch(`/connectors/${id}?tenant_id=${_tenantId}`);
   if (!res.ok) { toast('Failed to load connector', 'error'); return; }
   const c = res.data;
@@ -605,6 +635,10 @@ async function saveConnectorConfig(id) {
 }
 
 async function testConnector(id) {
+  if (String(id).toLowerCase() === 'tally') {
+    await testTallyConnection();
+    return;
+  }
   const btn = event.target;
   setBtnLoading(btn, true);
   const res = await apiFetch(`/connectors/${id}/test?tenant_id=${_tenantId}`, { method:'POST' });
@@ -622,6 +656,190 @@ async function uninstallConnector(id, name) {
 }
 
 // ── OAUTH MANAGER ─────────────────────────────────────────────────────────────
+
+async function loadTallyDashboard() {
+  const el = document.getElementById('tallyDashboard');
+  if (!el) return;
+  el.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+  const [statusRes, companiesRes, ledgersRes, vouchersRes, inventoryRes, gstRes, analyticsRes, logsRes] = await Promise.all([
+    apiV1Fetch('/tally/status'),
+    apiV1Fetch('/tally/companies'),
+    apiV1Fetch('/tally/ledgers'),
+    apiV1Fetch('/tally/vouchers'),
+    apiV1Fetch('/tally/inventory'),
+    apiV1Fetch('/tally/gst'),
+    apiV1Fetch('/tally/analytics'),
+    apiV1Fetch('/tally/logs'),
+  ]);
+  const status = statusRes.ok ? statusRes.data : {};
+  const connection = status.connection || {};
+  const companies = companiesRes.ok ? companiesRes.data.companies || [] : [];
+  const ledgers = ledgersRes.ok ? ledgersRes.data.ledgers || [] : [];
+  const vouchers = vouchersRes.ok ? vouchersRes.data.vouchers || [] : [];
+  const inventory = inventoryRes.ok ? inventoryRes.data.items || [] : [];
+  const gst = gstRes.ok ? gstRes.data.reports || [] : [];
+  const analytics = analyticsRes.ok ? analyticsRes.data.analytics || {} : {};
+  const logs = logsRes.ok ? logsRes.data.logs || [] : [];
+
+  el.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-value">${esc(status.status || 'not_connected')}</div><div class="stat-label">Connection status</div></div>
+      <div class="stat-card"><div class="stat-value">${esc(connection.company_name || 'No company')}</div><div class="stat-label">Connected company</div></div>
+      <div class="stat-card"><div class="stat-value">${esc(connection.last_sync_at ? timeAgo(connection.last_sync_at) : 'Never')}</div><div class="stat-label">Last sync time</div></div>
+      <div class="stat-card"><div class="stat-value">${esc(status.health || 'unknown')}</div><div class="stat-label">Sync health</div></div>
+      <div class="stat-card"><div class="stat-value">${esc(status.active_workflows ?? 0)}</div><div class="stat-label">Active workflows</div></div>
+      <div class="stat-card"><div class="stat-value stat-value--danger">${esc(status.error_count ?? 0)}</div><div class="stat-label">Error count</div></div>
+      <div class="stat-card"><div class="stat-value">${esc(connection.tally_version || 'TallyPrime / ERP 9')}</div><div class="stat-label">Tally version</div></div>
+      <div class="stat-card"><div class="stat-value">${esc(connection.server_mode || connection.mode || 'local')}</div><div class="stat-label">Server mode</div></div>
+    </div>
+    <div class="filter-bar mt-4">
+      <button class="btn btn-primary btn-sm" onclick="showTallyConfigureModal()">Connect</button>
+      <button class="btn btn-secondary btn-sm" onclick="disconnectTally()">Disconnect</button>
+      <button class="btn btn-secondary btn-sm" onclick="showTallyConfigureModal()">Reconnect</button>
+      <button class="btn btn-secondary btn-sm" onclick="showTallyConfigureModal()">Configure</button>
+      <button class="btn btn-secondary btn-sm" onclick="testTallyConnection()">Test Connection</button>
+      <button class="btn btn-secondary btn-sm" onclick="manualTallySync()">Manual Sync</button>
+      <button class="btn btn-secondary btn-sm" onclick="showSection('logs')">View Logs</button>
+      <button class="btn btn-secondary btn-sm" onclick="window.open('/api/v1/tally/export','_blank')">Export Data</button>
+      <button class="btn btn-secondary btn-sm" onclick="toast('Scheduled sync paused for Tally', 'info')">Pause Sync</button>
+      <button class="btn btn-secondary btn-sm" onclick="toast('Scheduled sync resumed for Tally', 'success')">Resume Sync</button>
+    </div>
+    <div class="two-col mt-4">
+      <div class="card"><div class="card-header"><span class="card-title">Analytics</span></div>
+        <div class="settings-row settings-row--padded"><span class="settings-key">Revenue</span><span>${esc(analytics.revenue ?? 0)}</span></div>
+        <div class="settings-row settings-row--padded"><span class="settings-key">Cash flow</span><span>${esc(analytics.cash_flow ?? 0)}</span></div>
+        <div class="settings-row settings-row--padded"><span class="settings-key">GST mismatches</span><span>${esc(analytics.gst_mismatches ?? 0)}</span></div>
+        <div class="settings-row settings-row--last"><span class="settings-key">Stock valuation</span><span>${esc(analytics.stock_valuation ?? 0)}</span></div>
+      </div>
+      <div class="card"><div class="card-header"><span class="card-title">AI Accounting Assistant</span></div>
+        ${(analytics.ai_insights || []).map(item => `<div class="settings-row settings-row--padded"><span>${esc(item)}</span></div>`).join('') || '<div class="empty-state"><p>No insights yet</p></div>'}
+      </div>
+    </div>
+    <div class="two-col mt-4">
+      <div class="card"><div class="card-header"><span class="card-title">Companies</span></div>${renderTallyRows(companies, ['name', 'health', 'last_sync_at'])}</div>
+      <div class="card"><div class="card-header"><span class="card-title">GST Reports</span></div>${renderTallyRows(gst, ['period', 'mismatch_count', 'tax_payable', 'status'])}</div>
+    </div>
+    <div class="two-col mt-4">
+      <div class="card"><div class="card-header"><span class="card-title">Ledgers</span></div>${renderTallyRows(ledgers.slice(0, 8), ['name', 'parent', 'closing_balance'])}</div>
+      <div class="card"><div class="card-header"><span class="card-title">Vouchers</span></div>${renderTallyRows(vouchers.slice(0, 8), ['voucher_type', 'voucher_number', 'amount', 'status'])}</div>
+    </div>
+    <div class="two-col mt-4">
+      <div class="card"><div class="card-header"><span class="card-title">Inventory</span></div>${renderTallyRows(inventory.slice(0, 8), ['item_name', 'quantity', 'valuation', 'reorder_level'])}</div>
+      <div class="card"><div class="card-header"><span class="card-title">Audit Logs</span></div>${renderTallyRows(logs.slice(0, 8), ['action', 'detail', 'created_at'])}</div>
+    </div>
+  `;
+}
+
+function renderTallyRows(rows, keys) {
+  if (!rows.length) return '<div class="empty-state"><p>No records yet</p></div>';
+  return `<div class="table-wrap"><table><thead><tr>${keys.map(k => `<th>${esc(k.replaceAll('_', ' '))}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${keys.map(k => `<td>${esc(row[k] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+
+function showTallyConfigureModal() {
+  showModal(`
+    <div class="modal-header">
+      <h3 class="modal-title">Connect Tally</h3>
+      <button class="modal-close" onclick="closeModal()">Ã—</button>
+    </div>
+    <div class="two-col" style="gap:12px;">
+      <div class="form-group"><label>Connection Method</label><select id="tallyMode"><option value="localhost">Localhost Connection</option><option value="remote">Remote Server Connection</option></select></div>
+      <div class="form-group"><label>Sync Interval</label><select id="tallySyncInterval"><option value="1m">Every 1 minute</option><option value="5m">Every 5 minutes</option><option value="15m" selected>Every 15 minutes</option><option value="30m">Every 30 minutes</option><option value="hourly">Hourly</option><option value="daily">Daily</option></select></div>
+    </div>
+    <div class="two-col" style="gap:12px;">
+      <div class="form-group"><label>Tally Host</label><input id="tallyHost" value="localhost" placeholder="localhost or remote host" /></div>
+      <div class="form-group"><label>Port</label><input id="tallyPort" type="number" value="9000" min="1" max="65535" /></div>
+    </div>
+    <div class="form-group"><label>Company Name</label><input id="tallyCompany" placeholder="Company loaded in Tally" /></div>
+    <div class="two-col" style="gap:12px;">
+      <div class="form-group"><label>Username</label><input id="tallyUsername" autocomplete="username" /></div>
+      <div class="form-group"><label>Password</label><input id="tallyPassword" type="password" autocomplete="current-password" /></div>
+    </div>
+    <div class="form-group"><label>API Key</label><input id="tallyApiKey" type="password" placeholder="Required for secured remote servers" /></div>
+    <div class="settings-row" style="padding:8px 0;"><div class="settings-info"><div class="settings-key">SSL/TLS</div><div class="settings-desc">Use HTTPS for remote Tally gateways</div></div><label class="toggle"><input type="checkbox" id="tallyUseTls"><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div>
+    <div class="settings-row" style="padding:8px 0;"><div class="settings-info"><div class="settings-key">Enable XML API</div><div class="settings-desc">Use Tally XML import/export APIs for sync</div></div><label class="toggle"><input type="checkbox" id="tallyXmlApi" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="discoverTallyInstances()">LAN Discovery</button>
+      <button class="btn btn-secondary" onclick="testTallyConnection()">Test Connection</button>
+      <button class="btn btn-primary" id="tallyConnectBtn" onclick="submitTallyConnection()">Connect</button>
+    </div>
+  `);
+}
+
+async function submitTallyConnection() {
+  const btn = document.getElementById('tallyConnectBtn');
+  setBtnLoading(btn, true);
+  const payload = {
+    mode: document.getElementById('tallyMode')?.value || 'localhost',
+    host: document.getElementById('tallyHost')?.value || 'localhost',
+    port: Number(document.getElementById('tallyPort')?.value || 9000),
+    company_name: document.getElementById('tallyCompany')?.value || 'Default Company',
+    username: document.getElementById('tallyUsername')?.value || '',
+    password: document.getElementById('tallyPassword')?.value || '',
+    api_key: document.getElementById('tallyApiKey')?.value || '',
+    use_tls: !!document.getElementById('tallyUseTls')?.checked,
+    enable_xml_api: !!document.getElementById('tallyXmlApi')?.checked,
+    sync_interval: document.getElementById('tallySyncInterval')?.value || '15m',
+  };
+  const [connectRes, installRes] = await Promise.all([
+    apiV1Fetch('/tally/connect', { method: 'POST', body: JSON.stringify(payload) }),
+    apiFetch('/marketplace/connectors/tally/install', {
+      method: 'POST',
+      body: JSON.stringify({ connector_id: 'tally', tenant_id: _tenantId, config: { mode: payload.mode, host: payload.host, port: payload.port, company_name: payload.company_name, sync_interval: payload.sync_interval } }),
+    }),
+  ]);
+  setBtnLoading(btn, false);
+  if (connectRes.ok) {
+    closeModal();
+    toast(`Tally connected: ${payload.company_name}`, installRes.ok ? 'success' : 'info');
+    refreshConnectorSurfaces();
+    loadTallyDashboard();
+  } else {
+    toast('Tally connection failed: ' + connectRes.error, 'error');
+  }
+}
+
+async function testTallyConnection() {
+  const res = await apiV1Fetch('/tally/test', { method: 'POST', body: '{}' });
+  if (res.ok && res.data.ok) toast(`Tally reachable at ${res.data.host}:${res.data.port}`, 'success');
+  else toast(`Tally test: ${res.ok ? res.data.message : res.error}`, 'error');
+}
+
+async function discoverTallyInstances() {
+  const res = await apiV1Fetch('/tally/discover');
+  if (!res.ok) { toast('LAN Discovery failed: ' + res.error, 'error'); return; }
+  const first = (res.data.instances || [])[0];
+  if (first) {
+    const host = document.getElementById('tallyHost');
+    const port = document.getElementById('tallyPort');
+    if (host) host.value = first.host;
+    if (port) port.value = first.port;
+    toast(`LAN Discovery found ${first.host}:${first.port}`, 'success');
+  } else {
+    toast('LAN Discovery found no Tally servers', 'info');
+  }
+}
+
+async function manualTallySync() {
+  const statusRes = await apiV1Fetch('/tally/status');
+  const company = statusRes.ok ? statusRes.data.connection?.company_name : null;
+  const res = await apiV1Fetch('/tally/sync', { method: 'POST', body: JSON.stringify({ sync_type: 'manual', company_name: company || 'Default Company' }) });
+  if (res.ok) { toast('Manual Sync queued for Tally', 'success'); loadTallyDashboard(); }
+  else toast('Manual Sync failed: ' + res.error, 'error');
+}
+
+async function disconnectTally() {
+  const [tallyRes, panelRes] = await Promise.all([
+    apiV1Fetch('/tally/disconnect', { method: 'POST', body: '{}' }),
+    apiFetch(`/connectors/tally?tenant_id=${_tenantId}`, { method: 'DELETE' }),
+  ]);
+  if (tallyRes.ok) {
+    toast('Tally disconnected', panelRes.ok ? 'success' : 'info');
+    refreshConnectorSurfaces();
+    loadTallyDashboard();
+  } else {
+    toast('Disconnect failed: ' + tallyRes.error, 'error');
+  }
+}
 
 async function loadOAuth() {
   const [tokRes, provRes] = await Promise.all([
@@ -2437,6 +2655,7 @@ const sectionLoaders = {
   invoices:         loadInvoices,
   inventory:        loadInventory,
   warehouses:       loadWarehouses,
+  tally:            loadTallyDashboard,
   // CRM
   crm:              loadCRM,
   pipeline:         loadPipeline,
