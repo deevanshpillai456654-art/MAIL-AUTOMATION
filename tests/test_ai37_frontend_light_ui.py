@@ -254,6 +254,15 @@ def test_dashboard_subtitle_workflow_and_brand_are_encoding_clean():
     assert "width: 190px;" in css
 
 
+def test_workflow_marketplace_cards_do_not_stretch_to_row_height():
+    css = (DASHBOARD / "enterprise-ui.css").read_text(encoding="utf-8")
+
+    workflow_grid = re.search(r"\.dash-inline-024\s*\{(?P<body>[^}]+)\}", css, re.S)
+    assert workflow_grid is not None
+    assert "display:grid;" in workflow_grid.group("body")
+    assert "align-items:start;" in workflow_grid.group("body")
+
+
 def test_admin_panel_has_spacious_layout_styles():
     css = (DASHBOARD / "enterprise-ui.css").read_text(encoding="utf-8")
 
