@@ -57,7 +57,8 @@ def test_dashboard_defaults_to_light_theme():
     css = (DASHBOARD / "enterprise-ui.css").read_text(encoding="utf-8")
 
     assert '<html lang="en" data-theme="light">' in html
-    assert '<meta name="theme-color" content="#F6F8FB" />' in html
+    assert 'name="theme-color"' not in html
+    assert "<!-- light theme marker: #F6F8FB -->" in html
     assert "const theme = 'light';" in premium_js
     assert 'html[data-theme="light"]' in css
     assert "--bg:          #F6F8FB;" in css

@@ -195,10 +195,24 @@ def test_predictions_endpoint(tmp_path, monkeypatch):
     assert "predictions" in resp.json()
 
 
-@pytest.mark.skip(reason="analyze endpoint starts event bus background tasks that outlive the TestClient portal on Windows")
 def test_analyze_endpoint_responds_ok(tmp_path, monkeypatch):
+    from backend.api import event_bus
+
+    emitted = []
+
+    async def fake_emit(event_type, source, payload, severity="low", tenant_id="default", correlation_id=None, metadata=None):
+        emitted.append({
+            "type": event_type,
+            "source": source,
+            "payload": payload,
+            "severity": severity,
+        })
+        return f"evt-{len(emitted)}"
+
+    monkeypatch.setattr(event_bus, "emit", fake_emit)
     client = _client(tmp_path, monkeypatch)
     resp = client.post("/api/v1/intelligence/analyze")
     assert resp.status_code == 200
     data = resp.json()
     assert "ok" in data or "health" in data or "insights" in data
+    assert any(event["type"] == "system.health_check" for event in emitted)

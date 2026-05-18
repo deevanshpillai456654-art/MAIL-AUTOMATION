@@ -6,9 +6,9 @@
   <title>INTEMO - AI Email Operations</title>
   <link rel="manifest" href="/dashboard/pwa_manifest.json" />
   <link rel="apple-touch-icon" href="/dashboard/assets/apple-touch-icon.png" />
-  <link rel="stylesheet" href="/dashboard/enterprise-ui.css?v=8" />
+  <link rel="stylesheet" href="/dashboard/enterprise-ui.css?v=10" />
   <meta name="description" content="INTEMO - Enterprise AI Email Operations Platform" />
-  <meta name="theme-color" content="#F6F8FB" />
+  <!-- light theme marker: #F6F8FB -->
 </head>
 <body>
 
@@ -101,15 +101,6 @@
         Connectors
       </button>
 
-      <button class="nav-btn" data-view="ocr" data-requires-connector="ocr_engine" type="button" hidden aria-hidden="true">
-        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-          <rect x="2" y="3" width="16" height="12" rx="1.5"/>
-          <path d="M5 7h2M5 10h6M5 13h4"/>
-          <path d="M13 8l2 2-2 2"/>
-        </svg>
-        OCR
-      </button>
-
       <button class="nav-btn" data-view="workflows" type="button">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
           <circle cx="4" cy="10" r="2"/><circle cx="10" cy="4" r="2"/><circle cx="10" cy="16" r="2"/><circle cx="16" cy="10" r="2"/>
@@ -127,6 +118,8 @@
         </svg>
         Command Center
       </button>
+
+      <div class="installed-connector-nav" id="installedConnectorNav" aria-label="Installed connectors"></div>
 
       <div class="nav-section-label">Security</div>
 
@@ -2353,7 +2346,7 @@
 <!-- Toast container -->
 <div class="toast-wrap" id="toastWrap" role="region" aria-label="Notifications" aria-live="polite" aria-atomic="false"></div>
 
-<script src="/dashboard/enterprise-ui.js?v=8"></script>
+<script src="/dashboard/enterprise-ui.js?v=10"></script>
 <script src="/dashboard/premium-ui.js"></script>
 </body>
 </html>

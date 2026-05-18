@@ -167,9 +167,56 @@
     return error.client_message || error.message || error.status || JSON.stringify(error).slice(0, 220);
   }
 
+  function connectorNavIcon(category) {
+    const cat = String(category || '').toLowerCase();
+    if (cat === 'ai') return '<circle cx="10" cy="10" r="3"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4"/>';
+    if (cat === 'communication') return '<path d="M3 5h14v9H7l-4 4V5Z"/><path d="M6 8h8M6 11h5"/>';
+    if (cat === 'webhook') return '<path d="M7 10a3 3 0 1 0 6 0 3 3 0 0 0-6 0Z"/><path d="M10 7V4M10 16v-3M7 10H4M16 10h-3"/>';
+    if (cat === 'erp' || cat === 'accounting') return '<rect x="3" y="3" width="14" height="14" rx="2"/><path d="M6 7h8M6 10h8M6 13h5"/>';
+    if (cat === 'crm' || cat === 'support') return '<circle cx="10" cy="6.5" r="3"/><path d="M4 17a6 6 0 0 1 12 0"/>';
+    if (cat === 'tracking') return '<circle cx="10" cy="10" r="7"/><path d="m13 7-2 5-4 1 2-5 4-1Z"/>';
+    return '<circle cx="5" cy="10" r="2.5"/><circle cx="15" cy="5" r="2.5"/><circle cx="15" cy="15" r="2.5"/><path d="M7.4 9l5.2-2.8M7.4 11l5.2 2.8"/>';
+  }
+
+  const CONNECTOR_FEATURE_VIEWS = {
+    ocr_engine: 'ocr'
+  };
+
+  function renderInstalledConnectorNavigation(connectors) {
+    const host = $('installedConnectorNav');
+    if (!host) return;
+    const installed = (connectors || [])
+      .filter(connector => connector && connector.is_installed)
+      .filter(connector => connector.id);
+    host.innerHTML = installed.map(connector => `
+      <button class="nav-btn connector-nav-btn" data-connector-nav-id="${esc(connector.id)}" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          ${connectorNavIcon(connector.category)}
+        </svg>
+        ${esc(connector.name || connector.id)}
+      </button>
+    `).join('');
+    host.hidden = installed.length === 0;
+  }
+
+  function openConnectorFromMainNav(connectorId) {
+    const featureView = CONNECTOR_FEATURE_VIEWS[connectorId];
+    if (featureView) {
+      showView(featureView);
+      return;
+    }
+    showView('connectors');
+    const frame = $('connectorFrame');
+    if (!frame) return;
+    const target = `/connectors-panel?connector=${encodeURIComponent(connectorId || '')}&section=installed&t=${Date.now()}`;
+    frame.src = target;
+    frame.dataset.loaded = '1';
+  }
+
   async function refreshConnectorFeatureNavigation() {
     const result = await api('/api/connector-panel/marketplace/connectors?tenant_id=default');
     const connectors = result.ok && Array.isArray(result.data) ? result.data : [];
+    renderInstalledConnectorNavigation(connectors);
     const installedIds = new Set(
       connectors
         .filter(connector => connector && connector.is_installed)
@@ -197,6 +244,9 @@
     });
     const activeView = document.querySelector(`.nav-btn[data-view="${state.currentView}"]`);
     if (activeView?.hidden) showView('connectors');
+    const activeConnectorId = Object.entries(CONNECTOR_FEATURE_VIEWS)
+      .find(([, view]) => view === state.currentView)?.[0];
+    if (activeConnectorId && !installedIds.has(activeConnectorId)) showView('connectors');
   }
 
   window.addEventListener('message', event => {
@@ -2288,6 +2338,7 @@ ${section('Model Health', modelHealth)}
 
     if (target.dataset.view)     showView(target.dataset.view);
     if (target.dataset.openView) showView(target.dataset.openView, target.dataset.settingsJump);
+    if (target.dataset.connectorNavId) openConnectorFromMainNav(target.dataset.connectorNavId);
     if (target.dataset.settings) renderSettings(target.dataset.settings);
 
     if (target.id === 'sidebarToggle') $('sidebar')?.classList.toggle('open');

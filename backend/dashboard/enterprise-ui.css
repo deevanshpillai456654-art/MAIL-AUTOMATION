@@ -2578,6 +2578,8 @@ textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
 
 /* Frontend warning cleanup: reusable classes replacing inline CSS. */
 .nav-link { text-decoration: none; }
+.installed-connector-nav { display: contents; }
+.connector-nav-btn { color: var(--text-muted); }
 .action-icon-blue   { background: rgba(37,99,235,0.15); color: #3B7EFF; }
 .action-icon-green  { background: rgba(22,163,74,0.15); color: #22C55E; }
 .action-icon-purple { background: rgba(37,99,235,0.10); color: #2563EB; }
