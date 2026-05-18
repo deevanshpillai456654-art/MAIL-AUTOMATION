@@ -66,3 +66,34 @@ def parse_vouchers(raw_xml: str) -> list[dict[str, Any]]:
             "amount": _text(voucher, "AMOUNT"),
         })
     return [row for row in rows if any(row.values())]
+
+
+def parse_stock_items(raw_xml: str) -> list[dict[str, Any]]:
+    root = _root(raw_xml)
+    rows = []
+    for item in root.findall(".//STOCKITEM"):
+        name = _text(item, "NAME")
+        if name:
+            rows.append({
+                "name": name,
+                "parent": _text(item, "PARENT"),
+                "closing_balance": _text(item, "CLOSINGBALANCE"),
+                "closing_value": _text(item, "CLOSINGVALUE"),
+                "reorder_level": _text(item, "REORDERBASE", "REORDERLEVEL"),
+            })
+    return rows
+
+
+def parse_gst_reports(raw_xml: str) -> list[dict[str, Any]]:
+    root = _root(raw_xml)
+    rows = []
+    for report in root.findall(".//GSTREPORT") + root.findall(".//GSTSUMMARY"):
+        period = _text(report, "PERIOD", "RETURNPERIOD")
+        if period:
+            rows.append({
+                "period": period,
+                "mismatch_count": _text(report, "MISMATCHCOUNT", "MISMATCHES"),
+                "tax_payable": _text(report, "TAXPAYABLE", "TAXAMOUNT"),
+                "status": _text(report, "STATUS"),
+            })
+    return rows

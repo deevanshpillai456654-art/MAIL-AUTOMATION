@@ -1,7 +1,9 @@
 from backend.services.connectors.tally.xml import (
     build_export_request,
     parse_companies,
+    parse_gst_reports,
     parse_ledgers,
+    parse_stock_items,
     parse_vouchers,
 )
 
@@ -41,3 +43,44 @@ def test_parse_ledgers_and_vouchers_from_tally_xml():
     assert parse_ledgers(xml)[0]["closing_balance"] == "1200"
     assert parse_vouchers(xml)[0]["voucher_number"] == "INV-1"
     assert parse_vouchers(xml)[0]["amount"] == "1200"
+
+
+def test_parse_stock_items_and_gst_reports_from_tally_xml():
+    xml = """
+    <ENVELOPE><BODY><DATA>
+      <STOCKITEM>
+        <NAME>USB Cable</NAME>
+        <PARENT>Accessories</PARENT>
+        <CLOSINGBALANCE>25 Nos</CLOSINGBALANCE>
+        <CLOSINGVALUE>12500</CLOSINGVALUE>
+        <REORDERBASE>10 Nos</REORDERBASE>
+      </STOCKITEM>
+      <GSTREPORT>
+        <PERIOD>2026-05</PERIOD>
+        <MISMATCHCOUNT>3</MISMATCHCOUNT>
+        <TAXPAYABLE>4500</TAXPAYABLE>
+        <STATUS>review</STATUS>
+      </GSTREPORT>
+    </DATA></BODY></ENVELOPE>
+    """
+
+    stock = parse_stock_items(xml)
+    gst = parse_gst_reports(xml)
+
+    assert stock == [
+        {
+            "name": "USB Cable",
+            "parent": "Accessories",
+            "closing_balance": "25 Nos",
+            "closing_value": "12500",
+            "reorder_level": "10 Nos",
+        }
+    ]
+    assert gst == [
+        {
+            "period": "2026-05",
+            "mismatch_count": "3",
+            "tax_payable": "4500",
+            "status": "review",
+        }
+    ]
