@@ -11,6 +11,6 @@
     "feedback": "http://127.0.0.1:4597/api/v1/feedback",
     "discover": "http://127.0.0.1:4597/api/v1/extension/discover"
   },
-  "timestamp": 1779117999,
+  "timestamp": 1779121055,
   "ttl": 300
 }
