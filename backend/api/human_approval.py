@@ -51,13 +51,8 @@ async def list_approvals(
 
 @router.patch("/{item_id}")
 async def decide_approval(item_id: str, body: ApprovalDecision, _auth=Depends(require_local_auth)):
-    before = {item.item_id for item in _queue.pending_for_tenant("default")}
-    _queue.resolve(item_id, body.status)
-    if item_id not in before:
-        # Resolve is tenant-independent, so scan known queue internals without exposing them.
-        found = any(item.item_id == item_id for item in _queue._items.values())
-        if not found:
-            raise HTTPException(404, "Approval item not found")
+    if not _queue.resolve(item_id, body.status):
+        raise HTTPException(404, "Approval item not found")
     return {"id": item_id, "status": body.status}
 
 

@@ -32,6 +32,16 @@ def test_human_review_queue_stats_counts_pending_without_payloads():
     assert stats == {"pending": 2, "tenants_with_pending": 2}
 
 
+def test_human_review_queue_resolve_reports_missing_items():
+    from backend.ai.human_review_queue import HumanReviewQueue
+
+    queue = HumanReviewQueue()
+    item_id = queue.enqueue("tenant-a", "review", {})
+
+    assert queue.resolve(item_id, "approved") is True
+    assert queue.resolve("missing", "approved") is False
+
+
 def test_human_approval_api_enqueue_list_and_decide(monkeypatch):
     import backend.api.human_approval as approval_mod
     from backend.ai.human_review_queue import HumanReviewQueue

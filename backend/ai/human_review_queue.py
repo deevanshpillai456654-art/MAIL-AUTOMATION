@@ -59,10 +59,12 @@ class HumanReviewQueue:
                 "tenants_with_pending": len({item.tenant_id for item in pending}),
             }
 
-    def resolve(self, item_id: str, resolution: str) -> None:
+    def resolve(self, item_id: str, resolution: str) -> bool:
         with self._lock:
             if item_id in self._items:
                 self._items[item_id].status = resolution
+                return True
+            return False
 
 
 __all__ = ["ReviewItem", "HumanReviewQueue"]
