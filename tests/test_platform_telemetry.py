@@ -351,6 +351,19 @@ def test_telemetry_full_includes_human_approval_metrics(tmp_path, monkeypatch):
     assert approvals["tenants_with_pending"] == 2
 
 
+def test_telemetry_full_includes_ai_gateway_status(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIO_AI_MODE", "disabled")
+    client = _client(tmp_path, monkeypatch)
+
+    resp = client.get("/api/v1/telemetry")
+
+    assert resp.status_code == 200
+    ai = resp.json()["ai_gateway"]
+    assert ai["mode"] == "disabled"
+    assert ai["enabled"] is False
+    assert ai["always_on_models"] is False
+
+
 def test_telemetry_summary_endpoint(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch, emails=5, active_threats=0)
     resp = client.get("/api/v1/telemetry/summary")

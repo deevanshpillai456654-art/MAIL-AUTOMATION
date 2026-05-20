@@ -212,6 +212,21 @@ def _human_approval_metrics() -> Dict[str, Any]:
         return {"pending": 0, "tenants_with_pending": 0}
 
 
+def _ai_gateway_metrics() -> Dict[str, Any]:
+    try:
+        from backend.core.ai_gateway import get_ai_gateway
+
+        return get_ai_gateway().status()
+    except Exception:
+        return {
+            "mode": "unknown",
+            "enabled": False,
+            "provider_order": [],
+            "local_models_loaded": False,
+            "always_on_models": False,
+        }
+
+
 def _compute_overall_health(
     emails: Dict, security: Dict, workflows: Dict, agents: Dict
 ) -> Dict[str, Any]:
@@ -251,6 +266,7 @@ async def platform_telemetry(_auth=Depends(require_local_auth)):
     reconciler  = _reconciler_metrics()
     scheduler   = _scheduler_metrics()
     approvals   = _human_approval_metrics()
+    ai_gateway  = _ai_gateway_metrics()
     health      = _compute_overall_health(emails, security, workflows, agents)
 
     return {
@@ -262,6 +278,7 @@ async def platform_telemetry(_auth=Depends(require_local_auth)):
         "event_bus":   events,
         "agents":      agents,
         "human_approvals": approvals,
+        "ai_gateway":  ai_gateway,
         "reconciler":  reconciler,
         "scheduler":   scheduler,
     }
