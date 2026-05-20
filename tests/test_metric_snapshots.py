@@ -210,6 +210,26 @@ def test_recorder_no_write_on_empty_metrics(tmp_path, monkeypatch):
 
 # ── REST endpoints ────────────────────────────────────────────────────────────
 
+def test_ensure_metric_recorder_running_honors_runtime_service_toggle(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_METRIC_SNAPSHOTS", "false")
+    from backend.api import metric_snapshots as ms
+    _setup(tmp_path, monkeypatch)
+
+    class FakeRecorder:
+        def __init__(self):
+            self.started = False
+
+        async def start(self):
+            self.started = True
+
+    fake = FakeRecorder()
+    monkeypatch.setattr(ms, "_recorder", fake)
+
+    _run(ms.ensure_metric_recorder_running())
+
+    assert fake.started is False
+
+
 def test_history_endpoint_empty(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     resp = client.get("/api/v1/metric-snapshots/history")

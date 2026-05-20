@@ -32,6 +32,7 @@ from fastapi import APIRouter, Depends, Query
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
+from backend.core.runtime_control import get_runtime_control
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/metric-snapshots", tags=["metric-snapshots"])
@@ -180,6 +181,9 @@ def get_recorder() -> MetricRecorder:
 
 
 async def ensure_metric_recorder_running() -> None:
+    if not get_runtime_control().is_service_enabled("metric_snapshots"):
+        logger.info("MetricRecorder disabled by runtime policy")
+        return
     _init_db()
     await _recorder.start()
 
