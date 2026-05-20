@@ -25,6 +25,7 @@ from backend.ai.local_first import (
 )
 from backend.ai.onnx_control_plane import get_onnx_control_plane
 from backend.auth.local_auth import request_has_valid_local_auth
+from backend.core.ai_gateway import get_ai_gateway
 from backend.runtime_version import APP_VERSION, DISPLAY_VERSION, VERSION_INFO
 
 router = APIRouter()
@@ -141,6 +142,9 @@ async def platform_version() -> Dict[str, Any]:
 
 @router.get("/ai/runtime/status")
 async def ai_runtime_status() -> Dict[str, Any]:
+    gateway = get_ai_gateway()
+    if not gateway.status()["enabled"]:
+        return gateway.status()
     return get_runtime().status()
 
 
