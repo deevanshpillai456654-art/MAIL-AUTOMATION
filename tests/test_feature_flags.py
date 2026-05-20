@@ -290,6 +290,47 @@ def test_env_on_nonexistent_flag_returns_404(tmp_path, monkeypatch):
     assert r.status_code == 404
 
 
+def test_evaluate_active_flag_enabled_for_environment(tmp_path, monkeypatch):
+    c = _client(tmp_path, monkeypatch)
+    d = _create(c, name="Runtime Controls")
+    _transition(c, d["id"], "active")
+    _set_env(c, d["id"], "production", enabled=True, rollout_pct=100.0)
+
+    r = c.get("/api/v1/flags/evaluate/runtime_controls?environment=production&tenant_id=tenant-a")
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["enabled"] is True
+    assert body["key"] == "runtime_controls"
+    assert body["reason"] == "enabled"
+
+
+def test_evaluate_draft_flag_is_disabled(tmp_path, monkeypatch):
+    c = _client(tmp_path, monkeypatch)
+    d = _create(c, name="Draft Feature")
+    _set_env(c, d["id"], "production", enabled=True, rollout_pct=100.0)
+
+    r = c.get("/api/v1/flags/evaluate/draft_feature?environment=production&tenant_id=tenant-a")
+
+    assert r.status_code == 200
+    assert r.json()["enabled"] is False
+    assert r.json()["reason"] == "flag_not_active"
+
+
+def test_evaluate_rollout_is_deterministic_for_tenant(tmp_path, monkeypatch):
+    c = _client(tmp_path, monkeypatch)
+    d = _create(c, name="Gradual Feature")
+    _transition(c, d["id"], "active")
+    _set_env(c, d["id"], "production", enabled=True, rollout_pct=25.0)
+
+    first = c.get("/api/v1/flags/evaluate/gradual_feature?environment=production&tenant_id=tenant-a").json()
+    second = c.get("/api/v1/flags/evaluate/gradual_feature?environment=production&tenant_id=tenant-a").json()
+
+    assert first["enabled"] == second["enabled"]
+    assert first["bucket"] == second["bucket"]
+    assert 1 <= first["bucket"] <= 100
+
+
 # ── Events ────────────────────────────────────────────────────────────────────
 
 def test_event_seeded_on_create(tmp_path, monkeypatch):

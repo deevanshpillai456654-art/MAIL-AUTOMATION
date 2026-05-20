@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 from backend.core.runtime_control import get_runtime_control
 from backend.security.redaction import redact
@@ -70,9 +70,29 @@ async def get_frontend_runtime_policy():
 
 
 @router.get("/clients/runtime-policy")
-async def get_client_runtime_policy():
+async def get_client_runtime_policy(
+    environment: str = Query("production", min_length=1, max_length=80),
+    tenant_id: str = Query("", max_length=160),
+    flags: str = Query("", max_length=1000),
+):
     runtime = get_runtime_control()
     frontend = runtime.frontend_flags()
+    flag_results: Dict[str, Any] = {}
+    if flags.strip():
+        from backend.api.feature_flags import evaluate_feature_flag
+
+        for raw_key in [item.strip() for item in flags.split(",") if item.strip()]:
+            try:
+                result = evaluate_feature_flag(raw_key, environment=environment, tenant_id=tenant_id)
+            except Exception:
+                result = {
+                    "key": raw_key,
+                    "environment": environment,
+                    "tenant_id": tenant_id,
+                    "enabled": False,
+                    "reason": "not_available",
+                }
+            flag_results[result.get("key", raw_key)] = result
     return {
         "zero_trust": True,
         "client_authority": "render_only",
@@ -85,6 +105,7 @@ async def get_client_runtime_policy():
             "max_visible_rows": 100 if runtime.low_resource else 250 if runtime.profile == "lite" else 500,
             "poll_interval_seconds": runtime.limits["poll_interval_seconds"],
         },
+        "flags": flag_results,
         "plaintext_tokens_allowed": False,
         "provider_passwords_allowed": False,
         "mailbox_authority_on_client": False,

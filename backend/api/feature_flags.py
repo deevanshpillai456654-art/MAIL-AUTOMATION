@@ -43,6 +43,7 @@ import logging
 import re
 import sqlite3
 import uuid
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -161,6 +162,63 @@ def _get_flag_or_404(con: sqlite3.Connection, flag_id: str) -> tuple:
     if not row:
         raise HTTPException(404, "Flag not found")
     return row
+
+
+def _rollout_bucket(flag_key: str, environment: str, tenant_id: str) -> int:
+    identity = tenant_id or "anonymous"
+    digest = hashlib.sha256(f"{flag_key}:{environment}:{identity}".encode("utf-8")).hexdigest()
+    return (int(digest, 16) % 100) + 1
+
+
+def evaluate_feature_flag(flag_key: str, environment: str = "production", tenant_id: str = "") -> dict:
+    key = _slugify(flag_key)
+    try:
+        con = _conn()
+        flag = con.execute(
+            f"SELECT {','.join(_FLAG_COLS)} FROM feature_flags WHERE key=?",
+            (key,),
+        ).fetchone()
+        if not flag:
+            con.close()
+            raise HTTPException(404, "Flag not found")
+        flag_d = dict(zip(_FLAG_COLS, flag))
+        env = con.execute(
+            f"SELECT {','.join(_ENV_COLS)} FROM flag_environments "
+            "WHERE flag_id=? AND environment=?",
+            (flag_d["id"], environment),
+        ).fetchone()
+        con.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(500, str(exc))
+
+    bucket = _rollout_bucket(key, environment, tenant_id)
+    result = {
+        "key": key,
+        "flag_id": flag_d["id"],
+        "environment": environment,
+        "tenant_id": tenant_id,
+        "status": flag_d["status"],
+        "enabled": False,
+        "rollout_pct": 0.0,
+        "bucket": bucket,
+        "reason": "disabled",
+    }
+    if flag_d["status"] != "active":
+        result["reason"] = "flag_not_active"
+        return result
+    if not env:
+        result["reason"] = "environment_not_configured"
+        return result
+    env_d = dict(zip(_ENV_COLS, env))
+    result["rollout_pct"] = float(env_d["rollout_pct"] or 0.0)
+    if not bool(env_d["enabled"]):
+        result["reason"] = "environment_disabled"
+        return result
+    result["enabled"] = result["rollout_pct"] >= 100 or bucket <= result["rollout_pct"]
+    result["reason"] = "enabled" if result["enabled"] else "rollout_excluded"
+    return result
 
 
 def _log_event(con: sqlite3.Connection, flag_id: str,
@@ -312,6 +370,16 @@ async def flag_stats(_auth=Depends(require_local_auth)):
 
 
 # ── Single flag ───────────────────────────────────────────────────────────────
+
+@router.get("/evaluate/{flag_key}", summary="Evaluate a feature flag for an environment and tenant")
+async def evaluate_flag(
+    flag_key: str,
+    environment: str = Query("production", min_length=1, max_length=80),
+    tenant_id: str = Query("", max_length=160),
+    _auth=Depends(require_local_auth),
+):
+    return evaluate_feature_flag(flag_key, environment, tenant_id)
+
 
 @router.get("/{flag_id}", summary="Get feature flag")
 async def get_flag(flag_id: str, _auth=Depends(require_local_auth)):
