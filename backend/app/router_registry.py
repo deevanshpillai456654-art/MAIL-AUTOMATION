@@ -71,6 +71,7 @@ from backend.api.license_management import router as license_management_router
 from backend.api.config_management import router as config_management_router
 from backend.api.certificate_management import router as certificate_management_router
 from backend.api.risk_register import router as risk_register_router
+from backend.api.slo_management import router as slo_management_router
 from backend.auth.routes import router as oauth_router
 from backend.core.runtime_control import RuntimeControl, get_runtime_control
 from backend.utils.discovery import router as discovery_router
@@ -152,6 +153,7 @@ API_ROUTER_SPECS: tuple[RouterSpec, ...] = (
     RouterSpec("config_management", config_management_router),
     RouterSpec("certificate_management", certificate_management_router),
     RouterSpec("risk_register", risk_register_router),
+    RouterSpec("slo_management", slo_management_router),
 )
 
 
