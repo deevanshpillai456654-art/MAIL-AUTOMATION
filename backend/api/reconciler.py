@@ -35,6 +35,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR, DB_PATH
+from backend.core.runtime_control import get_runtime_control
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reconciler", tags=["reconciler"])
@@ -286,6 +287,9 @@ def get_reconciler() -> OperationalReconciler:
 
 
 async def ensure_reconciler_running() -> None:
+    if not get_runtime_control().is_service_enabled("reconciler"):
+        logger.info("OperationalReconciler disabled by runtime policy")
+        return
     await _reconciler.start()
 
 

@@ -203,6 +203,25 @@ def test_history_ring_buffer_caps_at_50(tmp_path, monkeypatch):
 
 # ── REST endpoints ─────────────────────────────────────────────────────────────
 
+def test_ensure_reconciler_running_honors_runtime_service_toggle(monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_RECONCILER", "false")
+    from backend.api import reconciler as rec
+
+    class FakeReconciler:
+        def __init__(self):
+            self.started = False
+
+        async def start(self):
+            self.started = True
+
+    fake = FakeReconciler()
+    monkeypatch.setattr(rec, "_reconciler", fake)
+
+    _run(rec.ensure_reconciler_running())
+
+    assert fake.started is False
+
+
 def _client(tmp_path, monkeypatch):
     from backend.api import reconciler as rec
     from backend.auth.local_auth import require_local_auth
