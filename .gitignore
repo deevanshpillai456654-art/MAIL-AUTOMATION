@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.pyd
 .Python
 build/
 develop-eggs/
@@ -20,12 +21,19 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.mypy_cache/
+.dmypy.json
+.pytype/
+.ruff_cache/
 
 # Virtual environments
 venv/
 env/
 ENV/
-.venv
+.venv/
+.virtualenv/
+pip-log.txt
+pip-delete-this-directory.txt
 
 # IDE
 .vscode/
@@ -33,14 +41,22 @@ ENV/
 *.swp
 *.swo
 *~
+*.orig
+*.bak
+.history/
 
 # Testing
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 .tox/
+.nox/
 artifacts/
 tmp_models_test/
+*.prof
+junit.xml
+test-results/
 
 # Local data
 local-service/data/
@@ -50,30 +66,84 @@ local-service/models/
 *.db-journal
 *.db-wal
 *.db-shm
+platform/*.db
+platform/*.db-wal
+platform/*.db-shm
+platform/*.db-journal
+
+# Node / frontend
 node_modules/
+.npm/
+.pnp.*
+.yarn/
+.cache/
+*.tsbuildinfo
+.parcel-cache/
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V500
+.Trashes
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Windows runtime artifacts
+*.stackdump
+*.dmp
+Crash*.log
 
 # Logs
 *.log
 logs/
+*.log.*
 
 # Secrets
 .env
 .env.local
+.env.*.local
 *.pem
 *.key
+*.p12
+*.pfx
 secrets/
+credentials.json
+service_account*.json
+*_credentials.json
 
-# Build
+# Build artifacts
 build/
 dist/
 *.exe
 *.dmg
 *.app
+*.msi
+*.pkg
+*.deb
+*.rpm
+*.snap
+release/
+out/
 
-# Generated validation outputs
+# Model files (large binaries)
+*.onnx
+*.pt
+*.pth
+*.bin
+*.gguf
+models/
+local-service/models/
+
+# Python type stubs generated
+*.pyi
+!py.typed
+
+# Generated validation / report outputs
 AI36_FRONTEND_FIX_VALIDATION_REPORT.json
 AI36_FRONTEND_FIX_VALIDATION_REPORT.md
+*_VALIDATION_REPORT.*
+*_AUDIT_REPORT.*
