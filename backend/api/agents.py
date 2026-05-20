@@ -50,6 +50,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
+from backend.core.runtime_control import get_runtime_control
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agents", tags=["operational-agents"])
@@ -697,14 +698,43 @@ class AgentSupervisor:
     def register(self, agent: OperationalAgent) -> None:
         self._agents[agent.agent_id] = agent
 
+    def _agent_runtime_status(self, agent_id: str) -> Dict[str, Any]:
+        runtime = get_runtime_control()
+        policy = runtime.agent_status().get(agent_id, {})
+        enabled = runtime.is_agent_enabled(agent_id)
+        auto_start = runtime.should_autostart_agent(agent_id)
+        return {
+            "enabled": enabled,
+            "auto_start": auto_start,
+            "priority": int(policy.get("priority", 999)),
+            "start_blocked_reason": (
+                None
+                if enabled and auto_start
+                else "disabled_by_runtime_policy"
+                if not enabled
+                else "autostart_disabled_by_runtime_policy"
+            ),
+        }
+
+    def _ordered_agents(self) -> List[OperationalAgent]:
+        return sorted(
+            self._agents.values(),
+            key=lambda agent: (self._agent_runtime_status(agent.agent_id)["priority"], agent.agent_id),
+        )
+
     async def start_all(self) -> None:
         if self._started:
             return
         self._started = True
-        for agent in self._agents.values():
+        started = 0
+        for agent in self._ordered_agents():
+            if not get_runtime_control().should_autostart_agent(agent.agent_id):
+                logger.info("Agent '%s' skipped by runtime policy", agent.agent_id)
+                continue
             await agent.start()
+            started += 1
         self._supervisor_task = asyncio.create_task(self._health_watch())
-        logger.info("AgentSupervisor started — %d agents running", len(self._agents))
+        logger.info("AgentSupervisor started — %d of %d agents running", started, len(self._agents))
 
     async def stop_all(self) -> None:
         self._started = False
@@ -719,6 +749,10 @@ class AgentSupervisor:
             try:
                 for aid, agent in list(self._agents.items()):
                     if agent._running and (agent._task is None or agent._task.done()):
+                        if not get_runtime_control().should_autostart_agent(aid):
+                            logger.info("Agent '%s' task died and restart is blocked by runtime policy", aid)
+                            agent._running = False
+                            continue
                         logger.warning("Agent '%s' task died — restarting", aid)
                         agent._running = False
                         await agent.start()
@@ -733,7 +767,12 @@ class AgentSupervisor:
         return self._agents.get(agent_id)
 
     def all_status(self) -> List[Dict[str, Any]]:
-        return [a.status() for a in self._agents.values()]
+        statuses: List[Dict[str, Any]] = []
+        for agent in self._ordered_agents():
+            status = agent.status()
+            status.update(self._agent_runtime_status(agent.agent_id))
+            statuses.append(status)
+        return statuses
 
     def supervisor_health(self) -> Dict[str, Any]:
         statuses = self.all_status()
@@ -754,6 +793,8 @@ class AgentSupervisor:
         agent = self._agents.get(agent_id)
         if not agent:
             raise ValueError(f"Unknown agent: {agent_id}")
+        if not get_runtime_control().is_agent_enabled(agent_id):
+            raise PermissionError(f"Agent '{agent_id}' is disabled by runtime policy")
         asyncio.create_task(agent.run_cycle())
         return {"ok": True, "agent_id": agent_id, "triggered_at": datetime.now(timezone.utc).isoformat()}
 
@@ -837,6 +878,8 @@ async def trigger_agent(agent_id: str, _auth=Depends(require_local_auth)):
         return result
     except ValueError as exc:
         raise HTTPException(404, str(exc))
+    except PermissionError as exc:
+        raise HTTPException(409, str(exc))
 
 
 @router.post("/{agent_id}/pause", summary="Pause an agent")

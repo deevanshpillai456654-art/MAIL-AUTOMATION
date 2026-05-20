@@ -92,6 +92,13 @@ SERVICE_POLICIES: Dict[str, ServicePolicy] = {
 }
 
 AGENT_POLICIES: Dict[str, AgentPolicy] = {
+    # Current built-in operational agents
+    "inbox_monitor": AgentPolicy("inbox_monitor", "Inbox Monitor", priority=80),
+    "threat_watch": AgentPolicy("threat_watch", "Threat Watch", priority=60),
+    "finance_monitor": AgentPolicy("finance_monitor", "Finance Monitor", priority=85),
+    "performance_analyst": AgentPolicy("performance_analyst", "Performance Analyst", priority=120),
+    "security_posture": AgentPolicy("security_posture", "Security Posture Agent", priority=65),
+    # Target enterprise agent taxonomy
     "workflow_orchestrator": AgentPolicy("workflow_orchestrator", "Workflow Orchestrator Agent", priority=10),
     "connector": AgentPolicy("connector", "Connector Agent", priority=20),
     "human_approval": AgentPolicy("human_approval", "Human Approval Agent", priority=30),

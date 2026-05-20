@@ -215,3 +215,94 @@ def test_trigger_known_agent_endpoint(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     resp = client.post("/api/v1/agents/inbox_monitor/trigger")
     assert resp.status_code in (200, 202)
+
+
+def test_supervisor_start_all_respects_runtime_agent_toggle(monkeypatch):
+    from backend.api.agents import AgentSupervisor, OperationalAgent
+
+    class ProbeAgent(OperationalAgent):
+        agent_id = "inbox_monitor"
+        name = "Inbox Monitor"
+
+        async def run_cycle(self):
+            return None
+
+    monkeypatch.setenv("AIO_RUNTIME_PROFILE", "enterprise")
+    monkeypatch.setenv("AIO_AGENT_INBOX_MONITOR", "false")
+    supervisor = AgentSupervisor()
+    agent = ProbeAgent()
+    supervisor.register(agent)
+
+    async def _go():
+        await supervisor.start_all()
+        return supervisor.supervisor_health()
+
+    health = asyncio.run(_go())
+
+    assert agent._running is False
+    assert health["running"] == 0
+    assert health["agents"][0]["enabled"] is False
+    assert health["agents"][0]["start_blocked_reason"] == "disabled_by_runtime_policy"
+
+
+def test_supervisor_starts_enabled_agents_by_priority(monkeypatch):
+    from backend.api.agents import AgentSupervisor, OperationalAgent
+
+    started = []
+
+    class SlowAgent(OperationalAgent):
+        agent_id = "performance_analyst"
+        name = "Performance Analyst"
+
+        async def start(self):
+            started.append(self.agent_id)
+            await super().start()
+
+        async def run_cycle(self):
+            return None
+
+    class FastAgent(OperationalAgent):
+        agent_id = "workflow_orchestrator"
+        name = "Workflow Orchestrator"
+
+        async def start(self):
+            started.append(self.agent_id)
+            await super().start()
+
+        async def run_cycle(self):
+            return None
+
+    monkeypatch.setenv("AIO_RUNTIME_PROFILE", "enterprise")
+    supervisor = AgentSupervisor()
+    supervisor.register(SlowAgent())
+    supervisor.register(FastAgent())
+
+    async def _go():
+        await supervisor.start_all()
+        await supervisor.stop_all()
+
+    asyncio.run(_go())
+
+    assert started[:2] == ["workflow_orchestrator", "performance_analyst"]
+
+
+def test_disabled_agent_trigger_returns_policy_error(monkeypatch):
+    from backend.api.agents import AgentSupervisor, OperationalAgent
+
+    class ProbeAgent(OperationalAgent):
+        agent_id = "threat_watch"
+        name = "Threat Watch"
+
+        async def run_cycle(self):
+            return None
+
+    monkeypatch.setenv("AIO_RUNTIME_PROFILE", "enterprise")
+    monkeypatch.setenv("AIO_AGENT_THREAT_WATCH", "false")
+    supervisor = AgentSupervisor()
+    supervisor.register(ProbeAgent())
+
+    async def _go():
+        return await supervisor.trigger("threat_watch")
+
+    with pytest.raises(PermissionError):
+        asyncio.run(_go())
