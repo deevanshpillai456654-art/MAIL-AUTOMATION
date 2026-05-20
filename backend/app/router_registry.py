@@ -8,6 +8,7 @@ from fastapi import APIRouter, FastAPI
 from backend.api.absolute_enterprise_governance import router as absolute_enterprise_governance_router
 from backend.api.ai_assistant import router as ai_assistant_router
 from backend.api.ai_enterprise import router as ai_enterprise_router
+from backend.api.ai_gateway import router as ai_gateway_router
 from backend.api.connection import router as connection_router
 from backend.api.enterprise_accounts import router as enterprise_accounts_router
 from backend.api.enterprise_admin import router as enterprise_admin_router
@@ -85,6 +86,7 @@ API_ROUTER_SPECS: tuple[RouterSpec, ...] = (
     RouterSpec("core", core_router),
     RouterSpec("oauth", oauth_router),
     RouterSpec("runtime_control", runtime_control_router),
+    RouterSpec("ai_gateway", ai_gateway_router),
     RouterSpec("integrations", integrations_router),
     RouterSpec("enterprise_refinement", enterprise_refinement_router),
     RouterSpec("enterprise_governance", enterprise_governance_router),

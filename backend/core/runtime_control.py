@@ -93,6 +93,7 @@ SERVICE_POLICIES: Dict[str, ServicePolicy] = {
     "system_scheduler": ServicePolicy("system_scheduler", "System Scheduler", "core", True, False, True, True, True, "scheduler", heavy=True),
     "job_runner": ServicePolicy("job_runner", "Async Job Runner", "core", True, True, True, True, True),
     "ai_assistant": ServicePolicy("ai_assistant", "AI Assistant", "ai", True, False, True, True, False, "ai_assistant", heavy=True),
+    "ai_gateway": ServicePolicy("ai_gateway", "AI Gateway", "ai", True, True, True, True, True, "ai_gateway"),
     "ai_enterprise": ServicePolicy("ai_enterprise", "AI Enterprise", "ai", True, False, True, True, False, "ai_enterprise", heavy=True),
     "ocr": ServicePolicy("ocr", "Document Intelligence", "ai", True, False, True, True, False, "ocr", heavy=True),
     "threat_intelligence": ServicePolicy("threat_intelligence", "Security Insights", "security", True, False, True, True, False, "threat_intelligence", heavy=True),
@@ -121,7 +122,7 @@ AGENT_POLICIES: Dict[str, AgentPolicy] = {
 }
 
 ALWAYS_ON_ROUTERS = {
-    "core", "oauth", "session", "health", "runtime_control", "rules", "integrations",
+    "core", "oauth", "session", "health", "runtime_control", "ai_gateway", "rules", "integrations",
     "frontend_runtime", "system", "security", "enterprise_accounts", "connection",
     "port", "discovery", "export", "tally", "workflows",
 }

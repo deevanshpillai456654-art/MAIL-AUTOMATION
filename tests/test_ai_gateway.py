@@ -1,0 +1,55 @@
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+
+def test_ai_gateway_disabled_mode_never_loads_local_models():
+    from backend.core.ai_gateway import AIGateway
+    from backend.core.runtime_control import RuntimeControl
+
+    gateway = AIGateway(runtime=RuntimeControl(environ={"AIO_RUNTIME_PROFILE": "low_resource"}))
+    status = gateway.status()
+
+    assert status["mode"] == "disabled"
+    assert status["enabled"] is False
+    assert status["local_models_loaded"] is False
+    assert status["always_on_models"] is False
+    assert status["provider_order"] == []
+
+
+def test_ai_gateway_cloud_mode_uses_cloud_provider_only():
+    from backend.core.ai_gateway import AIGateway
+    from backend.core.runtime_control import RuntimeControl
+
+    gateway = AIGateway(runtime=RuntimeControl(environ={"AIO_AI_MODE": "cloud"}))
+    status = gateway.status()
+
+    assert status["mode"] == "cloud"
+    assert status["enabled"] is True
+    assert status["provider_order"] == ["cloud"]
+    assert status["local_models_loaded"] is False
+
+
+def test_ai_gateway_api_exposes_runtime_policy(monkeypatch):
+    monkeypatch.setenv("AIO_AI_MODE", "hybrid")
+    from backend.api.ai_gateway import router
+
+    app = FastAPI()
+    app.include_router(router, prefix="/api/v1")
+    client = TestClient(app)
+
+    resp = client.get("/api/v1/ai/gateway/status")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["mode"] == "hybrid"
+    assert body["enabled"] is True
+    assert body["always_on_models"] is False
+    assert "cloud" in body["provider_order"]
+
+
+def test_ai_gateway_router_registered_in_api_registry():
+    from backend.app.router_registry import API_ROUTER_SPECS
+
+    names = {spec.name for spec in API_ROUTER_SPECS}
+
+    assert "ai_gateway" in names
