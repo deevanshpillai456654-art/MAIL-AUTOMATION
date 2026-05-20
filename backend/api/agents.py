@@ -726,6 +726,9 @@ class AgentSupervisor:
     async def start_all(self) -> None:
         if self._started:
             return
+        if not get_runtime_control().is_service_enabled("agents"):
+            logger.info("AgentSupervisor disabled by runtime policy")
+            return
         self._started = True
         started = 0
         for agent in self._ordered_agents():

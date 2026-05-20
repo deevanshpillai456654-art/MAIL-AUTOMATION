@@ -245,6 +245,35 @@ def test_supervisor_start_all_respects_runtime_agent_toggle(monkeypatch):
     assert health["agents"][0]["start_blocked_reason"] == "disabled_by_runtime_policy"
 
 
+def test_supervisor_start_all_honors_agents_service_toggle(monkeypatch):
+    from backend.api.agents import AgentSupervisor, OperationalAgent
+
+    class ProbeAgent(OperationalAgent):
+        agent_id = "inbox_monitor"
+        name = "Inbox Monitor"
+
+        async def run_cycle(self):
+            return None
+
+    monkeypatch.setenv("AIO_RUNTIME_PROFILE", "enterprise")
+    monkeypatch.setenv("AIO_SERVICE_AGENTS", "false")
+    supervisor = AgentSupervisor()
+    agent = ProbeAgent()
+    supervisor.register(agent)
+
+    async def _go():
+        await supervisor.start_all()
+        return supervisor.supervisor_health()
+
+    health = asyncio.run(_go())
+
+    assert supervisor._started is False
+    assert supervisor._supervisor_task is None
+    assert agent._running is False
+    assert health["supervisor_running"] is False
+    assert health["enabled"] == 0
+
+
 def test_supervisor_starts_enabled_agents_by_priority(monkeypatch):
     from backend.api.agents import AgentSupervisor, OperationalAgent
 
