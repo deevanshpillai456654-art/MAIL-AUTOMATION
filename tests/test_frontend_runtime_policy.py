@@ -23,6 +23,8 @@ def test_frontend_runtime_policy_includes_low_resource_flags(monkeypatch):
     assert payload["runtime"]["frontend"]["minimal_animations"] is True
     assert payload["runtime"]["frontend"]["deferred_rendering"] is True
     assert payload["runtime"]["limits"]["max_workers"] == 1
+    assert payload["ai_gateway"]["enabled"] is False
+    assert payload["ai_gateway"]["ai_on_demand_only"] is True
 
 
 def test_client_runtime_policy_exposes_rendering_budget(monkeypatch):

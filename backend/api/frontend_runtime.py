@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Literal, Optional
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 from backend.core.runtime_control import get_runtime_control
+from backend.core.ai_gateway import get_ai_gateway
 from backend.security.redaction import redact
 
 router = APIRouter(prefix="/frontend", tags=["frontend-runtime"])
@@ -56,9 +57,11 @@ async def get_recent_frontend_telemetry(limit: int = 25):
 @router.get("/runtime-policy")
 async def get_frontend_runtime_policy():
     runtime = get_runtime_control()
+    ai_gateway = get_ai_gateway(runtime=runtime).status()
     return {
         "authority": "backend",
         "runtime": runtime.snapshot(),
+        "ai_gateway": ai_gateway,
         "plaintext_tokens_allowed": False,
         "provider_passwords_allowed": False,
         "mailbox_authority_in_frontend": False,
@@ -77,6 +80,7 @@ async def get_client_runtime_policy(
 ):
     runtime = get_runtime_control()
     frontend = runtime.frontend_flags()
+    ai_gateway = get_ai_gateway(runtime=runtime).status()
     flag_results: Dict[str, Any] = {}
     if flags.strip():
         from backend.api.feature_flags import evaluate_feature_flag
@@ -98,6 +102,7 @@ async def get_client_runtime_policy(
         "client_authority": "render_only",
         "runtime_profile": runtime.profile,
         "ai_mode": runtime.ai_mode,
+        "ai_gateway": ai_gateway,
         "rendering_budget": {
             "minimal_animations": frontend["minimal_animations"],
             "deferred_rendering": frontend["deferred_rendering"],
