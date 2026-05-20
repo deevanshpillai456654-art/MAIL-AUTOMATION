@@ -7,6 +7,22 @@
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const safeJson = (raw, fallback = {}) => { try { return typeof raw === 'string' ? JSON.parse(raw) : (raw ?? fallback); } catch { return fallback; } };
 
+  // Ops-views helpers — querySelector shorthand, escape alias, event binder, API wrapper
+  const _q = (sel, ctx = document) => ctx.querySelector(sel);
+  const _esc = esc;
+  function _bind(id, event, fn) { const el = document.getElementById(id); if (el) el.addEventListener(event, fn); }
+  async function _api(path, method = 'GET', body) {
+    const opt = { method };
+    if (body !== undefined) opt.body = JSON.stringify(body);
+    const result = await api('/api/v1' + path, opt);
+    if (!result.ok) throw Object.assign(new Error(String(result.error?.detail || result.error?.message || 'Request failed')), { status: result.status });
+    return result.data;
+  }
+  function _debounce(fn, ms = 280) {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  }
+
   function applyDynamicVisuals(root = document) {
     root.querySelectorAll('[data-progress]').forEach(el => {
       const value = Math.max(0, Math.min(100, Number(el.dataset.progress) || 0));
@@ -6232,7 +6248,7 @@ ${section('Model Health', modelHealth)}
   function initRisksView() {
     _loadRiskStats(); _loadRisks();
     _q('#riskNewBtn').onclick = () => _openRiskModal();
-    _q('#riskSearch').oninput = () => { _riskOffset = 0; _loadRisks(); };
+    _q('#riskSearch').oninput = _debounce(() => { _riskOffset = 0; _loadRisks(); });
     _q('#riskStatusFilter').onchange = () => { _riskOffset = 0; _loadRisks(); };
     _q('#riskCatFilter').onchange    = () => { _riskOffset = 0; _loadRisks(); };
     _q('#riskLevelFilter').onchange  = () => { _riskOffset = 0; _loadRisks(); };
@@ -6356,7 +6372,7 @@ ${section('Model Health', modelHealth)}
   function initCertificatesView() {
     _loadCertStats(); _loadCerts();
     _q('#certNewBtn').onclick = () => _openCertModal();
-    _q('#certSearch').oninput = () => { _certOffset = 0; _loadCerts(); };
+    _q('#certSearch').oninput = _debounce(() => { _certOffset = 0; _loadCerts(); });
     _q('#certStatusFilter').onchange = () => { _certOffset = 0; _loadCerts(); };
     _q('#certTypeFilter').onchange   = () => { _certOffset = 0; _loadCerts(); };
     _q('#certEnvFilter').onchange    = () => { _certOffset = 0; _loadCerts(); };
@@ -6468,7 +6484,7 @@ ${section('Model Health', modelHealth)}
   function initConfigsView() {
     _loadCfgStats(); _loadConfigs();
     _q('#cfgNewBtn').onclick = () => _openCfgModal();
-    _q('#cfgSearch').oninput = () => { _cfgOffset=0; _loadConfigs(); };
+    _q('#cfgSearch').oninput = _debounce(() => { _cfgOffset=0; _loadConfigs(); });
     _q('#cfgEnvFilter').onchange    = () => { _cfgOffset=0; _loadConfigs(); };
     _q('#cfgTypeFilter').onchange   = () => { _cfgOffset=0; _loadConfigs(); };
     _q('#cfgStatusFilter').onchange = () => { _cfgOffset=0; _loadConfigs(); };
@@ -6573,7 +6589,7 @@ ${section('Model Health', modelHealth)}
   function initLicensesView() {
     _loadLicStats(); _loadLicenses();
     _q('#licNewBtn').onclick = () => _openLicModal();
-    _q('#licSearch').oninput = () => { _licOffset=0; _loadLicenses(); };
+    _q('#licSearch').oninput = _debounce(() => { _licOffset=0; _loadLicenses(); });
     _q('#licStatusFilter').onchange = () => { _licOffset=0; _loadLicenses(); };
     _q('#licTypeFilter').onchange   = () => { _licOffset=0; _loadLicenses(); };
     _q('#licDetailClose').onclick   = () => { _q('#licDetailDialog').hidden=true; };
@@ -6693,7 +6709,7 @@ ${section('Model Health', modelHealth)}
   function initBudgetsView() {
     _loadBudStats(); _loadBudgets();
     _q('#budNewBtn').onclick = () => _openBudModal();
-    _q('#budSearch').oninput = () => { _budOffset=0; _loadBudgets(); };
+    _q('#budSearch').oninput = _debounce(() => { _budOffset=0; _loadBudgets(); });
     _q('#budStatusFilter').onchange = () => { _budOffset=0; _loadBudgets(); };
     _q('#budCatFilter').onchange    = () => { _budOffset=0; _loadBudgets(); };
     _q('#budDetailClose').onclick   = () => { _q('#budDetailDialog').hidden=true; };
@@ -6805,7 +6821,7 @@ ${section('Model Health', modelHealth)}
   function initFlagsView() {
     _loadFlagStats(); _loadFlags();
     _q('#flag-add-btn').onclick  = () => _openFlagModal();
-    _q('#flag-search').oninput   = () => { _flagOffset=0; _loadFlags(); };
+    _q('#flag-search').oninput   = _debounce(() => { _flagOffset=0; _loadFlags(); });
     _q('#flag-filter-status').onchange = () => { _flagOffset=0; _loadFlags(); };
     _q('#flag-detail-close').onclick   = () => { _q('#flag-detail').hidden=true; };
     _q('#flag-modal-close').onclick    = () => { _q('#flag-modal').hidden=true; };
@@ -6930,7 +6946,7 @@ ${section('Model Health', modelHealth)}
   function initVendorsView() {
     _loadVenStats(); _loadVendors();
     _q('#ven-add-btn').onclick  = () => _openVenModal();
-    _q('#ven-search').oninput   = () => { _venOffset=0; _loadVendors(); };
+    _q('#ven-search').oninput   = _debounce(() => { _venOffset=0; _loadVendors(); });
     _q('#ven-filter-status').onchange   = () => { _venOffset=0; _loadVendors(); };
     _q('#ven-filter-category').onchange = () => { _venOffset=0; _loadVendors(); };
     _q('#ven-detail-close').onclick     = () => { _q('#ven-detail').hidden=true; };
@@ -7057,7 +7073,7 @@ ${section('Model Health', modelHealth)}
   function initCapacityView() {
     _loadCapStats(); _loadCapacity();
     _q('#cap-add-btn').onclick   = () => _openCapModal();
-    _q('#cap-search').oninput    = () => { _capOffset=0; _loadCapacity(); };
+    _q('#cap-search').oninput    = _debounce(() => { _capOffset=0; _loadCapacity(); });
     _q('#cap-filter-type').onchange   = () => { _capOffset=0; _loadCapacity(); };
     _q('#cap-filter-status').onchange = () => { _capOffset=0; _loadCapacity(); };
     _q('#cap-filter-env').onchange    = () => { _capOffset=0; _loadCapacity(); };
@@ -7172,7 +7188,7 @@ ${section('Model Health', modelHealth)}
   function initKnowledgeView() {
     _loadKbStats(); _loadKb();
     _q('#kb-add-btn').onclick   = () => _openKbModal();
-    _q('#kb-search').oninput    = () => { _kbOffset=0; _loadKb(); };
+    _q('#kb-search').oninput    = _debounce(() => { _kbOffset=0; _loadKb(); });
     _q('#kb-filter-status').onchange   = () => { _kbOffset=0; _loadKb(); };
     _q('#kb-filter-category').onchange = () => { _kbOffset=0; _loadKb(); };
     _q('#kb-detail-close').onclick     = () => { _q('#kb-detail').hidden=true; };
@@ -7282,7 +7298,7 @@ ${section('Model Health', modelHealth)}
   function initAssetsView() {
     _loadAssetStats(); _loadAssets();
     _q('#asset-add-btn').onclick   = () => _openAssetModal();
-    _q('#asset-search').oninput    = () => { _assetOffset=0; _loadAssets(); };
+    _q('#asset-search').oninput    = _debounce(() => { _assetOffset=0; _loadAssets(); });
     _q('#asset-filter-type').onchange   = () => { _assetOffset=0; _loadAssets(); };
     _q('#asset-filter-status').onchange = () => { _assetOffset=0; _loadAssets(); };
     _q('#asset-filter-env').onchange    = () => { _assetOffset=0; _loadAssets(); };
