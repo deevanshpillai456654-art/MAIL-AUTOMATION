@@ -64,6 +64,8 @@ class HumanReviewQueue:
             return {
                 "pending": len(pending),
                 "tenants_with_pending": len({item.tenant_id for item in pending}),
+                "capacity": self._max,
+                "pressure_pct": round((len(pending) / max(1, self._max)) * 100, 2),
             }
 
     def resolve(self, item_id: str, resolution: str) -> bool:

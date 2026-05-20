@@ -29,7 +29,7 @@ def test_human_review_queue_stats_counts_pending_without_payloads():
 
     stats = queue.stats()
 
-    assert stats == {"pending": 2, "tenants_with_pending": 2}
+    assert stats == {"pending": 2, "tenants_with_pending": 2, "capacity": 10000, "pressure_pct": 0.02}
 
 
 def test_human_review_queue_resolve_reports_missing_items():
