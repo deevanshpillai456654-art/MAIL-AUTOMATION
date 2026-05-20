@@ -184,6 +184,28 @@ def test_on_event_deduplicates_by_id(tmp_path, monkeypatch):
 
 # ── write_audit_entry ─────────────────────────────────────────────────────────
 
+def test_audit_log_does_not_subscribe_when_service_disabled(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_AUDIT_LOG", "false")
+    from backend.api import audit_log as al
+    from backend.api import event_bus
+    _setup(tmp_path, monkeypatch)
+
+    class FakeBus:
+        def __init__(self):
+            self.subscribed = []
+
+        def subscribe(self, event_type, handler):
+            self.subscribed.append((event_type, handler))
+
+    fake_bus = FakeBus()
+    monkeypatch.setattr(event_bus, "get_event_bus", lambda: fake_bus)
+
+    al.ensure_audit_log_running()
+
+    assert fake_bus.subscribed == []
+    assert al._subscribed is False
+
+
 def test_write_audit_entry_direct(tmp_path, monkeypatch):
     from backend.api import audit_log as al
     db_path = _setup(tmp_path, monkeypatch)

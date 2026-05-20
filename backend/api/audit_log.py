@@ -42,6 +42,7 @@ from fastapi.responses import StreamingResponse
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
+from backend.core.runtime_control import get_runtime_control
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/audit-log", tags=["audit-log"])
@@ -216,6 +217,9 @@ async def _on_event(event: dict) -> None:
 def ensure_audit_log_running() -> None:
     global _subscribed
     if _subscribed:
+        return
+    if not get_runtime_control().is_service_enabled("audit_log"):
+        logger.info("AuditLog: event subscription disabled by runtime policy")
         return
     _init_db()
     try:
