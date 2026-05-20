@@ -387,6 +387,18 @@ def test_ensure_playbooks_running_skips_disabled(tmp_path, monkeypatch):
 
 # ── REST: list ────────────────────────────────────────────────────────────────
 
+def test_ensure_playbooks_running_honors_runtime_service_toggle(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_PLAYBOOKS", "false")
+    db = _setup(tmp_path, monkeypatch)
+    _insert_playbook(db, trigger_type="event", trigger_filter="*", enabled=1)
+    bus = MagicMock()
+    bus.subscribe = MagicMock()
+    with patch("backend.api.event_bus.get_event_bus", return_value=bus):
+        pb.ensure_playbooks_running()
+    bus.subscribe.assert_not_called()
+    assert pb._subscribed is False
+
+
 def test_list_empty(tmp_path, monkeypatch):
     c = _client(tmp_path, monkeypatch)
     r = c.get("/playbooks")

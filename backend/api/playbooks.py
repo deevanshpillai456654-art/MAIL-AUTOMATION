@@ -52,6 +52,7 @@ from pydantic import BaseModel
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
+from backend.core.runtime_control import get_runtime_control
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/playbooks", tags=["playbooks"])
@@ -373,6 +374,9 @@ def _subscribe_playbook(pb: dict) -> None:
 def ensure_playbooks_running() -> None:
     global _subscribed
     if _subscribed:
+        return
+    if not get_runtime_control().is_service_enabled("playbooks"):
+        logger.info("Playbooks disabled by runtime policy")
         return
     _init_db()
     _subscribed = True
