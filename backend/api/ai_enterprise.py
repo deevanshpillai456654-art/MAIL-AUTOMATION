@@ -181,11 +181,13 @@ async def ai_onnx_models() -> Dict[str, Any]:
 
 @router.post("/ai/onnx/validate")
 async def ai_onnx_validate(request: ModelValidationRequest) -> Dict[str, Any]:
+    _require_ai_enabled()
     return get_onnx_control_plane().validate_model(request.model_name)
 
 
 @router.post("/ai/onnx/evaluate")
 async def ai_onnx_evaluate(request: ModelEvaluationRequest, http_request: Request) -> Dict[str, Any]:
+    _require_ai_enabled()
     if request.activate:
         _require_ai_admin(http_request, "ai:model:activate")
     return get_onnx_control_plane().evaluate_model(

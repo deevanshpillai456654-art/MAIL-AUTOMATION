@@ -95,3 +95,27 @@ def test_ai_onnx_classify_rejects_when_ai_disabled(monkeypatch):
 
     assert resp.status_code == 409
     assert resp.json()["detail"] == "AI is disabled by runtime policy"
+
+
+def test_ai_onnx_validate_and_evaluate_reject_when_ai_disabled(monkeypatch):
+    monkeypatch.setenv("AIO_AI_MODE", "disabled")
+    import backend.api.ai_enterprise as ai_mod
+
+    class Plane:
+        def validate_model(self, model_name):
+            raise AssertionError("validate_should_not_run")
+
+        def evaluate_model(self, *args, **kwargs):
+            raise AssertionError("evaluate_should_not_run")
+
+    monkeypatch.setattr(ai_mod, "get_onnx_control_plane", lambda: Plane())
+
+    app = FastAPI()
+    app.include_router(ai_mod.router, prefix="/api/v1")
+    client = TestClient(app)
+
+    validate = client.post("/api/v1/ai/onnx/validate", json={"model_name": "tiny"})
+    evaluate = client.post("/api/v1/ai/onnx/evaluate", json={"model_name": "tiny", "cases": []})
+
+    assert validate.status_code == 409
+    assert evaluate.status_code == 409
