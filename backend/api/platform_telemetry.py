@@ -47,6 +47,7 @@ _ACTIONS_DB    = str(Path(DATA_DIR) / "agent_actions.db")
 def _q1(db: str, sql: str, params: tuple = (), fallback: Any = 0) -> Any:
     try:
         con = sqlite3.connect(db, timeout=5)
+        con.execute("PRAGMA journal_mode=WAL")
         val = con.execute(sql, params).fetchone()
         con.close()
         return val[0] if val and val[0] is not None else fallback
@@ -57,6 +58,7 @@ def _q1(db: str, sql: str, params: tuple = (), fallback: Any = 0) -> Any:
 def _q(db: str, sql: str, params: tuple = ()) -> list:
     try:
         con = sqlite3.connect(db, timeout=5)
+        con.execute("PRAGMA journal_mode=WAL")
         rows = con.execute(sql, params).fetchall()
         con.close()
         return rows

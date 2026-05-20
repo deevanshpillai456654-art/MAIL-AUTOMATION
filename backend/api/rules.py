@@ -10,10 +10,12 @@ import json
 import sys
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body
 from pydantic import BaseModel
 from typing import Optional, List, Any
 from datetime import datetime
+
+from backend.auth.local_auth import require_local_auth_or_localhost
 
 from backend.rules.engine import (
     Rule,
@@ -31,7 +33,7 @@ from backend.core.email_forwarding import normalize_forward_payload, UniversalEm
 from backend.db.database import Database
 from backend import config
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_local_auth_or_localhost)])
 db = Database(config.DB_PATH)
 rule_engine = RuleEngine()
 

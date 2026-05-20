@@ -2,6 +2,8 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from backend.auth.local_auth import require_local_auth_or_localhost
+
 
 def test_start_scheduler_honors_runtime_service_toggle(monkeypatch):
     monkeypatch.setenv("AIO_SERVICE_SYSTEM_SCHEDULER", "false")
@@ -24,6 +26,7 @@ def test_start_scheduler_honors_runtime_service_toggle(monkeypatch):
 
     app = FastAPI()
     app.include_router(scheduler_api.router, prefix="/api/v1")
+    app.dependency_overrides[require_local_auth_or_localhost] = lambda: None
     client = TestClient(app)
 
     response = client.post("/api/v1/scheduler/start")

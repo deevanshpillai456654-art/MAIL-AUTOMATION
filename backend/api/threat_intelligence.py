@@ -22,13 +22,14 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Any, Dict, Generator, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Body
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Body
 from pydantic import BaseModel, Field
 
 from backend import config
+from backend.auth.local_auth import require_local_auth_or_localhost
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/threat", tags=["threat-intelligence"])
+router = APIRouter(prefix="/threat", tags=["threat-intelligence"], dependencies=[Depends(require_local_auth_or_localhost)])
 
 
 # ---------------------------------------------------------------------------

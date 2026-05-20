@@ -50,7 +50,8 @@ def _now() -> str:
 
 def _conn() -> sqlite3.Connection:
     Path(TALLY_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(TALLY_DB_PATH)
+    con = sqlite3.connect(TALLY_DB_PATH, timeout=30, check_same_thread=False)
+    con.execute("PRAGMA journal_mode=WAL")
     con.row_factory = sqlite3.Row
     return con
 

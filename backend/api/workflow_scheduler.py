@@ -87,7 +87,8 @@ def next_fire(expr: str, after: datetime) -> Optional[datetime]:
 def _get_scheduled_workflows() -> List[Dict[str, Any]]:
     """Return all active workflows whose trigger_type is 'schedule'."""
     try:
-        con = sqlite3.connect(_WORKFLOWS_DB, timeout=10)
+        con = sqlite3.connect(_WORKFLOWS_DB, timeout=10, check_same_thread=False)
+        con.execute("PRAGMA journal_mode=WAL")
         con.row_factory = sqlite3.Row
         rows = con.execute(
             """SELECT id, name, trigger_cfg, steps_json
