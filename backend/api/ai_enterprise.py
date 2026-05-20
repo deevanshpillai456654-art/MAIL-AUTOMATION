@@ -47,6 +47,11 @@ def _require_ai_admin(request: Request, permission: str) -> None:
         raise HTTPException(status_code=401, detail="Authentication required")
 
 
+def _require_ai_enabled() -> None:
+    if not get_ai_gateway().status()["enabled"]:
+        raise HTTPException(status_code=409, detail="AI is disabled by runtime policy")
+
+
 class InferRequest(BaseModel):
     task: str = Field(default="classify_email", max_length=80)
     payload: Dict[str, Any] = Field(default_factory=dict)
@@ -193,6 +198,7 @@ async def ai_onnx_evaluate(request: ModelEvaluationRequest, http_request: Reques
 
 @router.post("/ai/onnx/classify")
 async def ai_onnx_classify(request: TextPayloadRequest) -> Dict[str, Any]:
+    _require_ai_enabled()
     return get_onnx_control_plane().classify(_model_to_dict(request))
 
 

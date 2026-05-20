@@ -75,3 +75,23 @@ def test_ai_runtime_status_uses_gateway_when_ai_disabled(monkeypatch):
     assert body["mode"] == "disabled"
     assert body["enabled"] is False
     assert body["local_models_loaded"] is False
+
+
+def test_ai_onnx_classify_rejects_when_ai_disabled(monkeypatch):
+    monkeypatch.setenv("AIO_AI_MODE", "disabled")
+    import backend.api.ai_enterprise as ai_mod
+
+    class Plane:
+        def classify(self, payload):
+            raise AssertionError("onnx_plane_should_not_run")
+
+    monkeypatch.setattr(ai_mod, "get_onnx_control_plane", lambda: Plane())
+
+    app = FastAPI()
+    app.include_router(ai_mod.router, prefix="/api/v1")
+    client = TestClient(app)
+
+    resp = client.post("/api/v1/ai/onnx/classify", json={"subject": "Hello"})
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "AI is disabled by runtime policy"
