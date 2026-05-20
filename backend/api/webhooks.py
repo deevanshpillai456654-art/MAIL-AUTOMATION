@@ -46,6 +46,7 @@ from pydantic import BaseModel, Field
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
+from backend.core.runtime_control import get_runtime_control
 from backend.security.ssrf import validate_outbound_url
 
 logger = logging.getLogger(__name__)
@@ -256,6 +257,9 @@ _subscribed = False
 def ensure_webhook_dispatcher() -> None:
     global _subscribed
     if _subscribed:
+        return
+    if not get_runtime_control().is_service_enabled("webhooks"):
+        logger.info("Webhook dispatcher disabled by runtime policy")
         return
     try:
         _init_db()

@@ -347,3 +347,26 @@ def test_dispatch_event_skips_non_matching_severity(tmp_path, monkeypatch):
 
     _run(_scenario())
     assert len(posted) == 0
+
+
+def test_webhook_dispatcher_does_not_subscribe_when_service_disabled(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_WEBHOOKS", "false")
+    from backend.api import event_bus
+    from backend.api import webhooks as wh
+    _setup_db(tmp_path, monkeypatch)
+    monkeypatch.setattr(wh, "_subscribed", False)
+
+    class FakeBus:
+        def __init__(self):
+            self.subscribed = []
+
+        def subscribe(self, event_type, handler):
+            self.subscribed.append((event_type, handler))
+
+    fake_bus = FakeBus()
+    monkeypatch.setattr(event_bus, "get_event_bus", lambda: fake_bus)
+
+    wh.ensure_webhook_dispatcher()
+
+    assert fake_bus.subscribed == []
+    assert wh._subscribed is False
