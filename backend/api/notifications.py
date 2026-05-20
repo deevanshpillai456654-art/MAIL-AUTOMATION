@@ -206,6 +206,36 @@ async def unread_count(_auth=Depends(require_local_auth)):
         return {"unread": 0}
 
 
+@router.get("/status", summary="Notification queue status")
+async def notification_status(_auth=Depends(require_local_auth)):
+    limits = get_runtime_control().service_limits("notifications")
+    capacity = min(_MAX_STORE, limits["queue_limit"])
+    try:
+        con = _conn()
+        total = con.execute("SELECT COUNT(*) FROM notifications").fetchone()[0]
+        unread = con.execute("SELECT COUNT(*) FROM notifications WHERE is_read=0").fetchone()[0]
+        con.close()
+    except Exception as exc:
+        return {
+            "service": "notifications",
+            "healthy": False,
+            "total": 0,
+            "unread": 0,
+            "capacity": capacity,
+            "pressure": 0.0,
+            "error": str(exc),
+        }
+    pressure = round(total / capacity, 4) if capacity else 0.0
+    return {
+        "service": "notifications",
+        "healthy": pressure < 0.9,
+        "total": total,
+        "unread": unread,
+        "capacity": capacity,
+        "pressure": pressure,
+    }
+
+
 @router.post("/{notif_id}/read", summary="Mark a notification as read")
 async def mark_read(notif_id: str, _auth=Depends(require_local_auth)):
     try:

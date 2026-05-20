@@ -133,6 +133,29 @@ def test_count_endpoint(tmp_path, monkeypatch):
     assert resp.json()["unread"] == 3
 
 
+def test_status_reports_runtime_capacity_and_pressure(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_NOTIFICATIONS_QUEUE_LIMIT", "4")
+    from backend.api import notifications as nc
+    db_path = _setup(tmp_path, monkeypatch)
+    _seed(db_path, count=3, unread=2)
+
+    from backend.auth.local_auth import require_local_auth
+    app = FastAPI()
+    app.dependency_overrides[require_local_auth] = lambda: None
+    app.include_router(nc.router, prefix="/api/v1")
+    client = TestClient(app)
+
+    resp = client.get("/api/v1/notifications/status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["service"] == "notifications"
+    assert data["total"] == 3
+    assert data["unread"] == 2
+    assert data["capacity"] == 4
+    assert data["pressure"] == pytest.approx(0.75)
+    assert data["healthy"] is True
+
+
 def test_mark_one_read(tmp_path, monkeypatch):
     from backend.api import notifications as nc
     db_path = _setup(tmp_path, monkeypatch)
