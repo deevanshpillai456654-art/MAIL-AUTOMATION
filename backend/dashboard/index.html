@@ -155,6 +155,7 @@
           <button class="nav-btn nav-nested" data-view="playbooks" type="button">AI Actions</button>
           <button class="nav-btn nav-nested" data-view="runbooks" type="button">Automation Guides</button>
           <button class="nav-btn nav-nested" data-view="sla" type="button">Service Goals</button>
+          <button class="nav-btn nav-nested" data-view="slos" type="button">SLO Management</button>
           <button class="nav-btn nav-nested" data-view="oncall" type="button">Team Availability</button>
           <button class="nav-btn nav-nested" data-view="services" type="button">Service Catalog</button>
           <button class="nav-btn nav-nested" data-view="problems" type="button">Service Issues</button>
@@ -4817,6 +4818,182 @@
               <div class="modal-foot">
                 <button type="button" class="btn" id="prTimelineModalCancel">Cancel</button>
                 <button type="submit" class="btn sm primary">Add</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ----------- SLO MANAGEMENT VIEW --------------------------------- -->
+      <section class="view" id="view-slos" aria-label="SLO Management">
+
+        <div class="dash-inline-067">
+          <div>
+            <h2 class="dash-inline-068">SLO Management</h2>
+            <p class="dash-inline-022">Service Level Objectives with error budget computation, breach detection and 5-state lifecycle.</p>
+          </div>
+          <button class="btn" type="button" id="sloAddBtn">+ New SLO</button>
+        </div>
+
+        <div id="sloStatsStrip" class="ops-stats-strip"></div>
+
+        <div class="dash-inline-124">
+          <input aria-label="Search SLOs..." class="field-input dash-inline-125" type="search" id="sloSearchInput" placeholder="Search SLOs..."/>
+          <select id="sloStatusFilter" class="filter-select ops-filter-select" aria-label="Filter by status">
+            <option value="">All statuses</option>
+            <option value="draft">Draft</option>
+            <option value="active">Active</option>
+            <option value="paused">Paused</option>
+            <option value="deprecated">Deprecated</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <select id="sloWindowFilter" class="filter-select ops-filter-select" aria-label="Filter by time window">
+            <option value="">All windows</option>
+            <option value="rolling_7d">Rolling 7d</option>
+            <option value="rolling_30d">Rolling 30d</option>
+            <option value="rolling_90d">Rolling 90d</option>
+            <option value="calendar_month">Calendar Month</option>
+          </select>
+          <button class="btn xs" id="sloSearchBtn" type="button">Search</button>
+          <button class="btn xs" id="sloRefreshBtn" type="button">Refresh</button>
+        </div>
+
+        <article class="panel">
+          <div class="panel-head dash-inline-096">
+            <span class="panel-title">Service Level Objectives</span>
+            <span id="sloListCount" class="dash-inline-097"></span>
+          </div>
+          <div class="panel-body dash-inline-098">
+            <table class="data-table" id="sloListTable">
+              <thead>
+                <tr><th>Name</th><th>Service</th><th>Target %</th><th>Actual %</th><th>Error Budget</th><th>Status</th><th>Window</th><th></th></tr>
+              </thead>
+              <tbody id="sloListTbody">
+                <tr><td colspan="8" class="dash-inline-099">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="sloPagination" class="dash-inline-128"></div>
+        </article>
+
+        <!-- Create / edit modal -->
+        <div class="modal-backdrop" id="sloEditModal" aria-modal="true" role="dialog" hidden>
+          <div class="modal dash-inline-134">
+            <div class="modal-head">
+              <span id="sloEditModalTitle">New SLO</span>
+              <button class="modal-close" id="sloEditModalClose" aria-label="Close">&times;</button>
+            </div>
+            <form id="sloEditForm" autocomplete="off">
+              <div class="modal-body dash-inline-102">
+                <label class="field-label">Name *
+                  <input class="field-input" type="text" id="sloFormName" required placeholder="API Availability"/>
+                </label>
+                <div class="dash-inline-135">
+                  <label class="field-label dash-inline-042">Service
+                    <input class="field-input" type="text" id="sloFormService" placeholder="auth-api"/>
+                  </label>
+                  <label class="field-label dash-inline-042">Target %
+                    <input class="field-input" type="number" id="sloFormTarget" step="0.01" min="0.01" max="100" value="99.9"/>
+                  </label>
+                </div>
+                <div class="dash-inline-135">
+                  <label class="field-label dash-inline-042">Time Window
+                    <select class="field-input" id="sloFormWindow">
+                      <option value="rolling_30d">Rolling 30d</option>
+                      <option value="rolling_7d">Rolling 7d</option>
+                      <option value="rolling_90d">Rolling 90d</option>
+                      <option value="calendar_month">Calendar Month</option>
+                    </select>
+                  </label>
+                  <label class="field-label dash-inline-042">Owner
+                    <input class="field-input" type="text" id="sloFormOwner" placeholder="platform-team"/>
+                  </label>
+                </div>
+                <label class="field-label">Team
+                  <input class="field-input" type="text" id="sloFormTeam" placeholder="SRE"/>
+                </label>
+                <label class="field-label">Description
+                  <textarea class="field-input" id="sloFormDesc" rows="2" placeholder="What this SLO measures"></textarea>
+                </label>
+                <input type="hidden" id="sloFormId"/>
+              </div>
+              <div class="modal-foot">
+                <button type="button" class="btn" id="sloEditModalCancel">Cancel</button>
+                <button type="submit" class="btn sm primary">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Detail modal -->
+        <div class="modal-backdrop" id="sloDetailModal" aria-modal="true" role="dialog" hidden>
+          <div class="modal dash-inline-138">
+            <div class="modal-head">
+              <span id="sloDetailModalTitle">SLO</span>
+              <button class="modal-close" id="sloDetailModalClose" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body" id="sloDetailModalBody"></div>
+            <div class="modal-foot">
+              <button type="button" class="btn" id="sloDetailEditBtn">Edit</button>
+              <button type="button" class="btn primary xs" id="sloTransitionBtn">Transition</button>
+              <button type="button" class="btn xs" id="sloAddMeasBtn">Add Measurement</button>
+              <button type="button" class="btn" id="sloDetailModalCloseBtn">Close</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Transition modal -->
+        <div class="modal-backdrop" id="sloTransitionModal" aria-modal="true" role="dialog" hidden>
+          <div class="modal" style="max-width:400px;">
+            <div class="modal-head">
+              <span>Transition SLO</span>
+              <button class="modal-close" id="sloTransitionModalClose" aria-label="Close">&times;</button>
+            </div>
+            <form id="sloTransitionForm" autocomplete="off">
+              <div class="modal-body dash-inline-102">
+                <label class="field-label">New Status
+                  <select class="field-input" id="sloTransitionStatus"></select>
+                </label>
+                <label class="field-label">Notes
+                  <input class="field-input" type="text" id="sloTransitionNotes" placeholder="Reason for transition"/>
+                </label>
+              </div>
+              <div class="modal-foot">
+                <button type="button" class="btn" id="sloTransitionModalCancel">Cancel</button>
+                <button type="submit" class="btn sm primary">Confirm</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Add measurement modal -->
+        <div class="modal-backdrop" id="sloMeasModal" aria-modal="true" role="dialog" hidden>
+          <div class="modal" style="max-width:400px;">
+            <div class="modal-head">
+              <span>Record Measurement</span>
+              <button class="modal-close" id="sloMeasModalClose" aria-label="Close">&times;</button>
+            </div>
+            <form id="sloMeasForm" autocomplete="off">
+              <div class="modal-body dash-inline-102">
+                <label class="field-label">Actual % *
+                  <input class="field-input" type="number" id="sloMeasActual" step="0.001" min="0" max="100" required placeholder="99.85"/>
+                </label>
+                <div class="dash-inline-135">
+                  <label class="field-label dash-inline-042">Good Events
+                    <input class="field-input" type="number" id="sloMeasGood" min="0" placeholder="998"/>
+                  </label>
+                  <label class="field-label dash-inline-042">Total Events
+                    <input class="field-input" type="number" id="sloMeasTotal" min="0" placeholder="1000"/>
+                  </label>
+                </div>
+                <label class="field-label">Notes
+                  <input class="field-input" type="text" id="sloMeasNotes" placeholder="Period summary"/>
+                </label>
+              </div>
+              <div class="modal-foot">
+                <button type="button" class="btn" id="sloMeasModalCancel">Cancel</button>
+                <button type="submit" class="btn sm primary">Record</button>
               </div>
             </form>
           </div>

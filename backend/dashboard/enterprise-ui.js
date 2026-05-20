@@ -104,6 +104,7 @@
   PAGES.flags      = ['Status Markers', 'Manage feature flags and rollout status markers.'];
   PAGES.capacity   = ['System Usage', 'Monitor capacity and resource utilization.'];
   PAGES.knowledge  = ['Knowledge Base', 'Search and maintain internal operating knowledge.'];
+  PAGES.slos        = ['SLO Management', 'Service Level Objectives with error budget computation, breach detection and lifecycle management.'];
   PAGES.deployments = ['Releases', 'Track releases, rollout status and operational notes.'];
 
   const FALLBACK_ADMIN_SECTIONS = [
@@ -327,6 +328,21 @@
     if (view === 'api-keys')   initApiKeysView();
     if (view === 'oncall')     initOncallView();
     if (view === 'runbooks')   initRunbooksView();
+    if (view === 'slos')       initSlosView();
+    if (view === 'changes')    initChangesView();
+    if (view === 'risks')      initRisksView();
+    if (view === 'certificates') initCertificatesView();
+    if (view === 'configs')    initConfigsView();
+    if (view === 'licenses')   initLicensesView();
+    if (view === 'budgets')    initBudgetsView();
+    if (view === 'flags')      initFlagsView();
+    if (view === 'vendors')    initVendorsView();
+    if (view === 'capacity')   initCapacityView();
+    if (view === 'knowledge')  initKnowledgeView();
+    if (view === 'assets')     initAssetsView();
+    if (view === 'deployments') initDeploymentsView();
+    if (view === 'services')   initServicesView();
+    if (view === 'problems')   initProblemsView();
     if (view === 'command')   initCommandCenterView();
     // Keep event stream alive while on command center; close when navigating away
     if (view !== 'command' && _cmdWs && _cmdWs.readyState === WebSocket.OPEN) {
@@ -5894,6 +5910,1797 @@ ${section('Model Health', modelHealth)}
       _loadRbStats();
       _loadRunbooks();
     } catch (err) { alert('Delete failed: ' + (err.message || err)); }
+  }
+
+  // ── SLO Management ───────────────────────────────────────────────────────────
+  let _sloOffset=0; const _SLO_LIMIT=50; let _sloCurrentId=null;
+
+  function initSlosView() {
+    _loadSloStats(); _loadSlos();
+    _q('#sloAddBtn').onclick     = () => _openSloModal();
+    _q('#sloRefreshBtn').onclick = () => { _loadSloStats(); _loadSlos(); };
+    _q('#sloSearchBtn').onclick  = () => { _sloOffset=0; _loadSlos(); };
+    _q('#sloSearchInput').onkeydown = e => { if(e.key==='Enter'){_sloOffset=0;_loadSlos();} };
+    _q('#sloStatusFilter').onchange = () => { _sloOffset=0; _loadSlos(); };
+    _q('#sloWindowFilter').onchange = () => { _sloOffset=0; _loadSlos(); };
+    _q('#sloEditModalClose').onclick  = () => { _q('#sloEditModal').hidden=true; };
+    _q('#sloEditModalCancel').onclick = () => { _q('#sloEditModal').hidden=true; };
+    _q('#sloEditForm').onsubmit = e => { e.preventDefault(); _saveSlo(); };
+    _q('#sloDetailModalClose').onclick    = () => { _q('#sloDetailModal').hidden=true; };
+    _q('#sloDetailModalCloseBtn').onclick = () => { _q('#sloDetailModal').hidden=true; };
+    _q('#sloDetailEditBtn').onclick    = () => { if(_sloCurrentId) _openSloModal(_sloCurrentId); };
+    _q('#sloTransitionBtn').onclick    = () => { if(_sloCurrentId) _openSloTransModal(); };
+    _q('#sloAddMeasBtn').onclick       = () => { if(_sloCurrentId) { _q('#sloMeasModal').hidden=false; _q('#sloMeasForm').reset(); } };
+    _q('#sloTransitionModalClose').onclick  = () => { _q('#sloTransitionModal').hidden=true; };
+    _q('#sloTransitionModalCancel').onclick = () => { _q('#sloTransitionModal').hidden=true; };
+    _q('#sloTransitionForm').onsubmit = e => { e.preventDefault(); _doSloTransition(); };
+    _q('#sloMeasModalClose').onclick  = () => { _q('#sloMeasModal').hidden=true; };
+    _q('#sloMeasModalCancel').onclick = () => { _q('#sloMeasModal').hidden=true; };
+    _q('#sloMeasForm').onsubmit = e => { e.preventDefault(); _addSloMeasurement(); };
+  }
+
+  async function _loadSloStats() {
+    try {
+      const s=await _api('/slos/stats');
+      const strip=_q('#sloStatsStrip');
+      strip.innerHTML=[['Total',s.total],['Active',s.active],['Breaching',s.breaching],['Avg Target',s.avg_target!=null?s.avg_target.toFixed(2)+'%':'—']].map(([l,v])=>
+        `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>${l}</span><strong ${l==='Breaching'&&v>0?'style="color:var(--danger);"':''}>${v||0}</strong></div>`).join('');
+    } catch(_) {}
+  }
+
+  async function _loadSlos() {
+    const q=_q('#sloSearchInput').value.trim(); const status=_q('#sloStatusFilter').value; const tw=_q('#sloWindowFilter').value;
+    const params=new URLSearchParams({limit:_SLO_LIMIT,offset:_sloOffset});
+    if(q) params.set('q',q); if(status) params.set('status',status); if(tw) params.set('time_window',tw);
+    const tbody=_q('#sloListTbody');
+    tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    try {
+      const data=await _api(`/slos?${params}`); const rows=data.slos||[];
+      _q('#sloListCount').textContent=`${data.total} total`;
+      if(!rows.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">No SLOs found.</td></tr>';return;}
+      tbody.innerHTML=rows.map(r=>{
+        const breachBadge=r.is_breaching===true?'<span class="badge bad">Breaching</span>':r.is_breaching===false?'<span class="badge ok">Healthy</span>':'<span style="color:var(--text-muted);">—</span>';
+        const consumedPct=r.error_budget_consumed_pct!=null?r.error_budget_consumed_pct.toFixed(1)+'%':'—';
+        return `<tr style="cursor:pointer;" onclick="_sloOpenDetail('${r.id}')">
+          <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.service||'')}</td>
+          <td>${r.target_pct}%</td><td>${r.latest_actual_pct!=null?r.latest_actual_pct+'%':'—'}</td>
+          <td>${consumedPct}</td><td>${breachBadge}</td>
+          <td style="font-size:11px;">${_esc(r.time_window||'')}</td>
+          <td><button class="btn xs" onclick="event.stopPropagation();_openSloModal('${r.id}')">Edit</button>
+              <button class="btn xs danger" onclick="event.stopPropagation();_deleteSlo('${r.id}','${_esc(r.name||'').replace(/'/g,"\\'")}')">Del</button></td>
+        </tr>`;
+      }).join('');
+      const pages=Math.ceil(data.total/_SLO_LIMIT)||1; const page=Math.floor(_sloOffset/_SLO_LIMIT)+1;
+      _q('#sloPagination').innerHTML=`<button class="btn xs" ${_sloOffset===0?'disabled':''} onclick="_sloOffset=Math.max(0,_sloOffset-${_SLO_LIMIT});_loadSlos()">Prev</button>
+        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <button class="btn xs" ${_sloOffset+_SLO_LIMIT>=data.total?'disabled':''} onclick="_sloOffset+=_SLO_LIMIT;_loadSlos()">Next</button>`;
+    } catch(err){tbody.innerHTML=`<tr><td colspan="8" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`;}
+  }
+
+  async function _sloOpenDetail(id) {
+    _sloCurrentId=id; _q('#sloDetailModal').hidden=false; _q('#sloDetailModalBody').innerHTML='Loading...';
+    try {
+      const s=await _api(`/slos/${id}`);
+      _q('#sloDetailModalTitle').textContent=s.name||'SLO';
+      const measData=await _api(`/slos/${id}/measurements?limit=5`); const meas=(measData.measurements||[]);
+      const allowed={draft:['active','cancelled'],active:['paused','deprecated'],paused:['active','deprecated'],deprecated:[],cancelled:[]};
+      _q('#sloTransitionStatus').innerHTML=(allowed[s.status]||[]).map(st=>`<option value="${st}">${st}</option>`).join('')||'<option value="">No transitions</option>';
+      const budBar=s.error_budget_consumed_pct!=null?`<div style="margin-top:8px;"><div style="display:flex;justify-content:space-between;font-size:12px;"><span>Error budget consumed</span><span>${s.error_budget_consumed_pct.toFixed(1)}%</span></div><div style="height:6px;background:var(--border);border-radius:3px;margin-top:3px;"><div style="width:${Math.min(100,s.error_budget_consumed_pct).toFixed(1)}%;height:100%;background:${s.is_breaching?'var(--danger)':'var(--accent)'};border-radius:3px;"></div></div></div>`:'';
+      _q('#sloDetailModalBody').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+        <div><b>Service</b><br>${_esc(s.service||'—')}</div><div><b>Status</b><br>${_esc(s.status||'')}</div>
+        <div><b>Target</b><br>${s.target_pct}%</div><div><b>Error Budget</b><br>${s.error_budget_pct}%</div>
+        <div><b>Latest Actual</b><br>${s.latest_actual_pct!=null?s.latest_actual_pct+'%':'No data'}</div>
+        <div><b>Breaching</b><br>${s.is_breaching===true?'<span style="color:var(--danger);">Yes</span>':s.is_breaching===false?'<span style="color:var(--success,#2a9d8f);">No</span>':'—'}</div>
+        <div><b>Window</b><br>${_esc(s.time_window||'')}</div><div><b>Owner</b><br>${_esc(s.owner||'—')}</div>
+      </div>${budBar}
+      <h4 style="margin:12px 0 4px;">Recent Measurements</h4>
+      <table style="width:100%;font-size:12px;border-collapse:collapse;">
+        <thead><tr><th style="text-align:left;padding:2px 4px;">Recorded</th><th style="text-align:right;padding:2px 4px;">Actual %</th><th style="text-align:right;padding:2px 4px;">Good / Total</th></tr></thead>
+        <tbody>${meas.length?meas.map(m=>`<tr><td style="padding:2px 4px;">${(m.recorded_at||'').slice(0,16)}</td><td style="text-align:right;padding:2px 4px;">${m.actual_pct}%</td><td style="text-align:right;padding:2px 4px;">${m.good_events}/${m.total_events}</td></tr>`).join(''):'<tr><td colspan="3" style="color:var(--text-muted);padding:4px;">No measurements yet</td></tr>'}</tbody>
+      </table>`;
+    } catch(err){_q('#sloDetailModalBody').innerHTML=`<p style="color:var(--danger);">${_esc(err.message||'Error')}</p>`;}
+  }
+
+  async function _openSloModal(id) {
+    _q('#sloEditModal').hidden=false; _q('#sloEditModalTitle').textContent=id?'Edit SLO':'New SLO'; _q('#sloFormId').value=id||'';
+    if(id){try{const s=await _api(`/slos/${id}`);
+      _q('#sloFormName').value=s.name||''; _q('#sloFormService').value=s.service||''; _q('#sloFormTarget').value=s.target_pct||99.9;
+      _q('#sloFormWindow').value=s.time_window||'rolling_30d'; _q('#sloFormOwner').value=s.owner||'';
+      _q('#sloFormTeam').value=s.team||''; _q('#sloFormDesc').value=s.description||'';
+    }catch(_){}}
+    else{['sloFormName','sloFormService','sloFormOwner','sloFormTeam','sloFormDesc'].forEach(id=>{const el=_q('#'+id);if(el)el.value=''});_q('#sloFormTarget').value=99.9;_q('#sloFormWindow').value='rolling_30d';}
+  }
+
+  async function _saveSlo() {
+    const id=_q('#sloFormId').value;
+    const body={name:_q('#sloFormName').value,service:_q('#sloFormService').value,target_pct:parseFloat(_q('#sloFormTarget').value),
+      time_window:_q('#sloFormWindow').value,owner:_q('#sloFormOwner').value,team:_q('#sloFormTeam').value,description:_q('#sloFormDesc').value};
+    try{await _api(id?`/slos/${id}`:'/slos',id?'PATCH':'POST',body);_q('#sloEditModal').hidden=true;_loadSloStats();_loadSlos();}
+    catch(err){alert('Save failed: '+(err.message||err));}
+  }
+
+  async function _openSloTransModal() { _q('#sloTransitionModal').hidden=false; }
+
+  async function _doSloTransition() {
+    const status=_q('#sloTransitionStatus').value; const notes=_q('#sloTransitionNotes').value; if(!status) return;
+    try{await _api(`/slos/${_sloCurrentId}/transition`,'POST',{status,notes});_q('#sloTransitionModal').hidden=true;_sloOpenDetail(_sloCurrentId);_loadSloStats();_loadSlos();}
+    catch(err){alert('Transition failed: '+(err.message||err));}
+  }
+
+  async function _addSloMeasurement() {
+    const body={actual_pct:parseFloat(_q('#sloMeasActual').value),good_events:parseInt(_q('#sloMeasGood').value)||0,total_events:parseInt(_q('#sloMeasTotal').value)||0,notes:_q('#sloMeasNotes').value};
+    try{await _api(`/slos/${_sloCurrentId}/measurements`,'POST',body);_q('#sloMeasModal').hidden=true;_sloOpenDetail(_sloCurrentId);_loadSloStats();_loadSlos();}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _deleteSlo(id,name) {
+    if(!confirm(`Delete SLO "${name}"?`)) return;
+    try{await _api(`/slos/${id}`,'DELETE');_loadSloStats();_loadSlos();}
+    catch(err){alert('Delete failed: '+(err.message||err));}
+  }
+
+  // ── Change Management ────────────────────────────────────────────────────────
+  let _crOffset = 0; const _CR_LIMIT = 50; let _crCurrentId = null;
+
+  function initChangesView() {
+    _loadCrStats(); _loadChanges();
+    _q('#crAddBtn').onclick = () => _openCrModal();
+    _q('#crRefreshBtn').onclick = () => { _loadCrStats(); _loadChanges(); };
+    _q('#crSearchBtn').onclick = () => { _crOffset = 0; _loadChanges(); };
+    _q('#crSearchInput').onkeydown = e => { if (e.key === 'Enter') { _crOffset = 0; _loadChanges(); } };
+    _q('#crStatusFilter').onchange = () => { _crOffset = 0; _loadChanges(); };
+    _q('#crRiskFilter').onchange   = () => { _crOffset = 0; _loadChanges(); };
+    _q('#crTypeFilter').onchange   = () => { _crOffset = 0; _loadChanges(); };
+    _q('#crEditModalClose').onclick  = () => _closeCrModal();
+    _q('#crEditModalCancel').onclick = () => _closeCrModal();
+    _q('#crEditForm').onsubmit = e => { e.preventDefault(); _saveCr(); };
+    _q('#crDetailModalClose').onclick    = () => { _q('#crDetailModal').hidden = true; };
+    _q('#crDetailModalCloseBtn').onclick = () => { _q('#crDetailModal').hidden = true; };
+    _q('#crDetailEditBtn').onclick = () => { if (_crCurrentId) _openCrModal(_crCurrentId); };
+    _q('#crTransitionBtn').onclick = () => { if (_crCurrentId) _openCrTransition(_crCurrentId); };
+    _q('#crAddApproverBtn').onclick = () => { if (_crCurrentId) { _q('#crApproverModal').hidden = false; _q('#crApproverName').value = ''; _q('#crApproverNote').value = ''; } };
+    _q('#crTransitionModalClose').onclick  = () => { _q('#crTransitionModal').hidden = true; };
+    _q('#crTransitionModalCancel').onclick = () => { _q('#crTransitionModal').hidden = true; };
+    _q('#crTransitionForm').onsubmit = e => { e.preventDefault(); _submitCrTransition(); };
+    _q('#crApproverModalClose').onclick  = () => { _q('#crApproverModal').hidden = true; };
+    _q('#crApproverModalCancel').onclick = () => { _q('#crApproverModal').hidden = true; };
+    _q('#crApproverForm').onsubmit = e => { e.preventDefault(); _addCrApprover(); };
+  }
+
+  async function _loadCrStats() {
+    try {
+      const s = await _api('/changes/stats');
+      const strip = _q('#crStatsStrip');
+      const items = [['Total', s.total], ['Open', s.by_status?.find(x=>x.status==='draft')?.count||0],
+        ['In Progress', s.by_status?.find(x=>x.status==='in_progress')?.count||0], ['Completed', s.by_status?.find(x=>x.status==='completed')?.count||0]];
+      strip.innerHTML = items.map(([l,v]) => `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>${l}</span><strong>${v||0}</strong></div>`).join('');
+    } catch(_) {}
+  }
+
+  async function _loadChanges() {
+    const q = _q('#crSearchInput').value.trim();
+    const status = _q('#crStatusFilter').value;
+    const risk = _q('#crRiskFilter').value;
+    const type = _q('#crTypeFilter').value;
+    const params = new URLSearchParams({ limit: _CR_LIMIT, offset: _crOffset });
+    if (q) params.set('q', q); if (status) params.set('status', status);
+    if (risk) params.set('risk_level', risk); if (type) params.set('change_type', type);
+    const tbody = _q('#crListTbody');
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    try {
+      const data = await _api(`/changes?${params}`);
+      const rows = data.changes || [];
+      _q('#crListCount').textContent = `${data.total} total`;
+      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">No changes found.</td></tr>'; }
+      else tbody.innerHTML = rows.map(r => `<tr style="cursor:pointer;" onclick="_crOpenDetail('${r.id}')">
+        <td><strong>${_esc(r.title)}</strong></td><td>${_esc(r.change_type||'')}</td>
+        <td><span class="badge ${r.risk_level==='critical'?'bad':r.risk_level==='high'?'warn':'ok'}">${_esc(r.risk_level||'')}</span></td>
+        <td><span class="badge">${_esc(r.status||'')}</span></td><td>${_esc(r.owner||'')}</td>
+        <td style="font-size:11px;">${(r.planned_start||'').slice(0,10)||'—'}</td>
+        <td><button class="btn xs" onclick="event.stopPropagation();_openCrModal('${r.id}')">Edit</button>
+            <button class="btn xs danger" onclick="event.stopPropagation();_deleteCr('${r.id}','${_esc(r.title).replace(/'/g,"\\'")}')">Del</button></td>
+      </tr>`).join('');
+      const pages = Math.ceil(data.total / _CR_LIMIT) || 1;
+      const page = Math.floor(_crOffset / _CR_LIMIT) + 1;
+      _q('#crPagination').innerHTML = `<button class="btn xs" ${_crOffset===0?'disabled':''} onclick="_crOffset=Math.max(0,_crOffset-${_CR_LIMIT});_loadChanges()">Prev</button>
+        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <button class="btn xs" ${_crOffset+_CR_LIMIT>=data.total?'disabled':''} onclick="_crOffset+=_crOffset+${_CR_LIMIT};_loadChanges()">Next</button>`;
+    } catch(err) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--danger);padding:24px;">${_esc(err.message||'Error')}</td></tr>`; }
+  }
+
+  async function _crOpenDetail(id) {
+    _crCurrentId = id;
+    _q('#crDetailModal').hidden = false;
+    _q('#crDetailModalBody').innerHTML = 'Loading...';
+    try {
+      const cr = await _api(`/changes/${id}`);
+      _q('#crDetailModalTitle').textContent = cr.title;
+      const appR = await _api(`/changes/${id}/approvals`);
+      const approvals = (appR.approvals||[]).map(a => `<li>${_esc(a.name)} — <strong>${_esc(a.decision||'pending')}</strong>${a.notes?` <em>${_esc(a.notes)}</em>`:''}</li>`).join('');
+      _q('#crDetailModalBody').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+          <div><b>Type</b><br>${_esc(cr.change_type||'')}</div><div><b>Risk</b><br>${_esc(cr.risk_level||'')}</div>
+          <div><b>Status</b><br>${_esc(cr.status||'')}</div><div><b>Owner</b><br>${_esc(cr.owner||'')}</div>
+          <div><b>Planned Start</b><br>${(cr.planned_start||'').slice(0,16)||'—'}</div>
+          <div><b>Planned End</b><br>${(cr.planned_end||'').slice(0,16)||'—'}</div>
+        </div>
+        ${cr.description?`<p style="margin-top:10px;">${_esc(cr.description)}</p>`:''}
+        ${cr.rollback_plan?`<p><b>Rollback:</b> ${_esc(cr.rollback_plan)}</p>`:''}
+        <h4 style="margin:12px 0 4px;">Approvers</h4><ul style="margin:0;padding-left:18px;">${approvals||'<li style="color:var(--text-muted);">None yet</li>'}</ul>`;
+    } catch(err) { _q('#crDetailModalBody').innerHTML = `<p style="color:var(--danger);">${_esc(err.message||'Error')}</p>`; }
+  }
+
+  async function _openCrModal(id) {
+    _q('#crFormId').value = id || '';
+    _q('#crEditModalTitle').textContent = id ? 'Edit Change Request' : 'New Change Request';
+    if (id) {
+      try {
+        const cr = await _api(`/changes/${id}`);
+        _q('#crFormTitle').value = cr.title || ''; _q('#crFormDesc').value = cr.description || '';
+        _q('#crFormType').value = cr.change_type || 'normal'; _q('#crFormRisk').value = cr.risk_level || 'low';
+        _q('#crFormOwner').value = cr.owner || ''; _q('#crFormAssignee').value = cr.assignee || '';
+        _q('#crFormPlannedStart').value = cr.planned_start || ''; _q('#crFormPlannedEnd').value = cr.planned_end || '';
+        _q('#crFormRollback').value = cr.rollback_plan || ''; _q('#crFormIncident').value = cr.linked_incident_id || '';
+        _q('#crFormRunbook').value = cr.linked_runbook_id || ''; _q('#crFormNote').value = '';
+      } catch(_) {}
+    } else {
+      ['crFormTitle','crFormDesc','crFormOwner','crFormAssignee','crFormPlannedStart','crFormPlannedEnd','crFormRollback','crFormIncident','crFormRunbook','crFormNote'].forEach(id => { _q('#'+id).value = ''; });
+      _q('#crFormType').value = 'normal'; _q('#crFormRisk').value = 'low';
+    }
+    _q('#crEditModal').hidden = false; _q('#crFormTitle').focus();
+  }
+  function _closeCrModal() { _q('#crEditModal').hidden = true; }
+
+  async function _saveCr() {
+    const id = _q('#crFormId').value;
+    const body = { title: _q('#crFormTitle').value, description: _q('#crFormDesc').value,
+      change_type: _q('#crFormType').value, risk_level: _q('#crFormRisk').value,
+      owner: _q('#crFormOwner').value, assignee: _q('#crFormAssignee').value,
+      planned_start: _q('#crFormPlannedStart').value || null, planned_end: _q('#crFormPlannedEnd').value || null,
+      rollback_plan: _q('#crFormRollback').value, linked_incident_id: _q('#crFormIncident').value || null,
+      linked_runbook_id: _q('#crFormRunbook').value || null, change_note: _q('#crFormNote').value };
+    try {
+      await _api(id ? `/changes/${id}` : '/changes', id ? 'PATCH' : 'POST', body);
+      _closeCrModal(); _loadCrStats(); _loadChanges();
+    } catch(err) { alert('Save failed: ' + (err.message||err)); }
+  }
+
+  async function _openCrTransition(id) {
+    try {
+      const cr = await _api(`/changes/${id}`);
+      const allowed = { draft:['review','cancelled'], review:['approved','rejected','cancelled'],
+        approved:['in_progress','cancelled'], in_progress:['completed','failed','cancelled'],
+        completed:[], rejected:[], cancelled:[], failed:[] };
+      const opts = (allowed[cr.status]||[]).map(s => `<option value="${s}">${s}</option>`).join('');
+      _q('#crTransitionStatus').innerHTML = opts || '<option value="">No transitions available</option>';
+      _q('#crTransitionApprovedBy').value = ''; _q('#crTransitionNote').value = '';
+      _q('#crTransitionModal').hidden = false;
+    } catch(_) {}
+  }
+
+  async function _submitCrTransition() {
+    const status = _q('#crTransitionStatus').value;
+    if (!status) return;
+    try {
+      await _api(`/changes/${_crCurrentId}/transition`, 'POST', { status, approved_by: _q('#crTransitionApprovedBy').value, notes: _q('#crTransitionNote').value });
+      _q('#crTransitionModal').hidden = true; _crOpenDetail(_crCurrentId); _loadCrStats(); _loadChanges();
+    } catch(err) { alert('Transition failed: ' + (err.message||err)); }
+  }
+
+  async function _addCrApprover() {
+    try {
+      await _api(`/changes/${_crCurrentId}/approvals`, 'POST', { name: _q('#crApproverName').value, notes: _q('#crApproverNote').value });
+      _q('#crApproverModal').hidden = true; _crOpenDetail(_crCurrentId);
+    } catch(err) { alert('Failed: ' + (err.message||err)); }
+  }
+
+  async function _deleteCr(id, name) {
+    if (!confirm(`Delete change request "${name}"?`)) return;
+    try { await _api(`/changes/${id}`, 'DELETE'); _loadCrStats(); _loadChanges(); }
+    catch(err) { alert('Delete failed: ' + (err.message||err)); }
+  }
+
+  // ── Risk Register ────────────────────────────────────────────────────────────
+  let _riskOffset = 0; const _RISK_LIMIT = 50; let _riskCurrentId = null;
+
+  function initRisksView() {
+    _loadRiskStats(); _loadRisks();
+    _q('#riskNewBtn').onclick = () => _openRiskModal();
+    _q('#riskSearch').oninput = () => { _riskOffset = 0; _loadRisks(); };
+    _q('#riskStatusFilter').onchange = () => { _riskOffset = 0; _loadRisks(); };
+    _q('#riskCatFilter').onchange    = () => { _riskOffset = 0; _loadRisks(); };
+    _q('#riskLevelFilter').onchange  = () => { _riskOffset = 0; _loadRisks(); };
+    _q('#riskDetailClose').onclick   = () => { _q('#riskDetailDialog').hidden = true; };
+    _q('#riskFormClose').onclick     = () => { _q('#riskFormDialog').hidden = true; };
+    _q('#riskFormCancel').onclick    = () => { _q('#riskFormDialog').hidden = true; };
+    _q('#riskForm').onsubmit         = e => { e.preventDefault(); _saveRisk(); };
+    _q('#riskRevClose').onclick      = () => { _q('#riskRevDialog').hidden = true; };
+    _q('#riskRevCancel').onclick     = () => { _q('#riskRevDialog').hidden = true; };
+    _q('#riskRevForm').onsubmit      = e => { e.preventDefault(); _addRiskReview(); };
+    _q('#riskAddRevBtn').onclick     = () => { if (_riskCurrentId) { _q('#riskRevDialog').hidden = false; } };
+    _q('#riskTransBtn').onclick      = () => { if (_riskCurrentId) _doRiskTransition(); };
+  }
+
+  async function _loadRiskStats() {
+    try {
+      const s = await _api('/risks/stats');
+      _q('#riskStatTotal').textContent    = s.total || 0;
+      _q('#riskStatOpen').textContent     = s.open || 0;
+      _q('#riskStatCritical').textContent = s.critical || 0;
+      _q('#riskStatHigh').textContent     = s.high || 0;
+      _q('#riskStatAvg').textContent      = s.avg_score != null ? s.avg_score.toFixed(1) : '—';
+    } catch(_) {}
+  }
+
+  async function _loadRisks() {
+    const q = _q('#riskSearch').value.trim();
+    const status = _q('#riskStatusFilter').value;
+    const cat = _q('#riskCatFilter').value;
+    const level = _q('#riskLevelFilter').value;
+    const params = new URLSearchParams({ limit: _RISK_LIMIT, offset: _riskOffset });
+    if (q) params.set('q', q); if (status) params.set('status', status);
+    if (cat) params.set('category', cat); if (level) params.set('risk_level', level);
+    const tbody = _q('#riskTbody');
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    try {
+      const data = await _api(`/risks?${params}`);
+      const rows = data.risks || [];
+      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No risks found.</td></tr>'; return; }
+      tbody.innerHTML = rows.map(r => `<tr style="cursor:pointer;" onclick="_riskOpenDetail('${r.id}')">
+        <td><strong>${_esc(r.title)}</strong></td><td>${_esc(r.category||'')}</td>
+        <td><span class="badge ${r.risk_level==='critical'?'bad':r.risk_level==='high'?'warn':'ok'}">${_esc(r.risk_level||'')}</span></td>
+        <td>${r.risk_score||'—'}</td><td><span class="badge">${_esc(r.status||'')}</span></td>
+        <td><button class="btn xs" onclick="event.stopPropagation();_openRiskModal('${r.id}')">Edit</button>
+            <button class="btn xs danger" onclick="event.stopPropagation();_deleteRisk('${r.id}','${_esc(r.title).replace(/'/g,"\\'")}')">Del</button></td>
+      </tr>`).join('');
+      const pages = Math.ceil(data.total/_RISK_LIMIT)||1; const page = Math.floor(_riskOffset/_RISK_LIMIT)+1;
+      _q('#riskPager').innerHTML = `<button class="btn xs" ${_riskOffset===0?'disabled':''} onclick="_riskOffset=Math.max(0,_riskOffset-${_RISK_LIMIT});_loadRisks()">Prev</button>
+        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <button class="btn xs" ${_riskOffset+_RISK_LIMIT>=data.total?'disabled':''} onclick="_riskOffset+=_RISK_LIMIT;_loadRisks()">Next</button>`;
+    } catch(err) { tbody.innerHTML = `<tr><td colspan="6" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`; }
+  }
+
+  async function _riskOpenDetail(id) {
+    _riskCurrentId = id;
+    _q('#riskDetailDialog').hidden = false;
+    _q('#riskDetailMeta').innerHTML = 'Loading...'; _q('#riskRevTbody').innerHTML = '';
+    try {
+      const r = await _api(`/risks/${id}`);
+      _q('#riskDetailTitle').textContent = r.title;
+      _q('#riskDetailMeta').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+          <div><b>Category</b><br>${_esc(r.category||'')}</div><div><b>Level</b><br>${_esc(r.risk_level||'')}</div>
+          <div><b>Score</b><br>${r.risk_score||'—'}</div><div><b>Status</b><br>${_esc(r.status||'')}</div>
+          <div><b>Owner</b><br>${_esc(r.owner||'—')}</div><div><b>Mitigation</b><br>${_esc(r.mitigation_plan||'—').slice(0,80)}</div>
+        </div>`;
+      const tSel = _q('#riskTransSelect');
+      const allowed = { identified:['assessed','accepted','closed'], assessed:['mitigating','accepted','closed'],
+        mitigating:['resolved','accepted','closed'], accepted:['closed'], resolved:[], closed:[] };
+      tSel.innerHTML = (allowed[r.status]||[]).map(s=>`<option value="${s}">${s}</option>`).join('') || '<option value="">No transitions</option>';
+      const revData = await _api(`/risks/${id}/reviews`);
+      const revs = revData.reviews || [];
+      _q('#riskRevTbody').innerHTML = revs.length ? revs.map(rv => `<tr><td>${rv.likelihood}×${rv.impact}</td><td>${_esc(rv.notes||'')}</td><td style="font-size:11px;">${(rv.reviewed_at||'').slice(0,10)}</td></tr>`).join('') : '<tr><td colspan="3" style="color:var(--text-muted);">No reviews</td></tr>';
+    } catch(err) { _q('#riskDetailMeta').innerHTML = `<p style="color:var(--danger);">${_esc(err.message||'Error')}</p>`; }
+  }
+
+  async function _openRiskModal(id) {
+    _q('#riskFormDialog').hidden = false;
+    _q('#riskFormTitle').textContent = id ? 'Edit Risk' : 'New Risk';
+    _q('#riskForm').dataset.id = id || '';
+    if (id) {
+      try {
+        const r = await _api(`/risks/${id}`);
+        _q('#riskForm').querySelectorAll('[name]').forEach(el => { if (r[el.name] != null) el.value = r[el.name]; });
+      } catch(_) {}
+    } else { _q('#riskForm').reset(); }
+  }
+
+  async function _saveRisk() {
+    const form = _q('#riskForm'); const id = form.dataset.id;
+    const fd = new FormData(form);
+    const body = Object.fromEntries(fd.entries());
+    try {
+      await _api(id ? `/risks/${id}` : '/risks', id ? 'PATCH' : 'POST', body);
+      _q('#riskFormDialog').hidden = true; _loadRiskStats(); _loadRisks();
+    } catch(err) { alert('Save failed: ' + (err.message||err)); }
+  }
+
+  async function _doRiskTransition() {
+    const status = _q('#riskTransSelect').value; if (!status) return;
+    try { await _api(`/risks/${_riskCurrentId}/transition`, 'POST', { status }); _riskOpenDetail(_riskCurrentId); _loadRiskStats(); _loadRisks(); }
+    catch(err) { alert('Transition failed: ' + (err.message||err)); }
+  }
+
+  async function _addRiskReview() {
+    const form = _q('#riskRevForm');
+    const body = { likelihood: parseInt(form.querySelector('[name=likelihood]')?.value||3), impact: parseInt(form.querySelector('[name=impact]')?.value||3), notes: form.querySelector('[name=notes]')?.value||'' };
+    try { await _api(`/risks/${_riskCurrentId}/reviews`, 'POST', body); _q('#riskRevDialog').hidden = true; _riskOpenDetail(_riskCurrentId); }
+    catch(err) { alert('Failed: ' + (err.message||err)); }
+  }
+
+  async function _deleteRisk(id, name) {
+    if (!confirm(`Delete risk "${name}"?`)) return;
+    try { await _api(`/risks/${id}`, 'DELETE'); _loadRiskStats(); _loadRisks(); }
+    catch(err) { alert('Delete failed: ' + (err.message||err)); }
+  }
+
+  // ── Certificates ─────────────────────────────────────────────────────────────
+  let _certOffset = 0; const _CERT_LIMIT = 50; let _certCurrentId = null;
+
+  function initCertificatesView() {
+    _loadCertStats(); _loadCerts();
+    _q('#certNewBtn').onclick = () => _openCertModal();
+    _q('#certSearch').oninput = () => { _certOffset = 0; _loadCerts(); };
+    _q('#certStatusFilter').onchange = () => { _certOffset = 0; _loadCerts(); };
+    _q('#certTypeFilter').onchange   = () => { _certOffset = 0; _loadCerts(); };
+    _q('#certEnvFilter').onchange    = () => { _certOffset = 0; _loadCerts(); };
+    _q('#certDetailClose').onclick   = () => { _q('#certDetailDialog').hidden = true; };
+    _q('#certFormClose').onclick     = () => { _q('#certFormDialog').hidden = true; };
+    _q('#certFormCancel').onclick    = () => { _q('#certFormDialog').hidden = true; };
+    _q('#certForm').onsubmit         = e => { e.preventDefault(); _saveCert(); };
+    _q('#certRenewClose').onclick    = () => { _q('#certRenewDialog').hidden = true; };
+    _q('#certRenewCancel').onclick   = () => { _q('#certRenewDialog').hidden = true; };
+    _q('#certRenewForm').onsubmit    = e => { e.preventDefault(); _addCertRenewal(); };
+    _q('#certRenewBtn').onclick      = () => { if (_certCurrentId) { _q('#certRenewDialog').hidden = false; } };
+    _q('#certTransBtn').onclick      = () => { if (_certCurrentId) _doCertTransition(); };
+  }
+
+  async function _loadCertStats() {
+    try {
+      const s = await _api('/certificates/stats');
+      _q('#certStatTotal').textContent    = s.total || 0;
+      _q('#certStatActive').textContent   = s.active || 0;
+      _q('#certStatExpiring').textContent = s.expiring_soon || 0;
+      _q('#certStatExpired').textContent  = s.expired || 0;
+      _q('#certStatRevoked').textContent  = s.revoked || 0;
+      _q('#certStatAutoRenew').textContent = s.auto_renew || 0;
+    } catch(_) {}
+  }
+
+  async function _loadCerts() {
+    const q = _q('#certSearch').value.trim();
+    const status = _q('#certStatusFilter').value; const type = _q('#certTypeFilter').value; const env = _q('#certEnvFilter').value;
+    const params = new URLSearchParams({ limit: _CERT_LIMIT, offset: _certOffset });
+    if (q) params.set('q', q); if (status) params.set('status', status); if (type) params.set('cert_type', type); if (env) params.set('environment', env);
+    const tbody = _q('#certTbody');
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    try {
+      const data = await _api(`/certificates?${params}`); const rows = data.certificates || [];
+      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No certificates found.</td></tr>'; return; }
+      tbody.innerHTML = rows.map(r => `<tr style="cursor:pointer;" onclick="_certOpenDetail('${r.id}')">
+        <td><strong>${_esc(r.common_name||r.name||'')}</strong></td><td>${_esc(r.cert_type||'')}</td>
+        <td><span class="badge ${r.status==='expired'?'bad':r.status==='expiring_soon'?'warn':'ok'}">${_esc(r.status||'')}</span></td>
+        <td style="font-size:11px;">${(r.expires_at||'').slice(0,10)||'—'}</td>
+        <td>${_esc(r.environment||'')}</td>
+        <td><button class="btn xs" onclick="event.stopPropagation();_openCertModal('${r.id}')">Edit</button>
+            <button class="btn xs danger" onclick="event.stopPropagation();_deleteCert('${r.id}','${_esc((r.common_name||r.name||'')).replace(/'/g,"\\'")}')">Del</button></td>
+      </tr>`).join('');
+      const pages=Math.ceil(data.total/_CERT_LIMIT)||1; const page=Math.floor(_certOffset/_CERT_LIMIT)+1;
+      _q('#certPager').innerHTML = `<button class="btn xs" ${_certOffset===0?'disabled':''} onclick="_certOffset=Math.max(0,_certOffset-${_CERT_LIMIT});_loadCerts()">Prev</button>
+        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <button class="btn xs" ${_certOffset+_CERT_LIMIT>=data.total?'disabled':''} onclick="_certOffset+=_CERT_LIMIT;_loadCerts()">Next</button>`;
+    } catch(err) { tbody.innerHTML = `<tr><td colspan="6" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`; }
+  }
+
+  async function _certOpenDetail(id) {
+    _certCurrentId = id; _q('#certDetailDialog').hidden = false;
+    _q('#certDetailMeta').innerHTML = 'Loading...'; _q('#certRenTbody').innerHTML = '';
+    try {
+      const c = await _api(`/certificates/${id}`);
+      _q('#certDetailTitle').textContent = c.common_name || c.name || 'Certificate';
+      _q('#certDetailMeta').innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+        <div><b>Type</b><br>${_esc(c.cert_type||'')}</div><div><b>Status</b><br>${_esc(c.status||'')}</div>
+        <div><b>Issuer</b><br>${_esc(c.issuer||'—')}</div><div><b>Environment</b><br>${_esc(c.environment||'')}</div>
+        <div><b>Issued</b><br>${(c.issued_at||'').slice(0,10)||'—'}</div><div><b>Expires</b><br>${(c.expires_at||'').slice(0,10)||'—'}</div>
+        <div><b>Auto Renew</b><br>${c.auto_renew?'Yes':'No'}</div><div><b>Owner</b><br>${_esc(c.owner||'—')}</div>
+      </div>`;
+      const tSel = _q('#certTransSelect');
+      const allowed = { active:['expired','revoked'], expired:['active'], expiring_soon:['active','revoked'], revoked:[] };
+      tSel.innerHTML = (allowed[c.status]||[]).map(s=>`<option value="${s}">${s}</option>`).join('')||'<option value="">No transitions</option>';
+      const renData = await _api(`/certificates/${id}/renewals`);
+      const rens = renData.renewals || [];
+      _q('#certRenTbody').innerHTML = rens.length ? rens.map(r=>`<tr><td>${_esc(r.renewed_by||'')}</td><td>${_esc(r.notes||'')}</td><td style="font-size:11px;">${(r.renewed_at||'').slice(0,10)}</td></tr>`).join('') : '<tr><td colspan="3" style="color:var(--text-muted);">No renewals</td></tr>';
+    } catch(err) { _q('#certDetailMeta').innerHTML = `<p style="color:var(--danger);">${_esc(err.message||'Error')}</p>`; }
+  }
+
+  async function _openCertModal(id) {
+    _q('#certFormDialog').hidden = false; _q('#certFormTitle').textContent = id?'Edit Certificate':'New Certificate';
+    _q('#certForm').dataset.id = id||'';
+    if (id) { try { const c=await _api(`/certificates/${id}`); _q('#certForm').querySelectorAll('[name]').forEach(el=>{if(c[el.name]!=null)el.value=c[el.name];}); } catch(_){} }
+    else { _q('#certForm').reset(); }
+  }
+
+  async function _saveCert() {
+    const form=_q('#certForm'); const id=form.dataset.id;
+    const body=Object.fromEntries(new FormData(form).entries());
+    try { await _api(id?`/certificates/${id}`:'/certificates', id?'PATCH':'POST', body); _q('#certFormDialog').hidden=true; _loadCertStats(); _loadCerts(); }
+    catch(err) { alert('Save failed: '+(err.message||err)); }
+  }
+
+  async function _doCertTransition() {
+    const status=_q('#certTransSelect').value; if(!status) return;
+    try { await _api(`/certificates/${_certCurrentId}/transition`,'POST',{status}); _certOpenDetail(_certCurrentId); _loadCertStats(); _loadCerts(); }
+    catch(err) { alert('Transition failed: '+(err.message||err)); }
+  }
+
+  async function _addCertRenewal() {
+    const form=_q('#certRenewForm');
+    const body={renewed_by:form.querySelector('[name=renewed_by]')?.value||'', notes:form.querySelector('[name=notes]')?.value||''};
+    try { await _api(`/certificates/${_certCurrentId}/renew`,'POST',body); _q('#certRenewDialog').hidden=true; _certOpenDetail(_certCurrentId); }
+    catch(err) { alert('Failed: '+(err.message||err)); }
+  }
+
+  async function _deleteCert(id, name) {
+    if (!confirm(`Delete certificate "${name}"?`)) return;
+    try { await _api(`/certificates/${id}`,'DELETE'); _loadCertStats(); _loadCerts(); }
+    catch(err) { alert('Delete failed: '+(err.message||err)); }
+  }
+
+  // ── Config Management ────────────────────────────────────────────────────────
+  let _cfgOffset=0; const _CFG_LIMIT=50; let _cfgCurrentId=null;
+
+  function initConfigsView() {
+    _loadCfgStats(); _loadConfigs();
+    _q('#cfgNewBtn').onclick = () => _openCfgModal();
+    _q('#cfgSearch').oninput = () => { _cfgOffset=0; _loadConfigs(); };
+    _q('#cfgEnvFilter').onchange    = () => { _cfgOffset=0; _loadConfigs(); };
+    _q('#cfgTypeFilter').onchange   = () => { _cfgOffset=0; _loadConfigs(); };
+    _q('#cfgStatusFilter').onchange = () => { _cfgOffset=0; _loadConfigs(); };
+    _q('#cfgDetailClose').onclick   = () => { _q('#cfgDetailDialog').hidden=true; };
+    _q('#cfgFormClose').onclick     = () => { _q('#cfgFormDialog').hidden=true; };
+    _q('#cfgFormCancel').onclick    = () => { _q('#cfgFormDialog').hidden=true; };
+    _q('#cfgForm').onsubmit         = e => { e.preventDefault(); _saveCfg(); };
+    _q('#cfgEditClose').onclick     = () => { _q('#cfgEditDialog').hidden=true; };
+    _q('#cfgEditCancel').onclick    = () => { _q('#cfgEditDialog').hidden=true; };
+    _q('#cfgEditForm').onsubmit     = e => { e.preventDefault(); _promoteCfg(); };
+    _q('#cfgTransBtn').onclick      = () => { if(_cfgCurrentId) _doCfgTransition(); };
+    _q('#cfgPromoteBtn').onclick    = () => { if(_cfgCurrentId) { _q('#cfgEditDialog').hidden=false; } };
+  }
+
+  async function _loadCfgStats() {
+    try {
+      const s=await _api('/configs/stats');
+      _q('#cfgStatTotal').textContent    = s.total||0;
+      _q('#cfgStatActive').textContent   = s.active||0;
+      _q('#cfgStatDepr').textContent     = s.deprecated||0;
+      _q('#cfgStatVersions').textContent = s.total_versions||0;
+    } catch(_) {}
+  }
+
+  async function _loadConfigs() {
+    const q=_q('#cfgSearch').value.trim(); const env=_q('#cfgEnvFilter').value; const type=_q('#cfgTypeFilter').value; const status=_q('#cfgStatusFilter').value;
+    const params=new URLSearchParams({limit:_CFG_LIMIT,offset:_cfgOffset});
+    if(q) params.set('q',q); if(env) params.set('environment',env); if(type) params.set('config_type',type); if(status) params.set('status',status);
+    const tbody=_q('#cfgTbody');
+    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    try {
+      const data=await _api(`/configs?${params}`); const rows=data.configs||[];
+      if(!rows.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No configs found.</td></tr>';return;}
+      tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_cfgOpenDetail('${r.id}')">
+        <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.config_type||'')}</td>
+        <td>${_esc(r.environment||'')}</td><td><span class="badge">${_esc(r.status||'')}</span></td>
+        <td>v${r.version||1}</td>
+        <td><button class="btn xs" onclick="event.stopPropagation();_openCfgModal('${r.id}')">Edit</button>
+            <button class="btn xs danger" onclick="event.stopPropagation();_deleteCfg('${r.id}','${_esc(r.name||'').replace(/'/g,"\\'")}')">Del</button></td>
+      </tr>`).join('');
+      const pages=Math.ceil(data.total/_CFG_LIMIT)||1; const page=Math.floor(_cfgOffset/_CFG_LIMIT)+1;
+      _q('#cfgPager').innerHTML=`<button class="btn xs" ${_cfgOffset===0?'disabled':''} onclick="_cfgOffset=Math.max(0,_cfgOffset-${_CFG_LIMIT});_loadConfigs()">Prev</button>
+        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <button class="btn xs" ${_cfgOffset+_CFG_LIMIT>=data.total?'disabled':''} onclick="_cfgOffset+=_CFG_LIMIT;_loadConfigs()">Next</button>`;
+    } catch(err){tbody.innerHTML=`<tr><td colspan="6" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`;}
+  }
+
+  async function _cfgOpenDetail(id) {
+    _cfgCurrentId=id; _q('#cfgDetailDialog').hidden=false;
+    _q('#cfgDetailMeta').innerHTML='Loading...'; _q('#cfgVerTbody').innerHTML='';
+    try {
+      const c=await _api(`/configs/${id}`);
+      _q('#cfgDetailTitle').textContent=c.name||'Config';
+      _q('#cfgDetailMeta').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+        <div><b>Type</b><br>${_esc(c.config_type||'')}</div><div><b>Status</b><br>${_esc(c.status||'')}</div>
+        <div><b>Environment</b><br>${_esc(c.environment||'')}</div><div><b>Version</b><br>v${c.version||1}</div>
+        <div><b>Owner</b><br>${_esc(c.owner||'—')}</div><div><b>Team</b><br>${_esc(c.team||'—')}</div>
+      </div>${c.value?`<pre style="margin-top:8px;background:var(--surface);padding:8px;border-radius:4px;overflow:auto;max-height:150px;font-size:11px;">${_esc(c.value)}</pre>`:''}`;
+      const allowed={draft:['active','deprecated'],active:['deprecated'],deprecated:[],archived:[]};
+      _q('#cfgTransSelect').innerHTML=(allowed[c.status]||[]).map(s=>`<option value="${s}">${s}</option>`).join('')||'<option value="">No transitions</option>';
+      const promoted_to=_q('#cfgPromoteSelect');
+      promoted_to.innerHTML=['staging','production','dr'].map(e=>`<option value="${e}">${e}</option>`).join('');
+      const verData=await _api(`/configs/${id}/versions`);
+      const vers=verData.versions||[];
+      _q('#cfgVerTbody').innerHTML=vers.length?vers.map(v=>`<tr><td>v${v.version}</td><td>${_esc(v.promoted_by||'')}</td><td style="font-size:11px;">${(v.promoted_at||'').slice(0,10)}</td></tr>`).join(''):'<tr><td colspan="3" style="color:var(--text-muted);">No versions</td></tr>';
+    } catch(err){_q('#cfgDetailMeta').innerHTML=`<p style="color:var(--danger);">${_esc(err.message||'Error')}</p>`;}
+  }
+
+  async function _openCfgModal(id) {
+    _q('#cfgFormDialog').hidden=false; _q('#cfgFormTitle').textContent=id?'Edit Config':'New Config'; _q('#cfgForm').dataset.id=id||'';
+    if(id){try{const c=await _api(`/configs/${id}`);_q('#cfgForm').querySelectorAll('[name]').forEach(el=>{if(c[el.name]!=null)el.value=c[el.name];});}catch(_){}}
+    else{_q('#cfgForm').reset();}
+  }
+
+  async function _saveCfg() {
+    const form=_q('#cfgForm'); const id=form.dataset.id; const body=Object.fromEntries(new FormData(form).entries());
+    try{await _api(id?`/configs/${id}`:'/configs',id?'PATCH':'POST',body);_q('#cfgFormDialog').hidden=true;_loadCfgStats();_loadConfigs();}
+    catch(err){alert('Save failed: '+(err.message||err));}
+  }
+
+  async function _doCfgTransition() {
+    const status=_q('#cfgTransSelect').value; if(!status) return;
+    try{await _api(`/configs/${_cfgCurrentId}/transition`,'POST',{status});_cfgOpenDetail(_cfgCurrentId);_loadCfgStats();_loadConfigs();}
+    catch(err){alert('Transition failed: '+(err.message||err));}
+  }
+
+  async function _promoteCfg() {
+    const env=_q('#cfgPromoteSelect').value; const by=_q('#cfgPromoteBy').value;
+    try{await _api(`/configs/${_cfgCurrentId}/promote`,'POST',{target_environment:env,promoted_by:by});_q('#cfgEditDialog').hidden=true;_cfgOpenDetail(_cfgCurrentId);}
+    catch(err){alert('Promote failed: '+(err.message||err));}
+  }
+
+  async function _deleteCfg(id,name) {
+    if(!confirm(`Delete config "${name}"?`)) return;
+    try{await _api(`/configs/${id}`,'DELETE');_loadCfgStats();_loadConfigs();}
+    catch(err){alert('Delete failed: '+(err.message||err));}
+  }
+
+  // ── License Management ───────────────────────────────────────────────────────
+  let _licOffset=0; const _LIC_LIMIT=50; let _licCurrentId=null;
+
+  function initLicensesView() {
+    _loadLicStats(); _loadLicenses();
+    _q('#licNewBtn').onclick = () => _openLicModal();
+    _q('#licSearch').oninput = () => { _licOffset=0; _loadLicenses(); };
+    _q('#licStatusFilter').onchange = () => { _licOffset=0; _loadLicenses(); };
+    _q('#licTypeFilter').onchange   = () => { _licOffset=0; _loadLicenses(); };
+    _q('#licDetailClose').onclick   = () => { _q('#licDetailDialog').hidden=true; };
+    _q('#licFormClose').onclick     = () => { _q('#licFormDialog').hidden=true; };
+    _q('#licFormCancel').onclick    = () => { _q('#licFormDialog').hidden=true; };
+    _q('#licForm').onsubmit         = e => { e.preventDefault(); _saveLic(); };
+    _q('#licAsnClose').onclick      = () => { _q('#licAsnDialog').hidden=true; };
+    _q('#licAsnCancel').onclick     = () => { _q('#licAsnDialog').hidden=true; };
+    _q('#licAsnForm').onsubmit      = e => { e.preventDefault(); _addLicAsn(); };
+    _q('#licRenClose').onclick      = () => { _q('#licRenDialog').hidden=true; };
+    _q('#licRenCancel').onclick     = () => { _q('#licRenDialog').hidden=true; };
+    _q('#licRenForm').onsubmit      = e => { e.preventDefault(); _addLicRen(); };
+    _q('#licAddAsnBtn').onclick     = () => { if(_licCurrentId){_q('#licAsnDialog').hidden=false;_q('#licAsnForm').reset();} };
+    _q('#licAddRenBtn').onclick     = () => { if(_licCurrentId){_q('#licRenDialog').hidden=false;_q('#licRenForm').reset();} };
+    _q('#licTransBtn').onclick      = () => { if(_licCurrentId) _doLicTransition(); };
+  }
+
+  async function _loadLicStats() {
+    try {
+      const s=await _api('/licenses/stats');
+      _q('#licStatTotal').textContent   = s.total||0; _q('#licStatActive').textContent  = s.active||0;
+      _q('#licStatExpiring').textContent= s.expiring_soon||0; _q('#licStatCost').textContent    = s.total_cost!=null?s.total_cost.toFixed(2):'—';
+      _q('#licStatSeats').textContent   = s.total_seats||0;
+    } catch(_) {}
+  }
+
+  async function _loadLicenses() {
+    const q=_q('#licSearch').value.trim(); const status=_q('#licStatusFilter').value; const type=_q('#licTypeFilter').value;
+    const params=new URLSearchParams({limit:_LIC_LIMIT,offset:_licOffset});
+    if(q) params.set('q',q); if(status) params.set('status',status); if(type) params.set('license_type',type);
+    const tbody=_q('#licTbody');
+    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    try {
+      const data=await _api(`/licenses?${params}`); const rows=data.licenses||[];
+      if(!rows.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No licenses found.</td></tr>';return;}
+      tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_licOpenDetail('${r.id}')">
+        <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.license_type||'')}</td>
+        <td><span class="badge ${r.status==='expired'?'bad':r.status==='expiring_soon'?'warn':'ok'}">${_esc(r.status||'')}</span></td>
+        <td>${r.total_seats||'—'}</td><td style="font-size:11px;">${(r.expires_at||'').slice(0,10)||'—'}</td>
+        <td><button class="btn xs" onclick="event.stopPropagation();_openLicModal('${r.id}')">Edit</button>
+            <button class="btn xs danger" onclick="event.stopPropagation();_deleteLic('${r.id}','${_esc(r.name||'').replace(/'/g,"\\'")}')">Del</button></td>
+      </tr>`).join('');
+      const pages=Math.ceil(data.total/_LIC_LIMIT)||1; const page=Math.floor(_licOffset/_LIC_LIMIT)+1;
+      _q('#licPager').innerHTML=`<button class="btn xs" ${_licOffset===0?'disabled':''} onclick="_licOffset=Math.max(0,_licOffset-${_LIC_LIMIT});_loadLicenses()">Prev</button>
+        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <button class="btn xs" ${_licOffset+_LIC_LIMIT>=data.total?'disabled':''} onclick="_licOffset+=_LIC_LIMIT;_loadLicenses()">Next</button>`;
+    } catch(err){tbody.innerHTML=`<tr><td colspan="6" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`;}
+  }
+
+  async function _licOpenDetail(id) {
+    _licCurrentId=id; _q('#licDetailDialog').hidden=false;
+    _q('#licDetailMeta').innerHTML='Loading...'; _q('#licAsnTbody').innerHTML=''; _q('#licRenTbody').innerHTML='';
+    try {
+      const l=await _api(`/licenses/${id}`);
+      _q('#licDetailTitle').textContent=l.name||'License';
+      _q('#licDetailMeta').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+        <div><b>Type</b><br>${_esc(l.license_type||'')}</div><div><b>Status</b><br>${_esc(l.status||'')}</div>
+        <div><b>Seats</b><br>${l.total_seats||'—'} (used: ${l.used_seats||0})</div><div><b>Cost/yr</b><br>${l.cost_per_year!=null?l.cost_per_year:'—'}</div>
+        <div><b>Vendor</b><br>${_esc(l.vendor||'—')}</div><div><b>Expires</b><br>${(l.expires_at||'').slice(0,10)||'—'}</div>
+      </div>`;
+      const allowed={active:['expired','suspended'],expired:['active'],suspended:['active'],cancelled:[]};
+      _q('#licTransSelect').innerHTML=(allowed[l.status]||[]).map(s=>`<option value="${s}">${s}</option>`).join('')||'<option value="">No transitions</option>';
+      const [asnData,renData]=await Promise.all([_api(`/licenses/${id}/assignments`),_api(`/licenses/${id}/renewals`)]);
+      const asns=asnData.assignments||[];
+      _q('#licAsnTbody').innerHTML=asns.length?asns.map(a=>`<tr><td>${_esc(a.user_email||'')}</td><td>${_esc(a.role||'')}</td>
+        <td><button class="btn xs danger" onclick="_deleteLicAsn('${id}','${a.id}')">Remove</button></td></tr>`).join(''):'<tr><td colspan="3" style="color:var(--text-muted);">No assignments</td></tr>';
+      const rens=renData.renewals||[];
+      _q('#licRenTbody').innerHTML=rens.length?rens.map(r=>`<tr><td>${_esc(r.renewed_by||'')}</td><td>${_esc(r.notes||'')}</td><td style="font-size:11px;">${(r.renewed_at||'').slice(0,10)}</td></tr>`).join(''):'<tr><td colspan="3" style="color:var(--text-muted);">No renewals</td></tr>';
+    } catch(err){_q('#licDetailMeta').innerHTML=`<p style="color:var(--danger);">${_esc(err.message||'Error')}</p>`;}
+  }
+
+  async function _openLicModal(id) {
+    _q('#licFormDialog').hidden=false; _q('#licFormTitle').textContent=id?'Edit License':'New License'; _q('#licForm').dataset.id=id||'';
+    if(id){try{const l=await _api(`/licenses/${id}`);_q('#licForm').querySelectorAll('[name]').forEach(el=>{if(l[el.name]!=null)el.value=l[el.name];});}catch(_){}}
+    else{_q('#licForm').reset();}
+  }
+
+  async function _saveLic() {
+    const form=_q('#licForm'); const id=form.dataset.id; const body=Object.fromEntries(new FormData(form).entries());
+    try{await _api(id?`/licenses/${id}`:'/licenses',id?'PATCH':'POST',body);_q('#licFormDialog').hidden=true;_loadLicStats();_loadLicenses();}
+    catch(err){alert('Save failed: '+(err.message||err));}
+  }
+
+  async function _doLicTransition() {
+    const status=_q('#licTransSelect').value; if(!status) return;
+    try{await _api(`/licenses/${_licCurrentId}/transition`,'POST',{status});_licOpenDetail(_licCurrentId);_loadLicStats();_loadLicenses();}
+    catch(err){alert('Transition failed: '+(err.message||err));}
+  }
+
+  async function _addLicAsn() {
+    const form=_q('#licAsnForm'); const body={user_email:form.querySelector('[name=user_email]')?.value||'',role:form.querySelector('[name=role]')?.value||''};
+    try{await _api(`/licenses/${_licCurrentId}/assignments`,'POST',body);_q('#licAsnDialog').hidden=true;_licOpenDetail(_licCurrentId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _deleteLicAsn(licId,asnId) {
+    if(!confirm('Remove assignment?')) return;
+    try{await _api(`/licenses/${licId}/assignments/${asnId}`,'DELETE');_licOpenDetail(licId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _addLicRen() {
+    const form=_q('#licRenForm'); const body={renewed_by:form.querySelector('[name=renewed_by]')?.value||'',notes:form.querySelector('[name=notes]')?.value||''};
+    try{await _api(`/licenses/${_licCurrentId}/renewals`,'POST',body);_q('#licRenDialog').hidden=true;_licOpenDetail(_licCurrentId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _deleteLic(id,name) {
+    if(!confirm(`Delete license "${name}"?`)) return;
+    try{await _api(`/licenses/${id}`,'DELETE');_loadLicStats();_loadLicenses();}
+    catch(err){alert('Delete failed: '+(err.message||err));}
+  }
+
+  // ── Budget Tracking ──────────────────────────────────────────────────────────
+  let _budOffset=0; const _BUD_LIMIT=50; let _budCurrentId=null;
+
+  function initBudgetsView() {
+    _loadBudStats(); _loadBudgets();
+    _q('#budNewBtn').onclick = () => _openBudModal();
+    _q('#budSearch').oninput = () => { _budOffset=0; _loadBudgets(); };
+    _q('#budStatusFilter').onchange = () => { _budOffset=0; _loadBudgets(); };
+    _q('#budCatFilter').onchange    = () => { _budOffset=0; _loadBudgets(); };
+    _q('#budDetailClose').onclick   = () => { _q('#budDetailDialog').hidden=true; };
+    _q('#budFormClose').onclick     = () => { _q('#budFormDialog').hidden=true; };
+    _q('#budFormCancel').onclick    = () => { _q('#budFormDialog').hidden=true; };
+    _q('#budForm').onsubmit         = e => { e.preventDefault(); _saveBud(); };
+    _q('#budEntryClose').onclick    = () => { _q('#budEntryDialog').hidden=true; };
+    _q('#budEntryCancel').onclick   = () => { _q('#budEntryDialog').hidden=true; };
+    _q('#budEntryForm').onsubmit    = e => { e.preventDefault(); _addBudEntry(); };
+    _q('#budAddEntryBtn').onclick   = () => { if(_budCurrentId){_q('#budEntryDialog').hidden=false;_q('#budEntryForm').reset();} };
+    _q('#budTransBtn').onclick      = () => { if(_budCurrentId) _doBudTransition(); };
+  }
+
+  async function _loadBudStats() {
+    try {
+      const s=await _api('/budgets/stats');
+      _q('#budStatTotal').textContent  = s.total||0; _q('#budStatActive').textContent = s.active||0;
+      _q('#budStatAlloc').textContent  = s.total_allocated!=null?s.total_allocated.toFixed(2):'—';
+      _q('#budStatSpent').textContent  = s.total_spent!=null?s.total_spent.toFixed(2):'—';
+      _q('#budStatOver').textContent   = s.over_budget||0;
+    } catch(_) {}
+  }
+
+  async function _loadBudgets() {
+    const q=_q('#budSearch').value.trim(); const status=_q('#budStatusFilter').value; const cat=_q('#budCatFilter').value;
+    const params=new URLSearchParams({limit:_BUD_LIMIT,offset:_budOffset});
+    if(q) params.set('q',q); if(status) params.set('status',status); if(cat) params.set('category',cat);
+    const tbody=_q('#budTbody');
+    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    try {
+      const data=await _api(`/budgets?${params}`); const rows=data.budgets||[];
+      if(!rows.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No budgets found.</td></tr>';return;}
+      tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_budOpenDetail('${r.id}')">
+        <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.category||'')}</td>
+        <td><span class="badge ${r.is_over_budget?'bad':'ok'}">${_esc(r.status||'')}</span></td>
+        <td>${r.amount!=null?r.amount:''} ${_esc(r.currency||'')}</td>
+        <td>${r.total_spent!=null?r.total_spent.toFixed(2):'—'}</td>
+        <td><button class="btn xs" onclick="event.stopPropagation();_openBudModal('${r.id}')">Edit</button>
+            <button class="btn xs danger" onclick="event.stopPropagation();_deleteBud('${r.id}','${_esc(r.name||'').replace(/'/g,"\\'")}')">Del</button></td>
+      </tr>`).join('');
+      const pages=Math.ceil(data.total/_BUD_LIMIT)||1; const page=Math.floor(_budOffset/_BUD_LIMIT)+1;
+      _q('#budPager').innerHTML=`<button class="btn xs" ${_budOffset===0?'disabled':''} onclick="_budOffset=Math.max(0,_budOffset-${_BUD_LIMIT});_loadBudgets()">Prev</button>
+        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <button class="btn xs" ${_budOffset+_BUD_LIMIT>=data.total?'disabled':''} onclick="_budOffset+=_BUD_LIMIT;_loadBudgets()">Next</button>`;
+    } catch(err){tbody.innerHTML=`<tr><td colspan="6" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`;}
+  }
+
+  async function _budOpenDetail(id) {
+    _budCurrentId=id; _q('#budDetailDialog').hidden=false;
+    _q('#budDetailMeta').innerHTML='Loading...'; _q('#budEntryTbody').innerHTML='';
+    try {
+      const b=await _api(`/budgets/${id}`);
+      _q('#budDetailTitle').textContent=b.name||'Budget';
+      const pct=b.amount>0?Math.min(100,Math.round((b.total_spent||0)/b.amount*100)):0;
+      _q('#budDetailMeta').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+        <div><b>Category</b><br>${_esc(b.category||'')}</div><div><b>Status</b><br>${_esc(b.status||'')}</div>
+        <div><b>Allocated</b><br>${b.amount} ${_esc(b.currency||'')}</div><div><b>Spent</b><br>${(b.total_spent||0).toFixed(2)} (${pct}%)</div>
+        <div><b>Period</b><br>${(b.period_start||'').slice(0,10)||'—'} → ${(b.period_end||'').slice(0,10)||'—'}</div>
+        <div><b>Owner</b><br>${_esc(b.owner||'—')}</div>
+      </div>`;
+      const allowed={draft:['active','cancelled'],active:['closed','cancelled'],closed:[],cancelled:[]};
+      _q('#budTransSelect').innerHTML=(allowed[b.status]||[]).map(s=>`<option value="${s}">${s}</option>`).join('')||'<option value="">No transitions</option>';
+      const entData=await _api(`/budgets/${id}/entries`); const ents=entData.entries||[];
+      _q('#budEntryTbody').innerHTML=ents.length?ents.map(e=>`<tr><td>${_esc(e.description||'')}</td><td>${e.amount} ${_esc(e.currency||'')}</td>
+        <td>${_esc(e.category||'')}</td><td style="font-size:11px;">${(e.date||'').slice(0,10)}</td>
+        <td><button class="btn xs danger" onclick="_deleteBudEntry('${id}','${e.id}')">Del</button></td></tr>`).join(''):'<tr><td colspan="5" style="color:var(--text-muted);">No entries</td></tr>';
+    } catch(err){_q('#budDetailMeta').innerHTML=`<p style="color:var(--danger);">${_esc(err.message||'Error')}</p>`;}
+  }
+
+  async function _openBudModal(id) {
+    _q('#budFormDialog').hidden=false; _q('#budFormTitle').textContent=id?'Edit Budget':'New Budget'; _q('#budForm').dataset.id=id||'';
+    if(id){try{const b=await _api(`/budgets/${id}`);_q('#budForm').querySelectorAll('[name]').forEach(el=>{if(b[el.name]!=null)el.value=b[el.name];});}catch(_){}}
+    else{_q('#budForm').reset();}
+  }
+
+  async function _saveBud() {
+    const form=_q('#budForm'); const id=form.dataset.id; const body=Object.fromEntries(new FormData(form).entries());
+    try{await _api(id?`/budgets/${id}`:'/budgets',id?'PATCH':'POST',body);_q('#budFormDialog').hidden=true;_loadBudStats();_loadBudgets();}
+    catch(err){alert('Save failed: '+(err.message||err));}
+  }
+
+  async function _doBudTransition() {
+    const status=_q('#budTransSelect').value; if(!status) return;
+    try{await _api(`/budgets/${_budCurrentId}/transition`,'POST',{status});_budOpenDetail(_budCurrentId);_loadBudStats();_loadBudgets();}
+    catch(err){alert('Transition failed: '+(err.message||err));}
+  }
+
+  async function _addBudEntry() {
+    const form=_q('#budEntryForm'); const body=Object.fromEntries(new FormData(form).entries());
+    try{await _api(`/budgets/${_budCurrentId}/entries`,'POST',body);_q('#budEntryDialog').hidden=true;_budOpenDetail(_budCurrentId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _deleteBudEntry(budId,entryId) {
+    if(!confirm('Delete cost entry?')) return;
+    try{await _api(`/budgets/${budId}/entries/${entryId}`,'DELETE');_budOpenDetail(budId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _deleteBud(id,name) {
+    if(!confirm(`Delete budget "${name}"?`)) return;
+    try{await _api(`/budgets/${id}`,'DELETE');_loadBudStats();_loadBudgets();}
+    catch(err){alert('Delete failed: '+(err.message||err));}
+  }
+
+  // ── Feature Flags ────────────────────────────────────────────────────────────
+  let _flagOffset=0; const _FLAG_LIMIT=50; let _flagCurrentId=null;
+
+  function initFlagsView() {
+    _loadFlagStats(); _loadFlags();
+    _q('#flag-add-btn').onclick  = () => _openFlagModal();
+    _q('#flag-search').oninput   = () => { _flagOffset=0; _loadFlags(); };
+    _q('#flag-filter-status').onchange = () => { _flagOffset=0; _loadFlags(); };
+    _q('#flag-detail-close').onclick   = () => { _q('#flag-detail').hidden=true; };
+    _q('#flag-modal-close').onclick    = () => { _q('#flag-modal').hidden=true; };
+    _q('#flag-modal-cancel').onclick   = () => { _q('#flag-modal').hidden=true; };
+    _q('#flag-modal-save').onclick     = () => _saveFlag();
+    _q('#flag-transition-modal-close').onclick  = () => { _q('#flag-transition-modal').hidden=true; };
+    _q('#flag-transition-cancel').onclick       = () => { _q('#flag-transition-modal').hidden=true; };
+    _q('#flag-transition-submit').onclick       = () => _doFlagTransition();
+    _q('#flag-edit-btn').onclick       = () => { if(_flagCurrentId) _openFlagModal(_flagCurrentId); };
+    _q('#flag-transition-btn').onclick = () => { if(_flagCurrentId) _openFlagTransitionModal(); };
+    _q('#flag-delete-btn').onclick     = () => { if(_flagCurrentId) _deleteFlagCurrent(); };
+    _q('#flag-env-save-btn').onclick   = () => { if(_flagCurrentId) _saveFlagEnv(); };
+    _q('#flag-evt-add-btn').onclick    = () => { if(_flagCurrentId) _addFlagEvt(); };
+  }
+
+  async function _loadFlagStats() {
+    try {
+      const s=await _api('/flags/stats');
+      _q('#flag-stats-row').innerHTML=[['Total',s.total],['Active',s.active],['Killed',s.killed],['Rollout',s.rollout]].map(([l,v])=>
+        `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>${l}</span><strong>${v||0}</strong></div>`).join('');
+    } catch(_) {}
+  }
+
+  async function _loadFlags() {
+    const q=_q('#flag-search').value.trim(); const status=_q('#flag-filter-status').value;
+    const params=new URLSearchParams({limit:_FLAG_LIMIT,offset:_flagOffset});
+    if(q) params.set('q',q); if(status) params.set('status',status);
+    const tbody=_q('#flag-tbody');
+    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    try {
+      const data=await _api(`/flags?${params}`); const rows=data.flags||[];
+      if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">No flags found.</td></tr>';return;}
+      tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_flagOpenDetail('${r.id}')">
+        <td><strong>${_esc(r.key||r.name||'')}</strong></td><td>${_esc(r.flag_type||'')}</td>
+        <td><span class="badge">${_esc(r.status||'')}</span></td><td>${_esc(r.owner||'')}</td>
+        <td><button class="btn xs danger" onclick="event.stopPropagation();_deleteFlagById('${r.id}','${_esc(r.key||r.name||'').replace(/'/g,"\\'")}')">Del</button></td>
+      </tr>`).join('');
+      const pages=Math.ceil(data.total/_FLAG_LIMIT)||1; const page=Math.floor(_flagOffset/_FLAG_LIMIT)+1;
+      _q('#flag-pagination').innerHTML=`<button class="btn xs" ${_flagOffset===0?'disabled':''} onclick="_flagOffset=Math.max(0,_flagOffset-${_FLAG_LIMIT});_loadFlags()">Prev</button>
+        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <button class="btn xs" ${_flagOffset+_FLAG_LIMIT>=data.total?'disabled':''} onclick="_flagOffset+=_FLAG_LIMIT;_loadFlags()">Next</button>`;
+    } catch(err){tbody.innerHTML=`<tr><td colspan="5" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`;}
+  }
+
+  async function _flagOpenDetail(id) {
+    _flagCurrentId=id; _q('#flag-detail').hidden=false;
+    _q('#flag-detail-meta').innerHTML='Loading...'; _q('#flag-env-list').innerHTML=''; _q('#flag-evt-list').innerHTML='';
+    try {
+      const f=await _api(`/flags/${id}`);
+      _q('#flag-detail-title').textContent=f.key||f.name||'Flag';
+      _q('#flag-detail-meta').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+        <div><b>Type</b><br>${_esc(f.flag_type||'')}</div><div><b>Status</b><br>${_esc(f.status||'')}</div>
+        <div><b>Owner</b><br>${_esc(f.owner||'—')}</div><div><b>Tags</b><br>${_esc(f.tags||'—')}</div>
+      </div>${f.description?`<p style="margin-top:8px;font-size:13px;">${_esc(f.description)}</p>`:''}`;
+      const envData=await _api(`/flags/${id}/environments`); const envs=envData.environments||[];
+      _q('#flag-env-list').innerHTML=envs.length?envs.map(e=>`<div style="display:flex;gap:8px;align-items:center;font-size:12px;">
+        <strong style="min-width:80px;">${_esc(e.environment)}</strong>
+        <span class="badge ${e.enabled?'ok':'bad'}">${e.enabled?'on':'off'}</span>
+        <span style="color:var(--text-muted);">rollout: ${e.rollout_percentage||0}%</span></div>`).join(''):'<span style="color:var(--text-muted);font-size:12px;">No environments</span>';
+      const evtData=await _api(`/flags/${id}/events`); const evts=evtData.events||[];
+      _q('#flag-evt-list').innerHTML=evts.slice(0,10).map(e=>`<div style="font-size:12px;border-bottom:1px solid var(--border);padding:4px 0;">
+        <span style="color:var(--text-muted);">${(e.created_at||'').slice(0,10)}</span> ${_esc(e.note||'')} <em style="color:var(--text-muted);">${_esc(e.author||'')}</em></div>`).join('')||'<span style="color:var(--text-muted);font-size:12px;">No events</span>';
+    } catch(err){_q('#flag-detail-meta').innerHTML=`<p style="color:var(--danger);">${_esc(err.message||'Error')}</p>`;}
+  }
+
+  async function _openFlagModal(id) {
+    _q('#flag-modal').hidden=false; _q('#flag-modal-title').textContent=id?'Edit Flag':'New Flag'; _q('#flag-modal').dataset.id=id||'';
+    if(id){try{const f=await _api(`/flags/${id}`);['flag-f-name','flag-f-desc','flag-f-owner','flag-f-tags'].forEach(elId=>{const n=elId.replace('flag-f-','');const el=_q('#'+elId);if(el&&f[n]!=null)el.value=f[n];});}catch(_){}}
+    else{['flag-f-name','flag-f-desc','flag-f-owner','flag-f-tags'].forEach(id=>{ const el=_q('#'+id); if(el) el.value=''; });}
+  }
+
+  async function _saveFlag() {
+    const id=_q('#flag-modal').dataset.id;
+    const body={name:_q('#flag-f-name').value,description:_q('#flag-f-desc').value,owner:_q('#flag-f-owner').value,tags:_q('#flag-f-tags').value};
+    try{await _api(id?`/flags/${id}`:'/flags',id?'PATCH':'POST',body);_q('#flag-modal').hidden=true;_loadFlagStats();_loadFlags();}
+    catch(err){alert('Save failed: '+(err.message||err));}
+  }
+
+  async function _openFlagTransitionModal() {
+    try{const f=await _api(`/flags/${_flagCurrentId}`);
+      const allowed={draft:['active','killed'],active:['paused','killed'],paused:['active','killed'],killed:[],archived:[]};
+      _q('#flag-transition-status').innerHTML=(allowed[f.status]||[]).map(s=>`<option value="${s}">${s}</option>`).join('')||'<option value="">No transitions</option>';
+      _q('#flag-transition-modal').hidden=false;}catch(_){}
+  }
+
+  async function _doFlagTransition() {
+    const status=_q('#flag-transition-status').value; if(!status) return;
+    const author=_q('#flag-transition-author').value;
+    try{await _api(`/flags/${_flagCurrentId}/transition`,'POST',{status,author});_q('#flag-transition-modal').hidden=true;_flagOpenDetail(_flagCurrentId);_loadFlagStats();_loadFlags();}
+    catch(err){alert('Transition failed: '+(err.message||err));}
+  }
+
+  async function _saveFlagEnv() {
+    const env=_q('#flag-env-name').value.trim(); if(!env) return;
+    const enabled=_q('#flag-env-enabled').value==='true'; const pct=parseInt(_q('#flag-env-rollout').value)||0;
+    try{await _api(`/flags/${_flagCurrentId}/environments`,'POST',{environment:env,enabled,rollout_percentage:pct});_flagOpenDetail(_flagCurrentId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _addFlagEvt() {
+    const note=_q('#flag-evt-note').value.trim(); const author=_q('#flag-evt-author').value.trim();
+    if(!note) return;
+    try{await _api(`/flags/${_flagCurrentId}/events`,'POST',{note,author});_q('#flag-evt-note').value='';_flagOpenDetail(_flagCurrentId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _deleteFlagCurrent() {
+    const id=_flagCurrentId; if(!id||!confirm('Delete this flag?')) return;
+    try{await _api(`/flags/${id}`,'DELETE');_q('#flag-detail').hidden=true;_flagCurrentId=null;_loadFlagStats();_loadFlags();}
+    catch(err){alert('Delete failed: '+(err.message||err));}
+  }
+
+  async function _deleteFlagById(id,name) {
+    if(!confirm(`Delete flag "${name}"?`)) return;
+    try{await _api(`/flags/${id}`,'DELETE');_loadFlagStats();_loadFlags();}
+    catch(err){alert('Delete failed: '+(err.message||err));}
+  }
+
+  // ── Vendor Management ────────────────────────────────────────────────────────
+  let _venOffset=0; const _VEN_LIMIT=50; let _venCurrentId=null;
+
+  function initVendorsView() {
+    _loadVenStats(); _loadVendors();
+    _q('#ven-add-btn').onclick  = () => _openVenModal();
+    _q('#ven-search').oninput   = () => { _venOffset=0; _loadVendors(); };
+    _q('#ven-filter-status').onchange   = () => { _venOffset=0; _loadVendors(); };
+    _q('#ven-filter-category').onchange = () => { _venOffset=0; _loadVendors(); };
+    _q('#ven-detail-close').onclick     = () => { _q('#ven-detail').hidden=true; };
+    _q('#ven-modal-close').onclick      = () => { _q('#ven-modal').hidden=true; };
+    _q('#ven-modal-cancel').onclick     = () => { _q('#ven-modal').hidden=true; };
+    _q('#ven-modal-save').onclick       = () => _saveVen();
+    _q('#ven-transition-modal-close').onclick  = () => { _q('#ven-transition-modal').hidden=true; };
+    _q('#ven-transition-cancel').onclick       = () => { _q('#ven-transition-modal').hidden=true; };
+    _q('#ven-transition-submit').onclick       = () => _doVenTransition();
+    _q('#ven-edit-btn').onclick       = () => { if(_venCurrentId) _openVenModal(_venCurrentId); };
+    _q('#ven-transition-btn').onclick = () => { if(_venCurrentId) _openVenTransModal(); };
+    _q('#ven-delete-btn').onclick     = () => { if(_venCurrentId) _deleteVenCurrent(); };
+    _q('#ven-con-add-btn').onclick    = () => { if(_venCurrentId) _addVenContact(); };
+    _q('#ven-rev-add-btn').onclick    = () => { if(_venCurrentId) _addVenReview(); };
+  }
+
+  async function _loadVenStats() {
+    try {
+      const s=await _api('/vendors/stats');
+      _q('#ven-stats-row').innerHTML=[['Total',s.total],['Active',s.active],['Expiring',s.expiring_soon||0],['Inactive',s.inactive||0]].map(([l,v])=>
+        `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>${l}</span><strong>${v||0}</strong></div>`).join('');
+    } catch(_) {}
+  }
+
+  async function _loadVendors() {
+    const q=_q('#ven-search').value.trim(); const status=_q('#ven-filter-status').value; const cat=_q('#ven-filter-category').value;
+    const params=new URLSearchParams({limit:_VEN_LIMIT,offset:_venOffset});
+    if(q) params.set('q',q); if(status) params.set('status',status); if(cat) params.set('category',cat);
+    const tbody=_q('#ven-tbody');
+    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    try {
+      const data=await _api(`/vendors?${params}`); const rows=data.vendors||[];
+      if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">No vendors found.</td></tr>';return;}
+      tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_venOpenDetail('${r.id}')">
+        <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.category||'')}</td>
+        <td><span class="badge">${_esc(r.status||'')}</span></td>
+        <td style="font-size:11px;">${(r.contract_end||'').slice(0,10)||'—'}</td>
+        <td><button class="btn xs danger" onclick="event.stopPropagation();_deleteVenById('${r.id}','${_esc(r.name||'').replace(/'/g,"\\'")}')">Del</button></td>
+      </tr>`).join('');
+      const pages=Math.ceil(data.total/_VEN_LIMIT)||1; const page=Math.floor(_venOffset/_VEN_LIMIT)+1;
+      _q('#ven-pagination').innerHTML=`<button class="btn xs" ${_venOffset===0?'disabled':''} onclick="_venOffset=Math.max(0,_venOffset-${_VEN_LIMIT});_loadVendors()">Prev</button>
+        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <button class="btn xs" ${_venOffset+_VEN_LIMIT>=data.total?'disabled':''} onclick="_venOffset+=_VEN_LIMIT;_loadVendors()">Next</button>`;
+    } catch(err){tbody.innerHTML=`<tr><td colspan="5" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`;}
+  }
+
+  async function _venOpenDetail(id) {
+    _venCurrentId=id; _q('#ven-detail').hidden=false;
+    _q('#ven-detail-body').innerHTML='Loading...'; _q('#ven-con-list').innerHTML=''; _q('#ven-rev-list').innerHTML='';
+    try {
+      const v=await _api(`/vendors/${id}`);
+      _q('#ven-detail-title').textContent=v.name||'Vendor';
+      _q('#ven-detail-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+        <div><b>Category</b><br>${_esc(v.category||'')}</div><div><b>Status</b><br>${_esc(v.status||'')}</div>
+        <div><b>Website</b><br>${v.website?`<a href="${_esc(v.website)}" target="_blank">${_esc(v.website)}</a>`:'—'}</div>
+        <div><b>Contract</b><br>${(v.contract_start||'').slice(0,10)||'—'} → ${(v.contract_end||'').slice(0,10)||'—'}</div>
+        <div><b>Value</b><br>${v.contract_value!=null?v.contract_value:'—'}</div><div><b>Owner</b><br>${_esc(v.owner||'—')}</div>
+      </div>`;
+      const allowed={prospect:['active','rejected'],active:['inactive','terminated'],inactive:['active'],terminated:[],rejected:[]};
+      _q('#ven-transition-status').innerHTML=(allowed[v.status]||[]).map(s=>`<option value="${s}">${s}</option>`).join('')||'<option value="">No transitions</option>';
+      const [conData,revData]=await Promise.all([_api(`/vendors/${id}/contacts`),_api(`/vendors/${id}/reviews`)]);
+      const cons=conData.contacts||[];
+      _q('#ven-con-list').innerHTML=cons.length?cons.map(c=>`<div style="font-size:12px;padding:3px 0;">${_esc(c.name)} (${_esc(c.role||'')}) — ${_esc(c.email||'')}</div>`).join(''):'<span style="color:var(--text-muted);font-size:12px;">No contacts</span>';
+      const revs=revData.reviews||[];
+      _q('#ven-rev-list').innerHTML=revs.length?revs.map(r=>`<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--border);">★${r.rating} — ${_esc(r.notes||'')} <em style="color:var(--text-muted);">${_esc(r.reviewer||'')}</em></div>`).join(''):'<span style="color:var(--text-muted);font-size:12px;">No reviews</span>';
+    } catch(err){_q('#ven-detail-body').innerHTML=`<p style="color:var(--danger);">${_esc(err.message||'Error')}</p>`;}
+  }
+
+  async function _openVenModal(id) {
+    _q('#ven-modal').hidden=false; _q('#ven-modal-title').textContent=id?'Edit Vendor':'New Vendor'; _q('#ven-modal').dataset.id=id||'';
+    const fields=['ven-f-name','ven-f-category','ven-f-website','ven-f-start','ven-f-end','ven-f-value','ven-f-sla','ven-f-owner','ven-f-notes'];
+    if(id){try{const v=await _api(`/vendors/${id}`);fields.forEach(fid=>{const n=fid.replace('ven-f-','');const map={start:'contract_start',end:'contract_end',value:'contract_value',sla:'sla_tier'};const key=map[n]||n;const el=_q('#'+fid);if(el&&v[key]!=null)el.value=v[key];});}catch(_){}}
+    else{fields.forEach(fid=>{const el=_q('#'+fid);if(el)el.value='';});}
+  }
+
+  async function _saveVen() {
+    const id=_q('#ven-modal').dataset.id;
+    const body={name:_q('#ven-f-name').value,category:_q('#ven-f-category').value,website:_q('#ven-f-website').value,
+      contract_start:_q('#ven-f-start').value||null,contract_end:_q('#ven-f-end').value||null,
+      contract_value:_q('#ven-f-value').value?parseFloat(_q('#ven-f-value').value):null,
+      sla_tier:_q('#ven-f-sla').value,owner:_q('#ven-f-owner').value,notes:_q('#ven-f-notes').value};
+    try{await _api(id?`/vendors/${id}`:'/vendors',id?'PATCH':'POST',body);_q('#ven-modal').hidden=true;_loadVenStats();_loadVendors();}
+    catch(err){alert('Save failed: '+(err.message||err));}
+  }
+
+  async function _openVenTransModal() {
+    _q('#ven-transition-modal').hidden=false;
+  }
+
+  async function _doVenTransition() {
+    const status=_q('#ven-transition-status').value; if(!status) return;
+    try{await _api(`/vendors/${_venCurrentId}/transition`,'POST',{status});_q('#ven-transition-modal').hidden=true;_venOpenDetail(_venCurrentId);_loadVenStats();_loadVendors();}
+    catch(err){alert('Transition failed: '+(err.message||err));}
+  }
+
+  async function _addVenContact() {
+    const name=_q('#ven-con-name').value.trim(); if(!name) return;
+    const body={name,email:_q('#ven-con-email').value,role:_q('#ven-con-role').value};
+    try{await _api(`/vendors/${_venCurrentId}/contacts`,'POST',body);_q('#ven-con-name').value='';_venOpenDetail(_venCurrentId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _addVenReview() {
+    const body={rating:parseInt(_q('#ven-rev-rating').value)||3,reviewer:_q('#ven-rev-reviewer').value,notes:_q('#ven-rev-notes').value};
+    try{await _api(`/vendors/${_venCurrentId}/reviews`,'POST',body);_venOpenDetail(_venCurrentId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _deleteVenCurrent() {
+    if(!_venCurrentId||!confirm('Delete this vendor?')) return;
+    try{await _api(`/vendors/${_venCurrentId}`,'DELETE');_q('#ven-detail').hidden=true;_venCurrentId=null;_loadVenStats();_loadVendors();}
+    catch(err){alert('Delete failed: '+(err.message||err));}
+  }
+
+  async function _deleteVenById(id,name) {
+    if(!confirm(`Delete vendor "${name}"?`)) return;
+    try{await _api(`/vendors/${id}`,'DELETE');_loadVenStats();_loadVendors();}
+    catch(err){alert('Delete failed: '+(err.message||err));}
+  }
+
+  // ── Capacity Planning ────────────────────────────────────────────────────────
+  let _capOffset=0; const _CAP_LIMIT=50; let _capCurrentId=null;
+
+  function initCapacityView() {
+    _loadCapStats(); _loadCapacity();
+    _q('#cap-add-btn').onclick   = () => _openCapModal();
+    _q('#cap-search').oninput    = () => { _capOffset=0; _loadCapacity(); };
+    _q('#cap-filter-type').onchange   = () => { _capOffset=0; _loadCapacity(); };
+    _q('#cap-filter-status').onchange = () => { _capOffset=0; _loadCapacity(); };
+    _q('#cap-filter-env').onchange    = () => { _capOffset=0; _loadCapacity(); };
+    _q('#cap-detail-close').onclick   = () => { _q('#cap-detail').hidden=true; };
+    _q('#cap-modal-close').onclick    = () => { _q('#cap-modal').hidden=true; };
+    _q('#cap-modal-cancel').onclick   = () => { _q('#cap-modal').hidden=true; };
+    _q('#cap-modal-save').onclick     = () => _saveCap();
+    _q('#cap-transition-modal-close').onclick  = () => { _q('#cap-transition-modal').hidden=true; };
+    _q('#cap-transition-cancel').onclick       = () => { _q('#cap-transition-modal').hidden=true; };
+    _q('#cap-transition-submit').onclick       = () => _doCapTransition();
+    _q('#cap-edit-btn').onclick       = () => { if(_capCurrentId) _openCapModal(_capCurrentId); };
+    _q('#cap-transition-btn').onclick = () => { if(_capCurrentId) _openCapTransModal(); };
+    _q('#cap-delete-btn').onclick     = () => { if(_capCurrentId) _deleteCapCurrent(); };
+    _q('#cap-snap-add-btn').onclick   = () => { if(_capCurrentId) _addCapSnap(); };
+  }
+
+  async function _loadCapStats() {
+    try {
+      const s=await _api('/capacity/resources/stats');
+      _q('#cap-stats-row').innerHTML=[['Total',s.total],['Active',s.active],['Warning',s.warning||0],['Critical',s.critical||0]].map(([l,v])=>
+        `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>${l}</span><strong>${v||0}</strong></div>`).join('');
+    } catch(_) {}
+  }
+
+  async function _loadCapacity() {
+    const q=_q('#cap-search').value.trim(); const type=_q('#cap-filter-type').value; const status=_q('#cap-filter-status').value; const env=_q('#cap-filter-env').value;
+    const params=new URLSearchParams({limit:_CAP_LIMIT,offset:_capOffset});
+    if(q) params.set('q',q); if(type) params.set('resource_type',type); if(status) params.set('status',status); if(env) params.set('environment',env);
+    const tbody=_q('#cap-tbody');
+    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    try {
+      const data=await _api(`/capacity/resources?${params}`); const rows=data.resources||[];
+      if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">No resources found.</td></tr>';return;}
+      tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_capOpenDetail('${r.id}')">
+        <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.resource_type||'')}</td>
+        <td><span class="badge ${r.utilization_pct>90?'bad':r.utilization_pct>70?'warn':'ok'}">${r.utilization_pct!=null?r.utilization_pct.toFixed(1)+'%':'—'}</span></td>
+        <td>${_esc(r.environment||'')}</td>
+        <td><button class="btn xs danger" onclick="event.stopPropagation();_deleteCapById('${r.id}','${_esc(r.name||'').replace(/'/g,"\\'")}')">Del</button></td>
+      </tr>`).join('');
+      const pages=Math.ceil(data.total/_CAP_LIMIT)||1; const page=Math.floor(_capOffset/_CAP_LIMIT)+1;
+      _q('#cap-pagination').innerHTML=`<button class="btn xs" ${_capOffset===0?'disabled':''} onclick="_capOffset=Math.max(0,_capOffset-${_CAP_LIMIT});_loadCapacity()">Prev</button>
+        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <button class="btn xs" ${_capOffset+_CAP_LIMIT>=data.total?'disabled':''} onclick="_capOffset+=_CAP_LIMIT;_loadCapacity()">Next</button>`;
+    } catch(err){tbody.innerHTML=`<tr><td colspan="5" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`;}
+  }
+
+  async function _capOpenDetail(id) {
+    _capCurrentId=id; _q('#cap-detail').hidden=false;
+    _q('#cap-detail-body').innerHTML='Loading...'; _q('#cap-snap-list').innerHTML='';
+    try {
+      const r=await _api(`/capacity/resources/${id}`);
+      _q('#cap-detail-title').textContent=r.name||'Resource';
+      _q('#cap-detail-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+        <div><b>Type</b><br>${_esc(r.resource_type||'')}</div><div><b>Status</b><br>${_esc(r.status||'')}</div>
+        <div><b>Total</b><br>${r.total_capacity} ${_esc(r.unit||'')}</div><div><b>Used</b><br>${r.used_capacity||0} (${r.utilization_pct!=null?r.utilization_pct.toFixed(1):'0'}%)</div>
+        <div><b>Allocated</b><br>${r.allocated_capacity||0}</div><div><b>Reserved</b><br>${r.reserved_capacity||0}</div>
+        <div><b>Environment</b><br>${_esc(r.environment||'')}</div><div><b>Owner</b><br>${_esc(r.owner||'—')}</div>
+      </div>`;
+      const allowed={active:['warning','critical','decommissioned'],warning:['active','critical'],critical:['active','decommissioned'],decommissioned:[]};
+      _q('#cap-transition-status').innerHTML=(allowed[r.status]||[]).map(s=>`<option value="${s}">${s}</option>`).join('')||'<option value="">No transitions</option>';
+      const snapData=await _api(`/capacity/resources/${id}/snapshots`); const snaps=(snapData.snapshots||[]).slice(0,10);
+      _q('#cap-snap-list').innerHTML=snaps.length?snaps.map(s=>`<div style="font-size:12px;padding:2px 0;">${(s.recorded_at||'').slice(0,16)} used=${s.used_capacity} ${_esc(s.notes||'')}</div>`).join(''):'<span style="color:var(--text-muted);font-size:12px;">No snapshots</span>';
+    } catch(err){_q('#cap-detail-body').innerHTML=`<p style="color:var(--danger);">${_esc(err.message||'Error')}</p>`;}
+  }
+
+  async function _openCapModal(id) {
+    _q('#cap-modal').hidden=false; _q('#cap-modal-title').textContent=id?'Edit Resource':'New Resource'; _q('#cap-modal').dataset.id=id||'';
+    const fields=['cap-f-name','cap-f-type','cap-f-unit','cap-f-total','cap-f-allocated','cap-f-reserved','cap-f-env','cap-f-owner','cap-f-team','cap-f-notes'];
+    if(id){try{const r=await _api(`/capacity/resources/${id}`);fields.forEach(fid=>{const n=fid.replace('cap-f-','');const map={type:'resource_type',total:'total_capacity',allocated:'allocated_capacity',reserved:'reserved_capacity',env:'environment'};const key=map[n]||n;const el=_q('#'+fid);if(el&&r[key]!=null)el.value=r[key];});}catch(_){}}
+    else{fields.forEach(fid=>{const el=_q('#'+fid);if(el)el.value=''});}
+  }
+
+  async function _saveCap() {
+    const id=_q('#cap-modal').dataset.id;
+    const body={name:_q('#cap-f-name').value,resource_type:_q('#cap-f-type').value,unit:_q('#cap-f-unit').value,
+      total_capacity:parseFloat(_q('#cap-f-total').value)||0,allocated_capacity:parseFloat(_q('#cap-f-allocated').value)||0,
+      reserved_capacity:parseFloat(_q('#cap-f-reserved').value)||0,environment:_q('#cap-f-env').value,
+      owner:_q('#cap-f-owner').value,team:_q('#cap-f-team').value,notes:_q('#cap-f-notes').value};
+    try{await _api(id?`/capacity/resources/${id}`:'/capacity/resources',id?'PATCH':'POST',body);_q('#cap-modal').hidden=true;_loadCapStats();_loadCapacity();}
+    catch(err){alert('Save failed: '+(err.message||err));}
+  }
+
+  async function _openCapTransModal() { _q('#cap-transition-modal').hidden=false; }
+
+  async function _doCapTransition() {
+    const status=_q('#cap-transition-status').value; if(!status) return;
+    try{await _api(`/capacity/resources/${_capCurrentId}/transition`,'POST',{status});_q('#cap-transition-modal').hidden=true;_capOpenDetail(_capCurrentId);_loadCapStats();_loadCapacity();}
+    catch(err){alert('Transition failed: '+(err.message||err));}
+  }
+
+  async function _addCapSnap() {
+    const body={used_capacity:parseFloat(_q('#cap-snap-used').value)||0,total_capacity:parseFloat(_q('#cap-snap-total').value)||0,notes:_q('#cap-snap-notes').value};
+    try{await _api(`/capacity/resources/${_capCurrentId}/snapshots`,'POST',body);_capOpenDetail(_capCurrentId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _deleteCapCurrent() {
+    if(!_capCurrentId||!confirm('Delete this resource?')) return;
+    try{await _api(`/capacity/resources/${_capCurrentId}`,'DELETE');_q('#cap-detail').hidden=true;_capCurrentId=null;_loadCapStats();_loadCapacity();}
+    catch(err){alert('Delete failed: '+(err.message||err));}
+  }
+
+  async function _deleteCapById(id,name) {
+    if(!confirm(`Delete resource "${name}"?`)) return;
+    try{await _api(`/capacity/resources/${id}`,'DELETE');_loadCapStats();_loadCapacity();}
+    catch(err){alert('Delete failed: '+(err.message||err));}
+  }
+
+  // ── Knowledge Base ───────────────────────────────────────────────────────────
+  let _kbOffset=0; const _KB_LIMIT=50; let _kbCurrentId=null;
+
+  function initKnowledgeView() {
+    _loadKbStats(); _loadKb();
+    _q('#kb-add-btn').onclick   = () => _openKbModal();
+    _q('#kb-search').oninput    = () => { _kbOffset=0; _loadKb(); };
+    _q('#kb-filter-status').onchange   = () => { _kbOffset=0; _loadKb(); };
+    _q('#kb-filter-category').onchange = () => { _kbOffset=0; _loadKb(); };
+    _q('#kb-detail-close').onclick     = () => { _q('#kb-detail').hidden=true; };
+    _q('#kb-modal-close').onclick      = () => { _q('#kb-modal').hidden=true; };
+    _q('#kb-modal-cancel').onclick     = () => { _q('#kb-modal').hidden=true; };
+    _q('#kb-modal-save').onclick       = () => _saveKb();
+    _q('#kb-transition-modal-close').onclick  = () => { _q('#kb-transition-modal').hidden=true; };
+    _q('#kb-transition-cancel').onclick       = () => { _q('#kb-transition-modal').hidden=true; };
+    _q('#kb-transition-submit').onclick       = () => _doKbTransition();
+    _q('#kb-edit-btn').onclick       = () => { if(_kbCurrentId) _openKbModal(_kbCurrentId); };
+    _q('#kb-transition-btn').onclick = () => { if(_kbCurrentId) _openKbTransModal(); };
+    _q('#kb-delete-btn').onclick     = () => { if(_kbCurrentId) _deleteKbCurrent(); };
+    _q('#kb-rev-save-btn').onclick   = () => { if(_kbCurrentId) _saveKbRevision(); };
+  }
+
+  async function _loadKbStats() {
+    try {
+      const s=await _api('/kb/articles/stats');
+      _q('#kb-stats-row').innerHTML=[['Total',s.total],['Published',s.published||0],['Views',s.total_views||0],['Categories',(s.by_category||[]).length]].map(([l,v])=>
+        `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>${l}</span><strong>${v||0}</strong></div>`).join('');
+    } catch(_) {}
+  }
+
+  async function _loadKb() {
+    const q=_q('#kb-search').value.trim(); const status=_q('#kb-filter-status').value; const cat=_q('#kb-filter-category').value;
+    const params=new URLSearchParams({limit:_KB_LIMIT,offset:_kbOffset});
+    if(q) params.set('q',q); if(status) params.set('status',status); if(cat) params.set('category',cat);
+    const tbody=_q('#kb-tbody');
+    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    try {
+      const data=await _api(`/kb/articles?${params}`); const rows=data.articles||[];
+      if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">No articles found.</td></tr>';return;}
+      tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_kbOpenDetail('${r.id}')">
+        <td><strong>${_esc(r.title||'')}</strong></td><td>${_esc(r.category||'')}</td>
+        <td><span class="badge">${_esc(r.status||'')}</span></td><td>${r.view_count||0}</td>
+        <td><button class="btn xs" onclick="event.stopPropagation();_openKbModal('${r.id}')">Edit</button>
+            <button class="btn xs danger" onclick="event.stopPropagation();_deleteKbById('${r.id}','${_esc(r.title||'').replace(/'/g,"\\'")}')">Del</button></td>
+      </tr>`).join('');
+      const pages=Math.ceil(data.total/_KB_LIMIT)||1; const page=Math.floor(_kbOffset/_KB_LIMIT)+1;
+      _q('#kb-pagination').innerHTML=`<button class="btn xs" ${_kbOffset===0?'disabled':''} onclick="_kbOffset=Math.max(0,_kbOffset-${_KB_LIMIT});_loadKb()">Prev</button>
+        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <button class="btn xs" ${_kbOffset+_KB_LIMIT>=data.total?'disabled':''} onclick="_kbOffset+=_KB_LIMIT;_loadKb()">Next</button>`;
+    } catch(err){tbody.innerHTML=`<tr><td colspan="5" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`;}
+  }
+
+  async function _kbOpenDetail(id) {
+    _kbCurrentId=id; _q('#kb-detail').hidden=false;
+    _q('#kb-detail-meta').innerHTML='Loading...'; _q('#kb-detail-body').innerHTML=''; _q('#kb-rev-list').innerHTML='';
+    try {
+      const a=await _api(`/kb/articles/${id}`);
+      _q('#kb-detail-title').textContent=a.title||'Article';
+      _q('#kb-detail-meta').innerHTML=`<div style="display:flex;gap:16px;font-size:13px;flex-wrap:wrap;">
+        <span><b>Category:</b> ${_esc(a.category||'')}</span><span><b>Status:</b> ${_esc(a.status||'')}</span>
+        <span><b>Author:</b> ${_esc(a.author||'—')}</span><span><b>Views:</b> ${a.view_count||0}</span>
+        <span><b>Tags:</b> ${_esc(a.tags||'—')}</span></div>`;
+      _q('#kb-detail-body').innerHTML=`<div style="margin-top:12px;white-space:pre-wrap;font-size:13px;border:1px solid var(--border);border-radius:6px;padding:12px;max-height:300px;overflow:auto;">${_esc(a.body||'')}</div>`;
+      const allowed={draft:['published','archived'],published:['draft','archived'],archived:['draft'],deprecated:[]};
+      _q('#kb-transition-status').innerHTML=(allowed[a.status]||[]).map(s=>`<option value="${s}">${s}</option>`).join('')||'<option value="">No transitions</option>';
+      const revData=await _api(`/kb/articles/${id}/revisions`); const revs=revData.revisions||[];
+      _q('#kb-rev-list').innerHTML=revs.length?revs.map(r=>`<div style="font-size:12px;padding:2px 0;">Rev${r.revision_number} — ${_esc(r.author||'')} — ${(r.created_at||'').slice(0,10)} ${r.change_note?`<em>${_esc(r.change_note)}</em>`:''}</div>`).join(''):'<span style="color:var(--text-muted);font-size:12px;">No revisions</span>';
+    } catch(err){_q('#kb-detail-meta').innerHTML=`<p style="color:var(--danger);">${_esc(err.message||'Error')}</p>`;}
+  }
+
+  async function _openKbModal(id) {
+    _q('#kb-modal').hidden=false; _q('#kb-modal-title').textContent=id?'Edit Article':'New Article'; _q('#kb-modal').dataset.id=id||'';
+    const fields={title:'kb-f-title',category:'kb-f-category',tags:'kb-f-tags',author:'kb-f-author',body:'kb-f-body'};
+    if(id){try{const a=await _api(`/kb/articles/${id}`);Object.entries(fields).forEach(([k,fid])=>{const el=_q('#'+fid);if(el&&a[k]!=null)el.value=a[k];});}catch(_){}}
+    else{Object.values(fields).forEach(fid=>{const el=_q('#'+fid);if(el)el.value=''});}
+  }
+
+  async function _saveKb() {
+    const id=_q('#kb-modal').dataset.id;
+    const body={title:_q('#kb-f-title').value,category:_q('#kb-f-category').value,tags:_q('#kb-f-tags').value,author:_q('#kb-f-author').value,body:_q('#kb-f-body').value};
+    try{await _api(id?`/kb/articles/${id}`:'/kb/articles',id?'PATCH':'POST',body);_q('#kb-modal').hidden=true;_loadKbStats();_loadKb();}
+    catch(err){alert('Save failed: '+(err.message||err));}
+  }
+
+  async function _openKbTransModal() { _q('#kb-transition-modal').hidden=false; }
+
+  async function _doKbTransition() {
+    const status=_q('#kb-transition-status').value; const author=_q('#kb-transition-author').value; if(!status) return;
+    try{await _api(`/kb/articles/${_kbCurrentId}/transition`,'POST',{status,author});_q('#kb-transition-modal').hidden=true;_kbOpenDetail(_kbCurrentId);_loadKbStats();_loadKb();}
+    catch(err){alert('Transition failed: '+(err.message||err));}
+  }
+
+  async function _saveKbRevision() {
+    const body={author:_q('#kb-rev-author').value,body:_q('#kb-f-body')?.value||''};
+    try{await _api(`/kb/articles/${_kbCurrentId}/revisions`,'POST',body);_kbOpenDetail(_kbCurrentId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _deleteKbCurrent() {
+    if(!_kbCurrentId||!confirm('Delete this article?')) return;
+    try{await _api(`/kb/articles/${_kbCurrentId}`,'DELETE');_q('#kb-detail').hidden=true;_kbCurrentId=null;_loadKbStats();_loadKb();}
+    catch(err){alert('Delete failed: '+(err.message||err));}
+  }
+
+  async function _deleteKbById(id,name) {
+    if(!confirm(`Delete article "${name}"?`)) return;
+    try{await _api(`/kb/articles/${id}`,'DELETE');_loadKbStats();_loadKb();}
+    catch(err){alert('Delete failed: '+(err.message||err));}
+  }
+
+  // ── Asset Management ─────────────────────────────────────────────────────────
+  let _assetOffset=0; const _ASSET_LIMIT=50; let _assetCurrentId=null;
+
+  function initAssetsView() {
+    _loadAssetStats(); _loadAssets();
+    _q('#asset-add-btn').onclick   = () => _openAssetModal();
+    _q('#asset-search').oninput    = () => { _assetOffset=0; _loadAssets(); };
+    _q('#asset-filter-type').onchange   = () => { _assetOffset=0; _loadAssets(); };
+    _q('#asset-filter-status').onchange = () => { _assetOffset=0; _loadAssets(); };
+    _q('#asset-filter-env').onchange    = () => { _assetOffset=0; _loadAssets(); };
+    _q('#asset-detail-close').onclick   = () => { _q('#asset-detail').hidden=true; };
+    _q('#asset-modal-close').onclick    = () => { _q('#asset-modal').hidden=true; };
+    _q('#asset-modal-cancel').onclick   = () => { _q('#asset-modal').hidden=true; };
+    _q('#asset-modal-save').onclick     = () => _saveAsset();
+    _q('#asset-transition-modal').onsubmit = e => { e.preventDefault(); _doAssetTransition(); };
+    _q('#asset-transition-modal-close').onclick  = () => { _q('#asset-transition-modal').hidden=true; };
+    _q('#asset-transition-cancel').onclick       = () => { _q('#asset-transition-modal').hidden=true; };
+    _q('#asset-transition-submit').onclick       = () => _doAssetTransition();
+    _q('#asset-edit-btn').onclick       = () => { if(_assetCurrentId) _openAssetModal(_assetCurrentId); };
+    _q('#asset-transition-btn').onclick = () => { if(_assetCurrentId) _openAssetTransModal(); };
+    _q('#asset-delete-btn').onclick     = () => { if(_assetCurrentId) _deleteAssetCurrent(); };
+    _q('#asset-rel-add-btn').onclick    = () => { if(_assetCurrentId) _addAssetRel(); };
+    _q('#asset-evt-add-btn').onclick    = () => { if(_assetCurrentId) _addAssetEvt(); };
+  }
+
+  async function _loadAssetStats() {
+    try {
+      const s=await _api('/assets/stats');
+      _q('#asset-stats-row').innerHTML=[['Total',s.total],['Active',s.active||0],['Retired',s.retired||0],['Types',(s.by_type||[]).length]].map(([l,v])=>
+        `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>${l}</span><strong>${v||0}</strong></div>`).join('');
+    } catch(_) {}
+  }
+
+  async function _loadAssets() {
+    const q=_q('#asset-search').value.trim(); const type=_q('#asset-filter-type').value; const status=_q('#asset-filter-status').value; const env=_q('#asset-filter-env').value;
+    const params=new URLSearchParams({limit:_ASSET_LIMIT,offset:_assetOffset});
+    if(q) params.set('q',q); if(type) params.set('asset_type',type); if(status) params.set('status',status); if(env) params.set('environment',env);
+    const tbody=_q('#asset-tbody');
+    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    try {
+      const data=await _api(`/assets?${params}`); const rows=data.assets||[];
+      if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">No assets found.</td></tr>';return;}
+      tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_assetOpenDetail('${r.id}')">
+        <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.asset_type||'')}</td>
+        <td><span class="badge">${_esc(r.status||'')}</span></td><td>${_esc(r.environment||'')}</td>
+        <td><button class="btn xs" onclick="event.stopPropagation();_openAssetModal('${r.id}')">Edit</button>
+            <button class="btn xs danger" onclick="event.stopPropagation();_deleteAssetById('${r.id}','${_esc(r.name||'').replace(/'/g,"\\'")}')">Del</button></td>
+      </tr>`).join('');
+      const pages=Math.ceil(data.total/_ASSET_LIMIT)||1; const page=Math.floor(_assetOffset/_ASSET_LIMIT)+1;
+      _q('#asset-pagination').innerHTML=`<button class="btn xs" ${_assetOffset===0?'disabled':''} onclick="_assetOffset=Math.max(0,_assetOffset-${_ASSET_LIMIT});_loadAssets()">Prev</button>
+        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <button class="btn xs" ${_assetOffset+_ASSET_LIMIT>=data.total?'disabled':''} onclick="_assetOffset+=_ASSET_LIMIT;_loadAssets()">Next</button>`;
+    } catch(err){tbody.innerHTML=`<tr><td colspan="5" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`;}
+  }
+
+  async function _assetOpenDetail(id) {
+    _assetCurrentId=id; _q('#asset-detail').hidden=false;
+    _q('#asset-detail-body').innerHTML='Loading...'; _q('#asset-rel-list').innerHTML=''; _q('#asset-evt-list').innerHTML='';
+    try {
+      const a=await _api(`/assets/${id}`);
+      _q('#asset-detail-title').textContent=a.name||'Asset';
+      _q('#asset-detail-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+        <div><b>Type</b><br>${_esc(a.asset_type||'')}</div><div><b>Status</b><br>${_esc(a.status||'')}</div>
+        <div><b>Environment</b><br>${_esc(a.environment||'')}</div><div><b>Hostname</b><br>${_esc(a.hostname||'—')}</div>
+        <div><b>IP</b><br>${_esc(a.ip_address||'—')}</div><div><b>Version</b><br>${_esc(a.version||'—')}</div>
+        <div><b>Owner</b><br>${_esc(a.owner||'—')}</div><div><b>Team</b><br>${_esc(a.team||'—')}</div>
+      </div>`;
+      const allowed={active:['maintenance','retired','decommissioned'],maintenance:['active'],retired:['active'],decommissioned:[]};
+      _q('#asset-transition-status').innerHTML=(allowed[a.status]||[]).map(s=>`<option value="${s}">${s}</option>`).join('')||'<option value="">No transitions</option>';
+      const [relData,evtData]=await Promise.all([_api(`/assets/${id}/relationships`),_api(`/assets/${id}/events`)]);
+      const rels=relData.relationships||[];
+      _q('#asset-rel-list').innerHTML=rels.length?rels.map(r=>`<div style="font-size:12px;padding:2px 0;">${_esc(r.relationship_type)} → ${_esc(r.target_id)} <button class="btn xs danger" onclick="_deleteAssetRel('${id}','${r.id}')">✕</button></div>`).join(''):'<span style="color:var(--text-muted);font-size:12px;">No relationships</span>';
+      const evts=evtData.events||[];
+      _q('#asset-evt-list').innerHTML=evts.slice(0,8).map(e=>`<div style="font-size:12px;padding:2px 0;">${(e.created_at||'').slice(0,10)} ${_esc(e.note||'')} <em style="color:var(--text-muted);">${_esc(e.author||'')}</em></div>`).join('')||'<span style="color:var(--text-muted);font-size:12px;">No events</span>';
+    } catch(err){_q('#asset-detail-body').innerHTML=`<p style="color:var(--danger);">${_esc(err.message||'Error')}</p>`;}
+  }
+
+  async function _openAssetModal(id) {
+    _q('#asset-modal').hidden=false; _q('#asset-modal-title').textContent=id?'Edit Asset':'New Asset'; _q('#asset-modal').dataset.id=id||'';
+    const map={name:'asset-f-name',asset_type:'asset-f-type',environment:'asset-f-env',hostname:'asset-f-hostname',ip_address:'asset-f-ip',version:'asset-f-version',owner:'asset-f-owner',team:'asset-f-team',tags:'asset-f-tags',description:'asset-f-desc'};
+    if(id){try{const a=await _api(`/assets/${id}`);Object.entries(map).forEach(([k,fid])=>{const el=_q('#'+fid);if(el&&a[k]!=null)el.value=a[k];});}catch(_){}}
+    else{Object.values(map).forEach(fid=>{const el=_q('#'+fid);if(el)el.value=''});}
+  }
+
+  async function _saveAsset() {
+    const id=_q('#asset-modal').dataset.id;
+    const body={name:_q('#asset-f-name').value,asset_type:_q('#asset-f-type').value,environment:_q('#asset-f-env').value,
+      hostname:_q('#asset-f-hostname').value,ip_address:_q('#asset-f-ip').value,version:_q('#asset-f-version').value,
+      owner:_q('#asset-f-owner').value,team:_q('#asset-f-team').value,tags:_q('#asset-f-tags').value,description:_q('#asset-f-desc').value};
+    try{await _api(id?`/assets/${id}`:'/assets',id?'PATCH':'POST',body);_q('#asset-modal').hidden=true;_loadAssetStats();_loadAssets();}
+    catch(err){alert('Save failed: '+(err.message||err));}
+  }
+
+  async function _openAssetTransModal() { _q('#asset-transition-modal').hidden=false; }
+
+  async function _doAssetTransition() {
+    const status=_q('#asset-transition-status').value; const note=_q('#asset-transition-note').value; const author=_q('#asset-transition-author').value; if(!status) return;
+    try{await _api(`/assets/${_assetCurrentId}/transition`,'POST',{status,note,author});_q('#asset-transition-modal').hidden=true;_assetOpenDetail(_assetCurrentId);_loadAssetStats();_loadAssets();}
+    catch(err){alert('Transition failed: '+(err.message||err));}
+  }
+
+  async function _addAssetRel() {
+    const target=_q('#asset-rel-target-id').value.trim(); const type=_q('#asset-rel-type').value; if(!target) return;
+    try{await _api(`/assets/${_assetCurrentId}/relationships`,'POST',{target_id:target,relationship_type:type});_assetOpenDetail(_assetCurrentId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _deleteAssetRel(assetId,relId) {
+    try{await _api(`/assets/${assetId}/relationships/${relId}`,'DELETE');_assetOpenDetail(assetId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _addAssetEvt() {
+    const note=_q('#asset-evt-note').value.trim(); const author=_q('#asset-evt-author').value.trim(); if(!note) return;
+    try{await _api(`/assets/${_assetCurrentId}/events`,'POST',{note,author});_q('#asset-evt-note').value='';_assetOpenDetail(_assetCurrentId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _deleteAssetCurrent() {
+    if(!_assetCurrentId||!confirm('Delete this asset?')) return;
+    try{await _api(`/assets/${_assetCurrentId}`,'DELETE');_q('#asset-detail').hidden=true;_assetCurrentId=null;_loadAssetStats();_loadAssets();}
+    catch(err){alert('Delete failed: '+(err.message||err));}
+  }
+
+  async function _deleteAssetById(id,name) {
+    if(!confirm(`Delete asset "${name}"?`)) return;
+    try{await _api(`/assets/${id}`,'DELETE');_loadAssetStats();_loadAssets();}
+    catch(err){alert('Delete failed: '+(err.message||err));}
+  }
+
+  // ── Deployments ───────────────────────────────────────────────────────────────
+  let _depOffset=0; const _DEP_LIMIT=50; let _depCurrentId=null;
+
+  function initDeploymentsView() {
+    _loadDepStats(); _loadDeployments();
+    _q('#depAddBtn').onclick     = () => _openDepModal();
+    _q('#depRefreshBtn').onclick = () => { _loadDepStats(); _loadDeployments(); };
+    _q('#depSearchBtn').onclick  = () => { _depOffset=0; _loadDeployments(); };
+    _q('#depSearchInput').onkeydown = e => { if(e.key==='Enter'){_depOffset=0;_loadDeployments();} };
+    _q('#depStatusFilter').onchange = () => { _depOffset=0; _loadDeployments(); };
+    _q('#depEnvFilter').onchange    = () => { _depOffset=0; _loadDeployments(); };
+    _q('#depEditModalClose').onclick  = () => { _q('#depEditModal').hidden=true; };
+    _q('#depEditModalCancel').onclick = () => { _q('#depEditModal').hidden=true; };
+    _q('#depEditForm').onsubmit = e => { e.preventDefault(); _saveDep(); };
+    _q('#depDetailModalClose').onclick    = () => { _q('#depDetailModal').hidden=true; };
+    _q('#depDetailModalCloseBtn').onclick = () => { _q('#depDetailModal').hidden=true; };
+    _q('#depDetailEditBtn').onclick = () => { if(_depCurrentId) _openDepModal(_depCurrentId); };
+    _q('#depTransitionBtn').onclick = () => { if(_depCurrentId) _openDepTransModal(); };
+    _q('#depAddNoteBtn').onclick     = () => { if(_depCurrentId) { _q('#depNoteModal').hidden=false; _q('#depNoteForm').reset(); } };
+    _q('#depTransitionModalClose').onclick  = () => { _q('#depTransitionModal').hidden=true; };
+    _q('#depTransitionModalCancel').onclick = () => { _q('#depTransitionModal').hidden=true; };
+    _q('#depTransitionForm').onsubmit = e => { e.preventDefault(); _doDepTransition(); };
+    _q('#depNoteModalClose').onclick  = () => { _q('#depNoteModal').hidden=true; };
+    _q('#depNoteModalCancel').onclick = () => { _q('#depNoteModal').hidden=true; };
+    _q('#depNoteForm').onsubmit = e => { e.preventDefault(); _addDepNote(); };
+  }
+
+  async function _loadDepStats() {
+    try {
+      const s=await _api('/deployments/stats');
+      const strip=_q('#depStatsStrip');
+      strip.innerHTML=[['Total',s.total],['Running',s.running||0],['Success',s.successful||0],['Failed',s.failed||0]].map(([l,v])=>
+        `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>${l}</span><strong>${v||0}</strong></div>`).join('');
+    } catch(_) {}
+  }
+
+  async function _loadDeployments() {
+    const q=_q('#depSearchInput').value.trim(); const status=_q('#depStatusFilter').value; const env=_q('#depEnvFilter').value;
+    const params=new URLSearchParams({limit:_DEP_LIMIT,offset:_depOffset});
+    if(q) params.set('q',q); if(status) params.set('status',status); if(env) params.set('environment',env);
+    const tbody=_q('#depListTbody');
+    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    try {
+      const data=await _api(`/deployments?${params}`); const rows=data.deployments||[];
+      _q('#depListCount').textContent=`${data.total} total`;
+      if(!rows.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No deployments found.</td></tr>';return;}
+      tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_depOpenDetail('${r.id}')">
+        <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.version||'')}</td>
+        <td>${_esc(r.environment||'')}</td>
+        <td><span class="badge ${r.status==='failed'?'bad':r.status==='running'?'warn':'ok'}">${_esc(r.status||'')}</span></td>
+        <td>${_esc(r.deployer||'')}</td>
+        <td><button class="btn xs" onclick="event.stopPropagation();_openDepModal('${r.id}')">Edit</button></td>
+      </tr>`).join('');
+      const pages=Math.ceil(data.total/_DEP_LIMIT)||1; const page=Math.floor(_depOffset/_DEP_LIMIT)+1;
+      _q('#depPagination').innerHTML=`<button class="btn xs" ${_depOffset===0?'disabled':''} onclick="_depOffset=Math.max(0,_depOffset-${_DEP_LIMIT});_loadDeployments()">Prev</button>
+        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <button class="btn xs" ${_depOffset+_DEP_LIMIT>=data.total?'disabled':''} onclick="_depOffset+=_DEP_LIMIT;_loadDeployments()">Next</button>`;
+    } catch(err){tbody.innerHTML=`<tr><td colspan="6" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`;}
+  }
+
+  async function _depOpenDetail(id) {
+    _depCurrentId=id; _q('#depDetailModal').hidden=false; _q('#depDetailModalBody').innerHTML='Loading...';
+    try {
+      const d=await _api(`/deployments/${id}`);
+      _q('#depDetailModalTitle').textContent=`${d.name||''} v${d.version||''}`;
+      const notesData=await _api(`/deployments/${id}/notes`); const notes=(notesData.notes||[]);
+      const allowed={pending:['running','cancelled'],running:['success','failed','rolled_back'],success:[],failed:['rolled_back'],rolled_back:[],cancelled:[]};
+      _q('#depTransitionStatus').innerHTML=(allowed[d.status]||[]).map(s=>`<option value="${s}">${s}</option>`).join('')||'<option value="">No transitions</option>';
+      _q('#depDetailModalBody').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+        <div><b>Version</b><br>${_esc(d.version||'')}</div><div><b>Status</b><br>${_esc(d.status||'')}</div>
+        <div><b>Environment</b><br>${_esc(d.environment||'')}</div><div><b>Deployer</b><br>${_esc(d.deployer||'—')}</div>
+        <div><b>Service ID</b><br>${_esc(d.service_id||'—')}</div><div><b>Change ID</b><br>${_esc(d.change_id||'—')}</div>
+      </div>${d.notes?`<p style="margin-top:8px;font-size:13px;">${_esc(d.notes)}</p>`:''}
+      <h4 style="margin:12px 0 4px;">Activity Notes</h4>
+      <div>${notes.map(n=>`<div style="font-size:12px;padding:2px 0;border-bottom:1px solid var(--border);">${(n.created_at||'').slice(0,10)} ${_esc(n.text||'')} <em style="color:var(--text-muted);">${_esc(n.author||'')}</em></div>`).join('')||'<span style="color:var(--text-muted);">No notes</span>'}</div>`;
+    } catch(err){_q('#depDetailModalBody').innerHTML=`<p style="color:var(--danger);">${_esc(err.message||'Error')}</p>`;}
+  }
+
+  async function _openDepModal(id) {
+    _q('#depEditModal').hidden=false; _q('#depEditModalTitle').textContent=id?'Edit Deployment':'New Deployment'; _q('#depFormId').value=id||'';
+    const map={name:'depFormName',version:'depFormVersion',environment:'depFormEnv',deployer:'depFormDeployer',service_id:'depFormServiceId',change_id:'depFormChangeId',notes:'depFormNotes'};
+    if(id){try{const d=await _api(`/deployments/${id}`);Object.entries(map).forEach(([k,eid])=>{const el=_q('#'+eid);if(el&&d[k]!=null)el.value=d[k];});}catch(_){}}
+    else{Object.values(map).forEach(eid=>{const el=_q('#'+eid);if(el)el.value=''});}
+  }
+
+  async function _saveDep() {
+    const id=_q('#depFormId').value;
+    const body={name:_q('#depFormName').value,version:_q('#depFormVersion').value,environment:_q('#depFormEnv').value,
+      deployer:_q('#depFormDeployer').value,service_id:_q('#depFormServiceId').value||null,
+      change_id:_q('#depFormChangeId').value||null,notes:_q('#depFormNotes').value};
+    try{await _api(id?`/deployments/${id}`:'/deployments',id?'PATCH':'POST',body);_q('#depEditModal').hidden=true;_loadDepStats();_loadDeployments();}
+    catch(err){alert('Save failed: '+(err.message||err));}
+  }
+
+  async function _openDepTransModal() { _q('#depTransitionModal').hidden=false; }
+
+  async function _doDepTransition() {
+    const status=_q('#depTransitionStatus').value; const note=_q('#depTransitionNote').value; const author=_q('#depTransitionAuthor').value; if(!status) return;
+    try{await _api(`/deployments/${_depCurrentId}/transition`,'POST',{status,note,author});_q('#depTransitionModal').hidden=true;_depOpenDetail(_depCurrentId);_loadDepStats();_loadDeployments();}
+    catch(err){alert('Transition failed: '+(err.message||err));}
+  }
+
+  async function _addDepNote() {
+    const body={text:_q('#depNoteText').value,author:_q('#depNoteAuthor').value};
+    try{await _api(`/deployments/${_depCurrentId}/notes`,'POST',body);_q('#depNoteModal').hidden=true;_depOpenDetail(_depCurrentId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  // ── Service Catalog ───────────────────────────────────────────────────────────
+  let _svcOffset=0; const _SVC_LIMIT=50; let _svcCurrentId=null;
+
+  function initServicesView() {
+    _loadSvcStats(); _loadServices();
+    _q('#svcAddBtn').onclick     = () => _openSvcModal();
+    _q('#svcRefreshBtn').onclick = () => { _loadSvcStats(); _loadServices(); };
+    _q('#svcSearchBtn').onclick  = () => { _svcOffset=0; _loadServices(); };
+    _q('#svcSearchInput').onkeydown = e => { if(e.key==='Enter'){_svcOffset=0;_loadServices();} };
+    _q('#svcStatusFilter').onchange = () => { _svcOffset=0; _loadServices(); };
+    _q('#svcTierFilter').onchange   = () => { _svcOffset=0; _loadServices(); };
+    _q('#svcEditModalClose').onclick  = () => { _q('#svcEditModal').hidden=true; };
+    _q('#svcEditModalCancel').onclick = () => { _q('#svcEditModal').hidden=true; };
+    _q('#svcEditForm').onsubmit = e => { e.preventDefault(); _saveSvc(); };
+    _q('#svcDetailModalClose').onclick    = () => { _q('#svcDetailModal').hidden=true; };
+    _q('#svcDetailModalCloseBtn').onclick = () => { _q('#svcDetailModal').hidden=true; };
+    _q('#svcDetailEditBtn').onclick   = () => { if(_svcCurrentId) _openSvcModal(_svcCurrentId); };
+    _q('#svcUpdateStatusBtn').onclick = () => { if(_svcCurrentId) { _q('#svcStatusModal').hidden=false; _q('#svcStatusForm').reset(); } };
+    _q('#svcStatusModalClose').onclick  = () => { _q('#svcStatusModal').hidden=true; };
+    _q('#svcStatusModalCancel').onclick = () => { _q('#svcStatusModal').hidden=true; };
+    _q('#svcStatusForm').onsubmit = e => { e.preventDefault(); _doSvcStatus(); };
+  }
+
+  async function _loadSvcStats() {
+    try {
+      const s=await _api('/services/stats');
+      const strip=_q('#svcStatsStrip');
+      strip.innerHTML=[['Total',s.total],['Operational',s.operational||0],['Degraded',s.degraded||0],['Down',s.down||0]].map(([l,v])=>
+        `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>${l}</span><strong>${v||0}</strong></div>`).join('');
+    } catch(_) {}
+  }
+
+  async function _loadServices() {
+    const q=_q('#svcSearchInput').value.trim(); const status=_q('#svcStatusFilter').value; const tier=_q('#svcTierFilter').value;
+    const params=new URLSearchParams({limit:_SVC_LIMIT,offset:_svcOffset});
+    if(q) params.set('q',q); if(status) params.set('status',status); if(tier) params.set('tier',tier);
+    const tbody=_q('#svcListTbody');
+    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    try {
+      const data=await _api(`/services?${params}`); const rows=data.services||[];
+      _q('#svcListCount').textContent=`${data.total} total`;
+      if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">No services found.</td></tr>';return;}
+      tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_svcOpenDetail('${r.id}')">
+        <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.tier||'')}</td>
+        <td><span class="badge ${r.status==='down'?'bad':r.status==='degraded'?'warn':'ok'}">${_esc(r.status||'')}</span></td>
+        <td>${_esc(r.owner||'')}</td>
+        <td><button class="btn xs" onclick="event.stopPropagation();_openSvcModal('${r.id}')">Edit</button></td>
+      </tr>`).join('');
+      const pages=Math.ceil(data.total/_SVC_LIMIT)||1; const page=Math.floor(_svcOffset/_SVC_LIMIT)+1;
+      _q('#svcPagination').innerHTML=`<button class="btn xs" ${_svcOffset===0?'disabled':''} onclick="_svcOffset=Math.max(0,_svcOffset-${_SVC_LIMIT});_loadServices()">Prev</button>
+        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <button class="btn xs" ${_svcOffset+_SVC_LIMIT>=data.total?'disabled':''} onclick="_svcOffset+=_SVC_LIMIT;_loadServices()">Next</button>`;
+    } catch(err){tbody.innerHTML=`<tr><td colspan="5" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`;}
+  }
+
+  async function _svcOpenDetail(id) {
+    _svcCurrentId=id; _q('#svcDetailModal').hidden=false; _q('#svcDetailModalBody').innerHTML='Loading...';
+    try {
+      const s=await _api(`/services/${id}`);
+      _q('#svcDetailModalTitle').textContent=s.name||'Service';
+      const histData=await _api(`/services/${id}/history`); const hist=(histData.history||[]).slice(0,5);
+      _q('#svcDetailModalBody').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+        <div><b>Tier</b><br>${_esc(s.tier||'')}</div><div><b>Status</b><br><span class="badge ${s.status==='down'?'bad':s.status==='degraded'?'warn':'ok'}">${_esc(s.status||'')}</span></div>
+        <div><b>Owner</b><br>${_esc(s.owner||'—')}</div><div><b>Team</b><br>${_esc(s.team||'—')}</div>
+        ${s.doc_url?`<div><b>Docs</b><br><a href="${_esc(s.doc_url)}" target="_blank">Link</a></div>`:''}
+        ${s.health_url?`<div><b>Health</b><br><a href="${_esc(s.health_url)}" target="_blank">Check</a></div>`:''}
+      </div>${s.description?`<p style="margin-top:8px;font-size:13px;">${_esc(s.description)}</p>`:''}
+      <h4 style="margin:12px 0 4px;">Status History</h4>
+      <div>${hist.map(h=>`<div style="font-size:12px;padding:2px 0;">${(h.changed_at||'').slice(0,16)} <strong>${_esc(h.status)}</strong> ${_esc(h.reason||'')} <em style="color:var(--text-muted);">${_esc(h.changed_by||'')}</em></div>`).join('')||'<span style="color:var(--text-muted);">No history</span>'}</div>`;
+    } catch(err){_q('#svcDetailModalBody').innerHTML=`<p style="color:var(--danger);">${_esc(err.message||'Error')}</p>`;}
+  }
+
+  async function _openSvcModal(id) {
+    _q('#svcEditModal').hidden=false; _q('#svcEditModalTitle').textContent=id?'Edit Service':'New Service'; _q('#svcFormId').value=id||'';
+    const map={name:'svcFormName',description:'svcFormDesc',tier:'svcFormTier',status:'svcFormStatus',owner:'svcFormOwner',team:'svcFormTeam',doc_url:'svcFormDocUrl',health_url:'svcFormHealthUrl'};
+    if(id){try{const s=await _api(`/services/${id}`);Object.entries(map).forEach(([k,eid])=>{const el=_q('#'+eid);if(el&&s[k]!=null)el.value=s[k];});}catch(_){}}
+    else{Object.values(map).forEach(eid=>{const el=_q('#'+eid);if(el)el.value=''});}
+  }
+
+  async function _saveSvc() {
+    const id=_q('#svcFormId').value;
+    const body={name:_q('#svcFormName').value,description:_q('#svcFormDesc').value,tier:_q('#svcFormTier').value,
+      status:_q('#svcFormStatus').value,owner:_q('#svcFormOwner').value,team:_q('#svcFormTeam').value,
+      doc_url:_q('#svcFormDocUrl').value||null,health_url:_q('#svcFormHealthUrl').value||null};
+    try{await _api(id?`/services/${id}`:'/services',id?'PATCH':'POST',body);_q('#svcEditModal').hidden=true;_loadSvcStats();_loadServices();}
+    catch(err){alert('Save failed: '+(err.message||err));}
+  }
+
+  async function _doSvcStatus() {
+    const status=_q('#svcStatusSelect').value; const reason=_q('#svcStatusReason').value; const changed_by=_q('#svcStatusAuthor').value; if(!status) return;
+    try{await _api(`/services/${_svcCurrentId}/status`,'POST',{status,reason,changed_by});_q('#svcStatusModal').hidden=true;_svcOpenDetail(_svcCurrentId);_loadSvcStats();_loadServices();}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  // ── Problem Management ────────────────────────────────────────────────────────
+  let _prOffset=0; const _PR_LIMIT=50; let _prCurrentId=null;
+
+  function initProblemsView() {
+    _loadPrStats(); _loadProblems();
+    _q('#prAddBtn').onclick     = () => _openPrModal();
+    _q('#prRefreshBtn').onclick = () => { _loadPrStats(); _loadProblems(); };
+    _q('#prSearchBtn').onclick  = () => { _prOffset=0; _loadProblems(); };
+    _q('#prSearchInput').onkeydown = e => { if(e.key==='Enter'){_prOffset=0;_loadProblems();} };
+    _q('#prStatusFilter').onchange   = () => { _prOffset=0; _loadProblems(); };
+    _q('#prPriorityFilter').onchange = () => { _prOffset=0; _loadProblems(); };
+    _q('#prEditModalClose').onclick  = () => { _q('#prEditModal').hidden=true; };
+    _q('#prEditModalCancel').onclick = () => { _q('#prEditModal').hidden=true; };
+    _q('#prEditForm').onsubmit = e => { e.preventDefault(); _savePr(); };
+    _q('#prDetailModalClose').onclick    = () => { _q('#prDetailModal').hidden=true; };
+    _q('#prDetailModalCloseBtn').onclick = () => { _q('#prDetailModal').hidden=true; };
+    _q('#prDetailEditBtn').onclick    = () => { if(_prCurrentId) _openPrModal(_prCurrentId); };
+    _q('#prTransitionBtn').onclick    = () => { if(_prCurrentId) _openPrTransModal(); };
+    _q('#prLinkIncidentBtn').onclick  = () => { if(_prCurrentId) { _q('#prLinkIncidentModal').hidden=false; _q('#prLinkIncidentForm').reset(); } };
+    _q('#prAddTimelineBtn').onclick   = () => { if(_prCurrentId) { _q('#prTimelineModal').hidden=false; _q('#prTimelineForm').reset(); } };
+    _q('#prTransitionModalClose').onclick  = () => { _q('#prTransitionModal').hidden=true; };
+    _q('#prTransitionModalCancel').onclick = () => { _q('#prTransitionModal').hidden=true; };
+    _q('#prTransitionForm').onsubmit = e => { e.preventDefault(); _doPrTransition(); };
+    _q('#prLinkIncidentModalClose').onclick  = () => { _q('#prLinkIncidentModal').hidden=true; };
+    _q('#prLinkIncidentModalCancel').onclick = () => { _q('#prLinkIncidentModal').hidden=true; };
+    _q('#prLinkIncidentForm').onsubmit = e => { e.preventDefault(); _linkPrIncident(); };
+    _q('#prTimelineModalClose').onclick  = () => { _q('#prTimelineModal').hidden=true; };
+    _q('#prTimelineModalCancel').onclick = () => { _q('#prTimelineModal').hidden=true; };
+    _q('#prTimelineForm').onsubmit = e => { e.preventDefault(); _addPrTimeline(); };
+  }
+
+  async function _loadPrStats() {
+    try {
+      const s=await _api('/problems/stats');
+      const strip=_q('#prStatsStrip');
+      strip.innerHTML=[['Total',s.total],['Open',s.open||0],['In Analysis',s.in_analysis||0],['Resolved',s.resolved||0]].map(([l,v])=>
+        `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>${l}</span><strong>${v||0}</strong></div>`).join('');
+    } catch(_) {}
+  }
+
+  async function _loadProblems() {
+    const q=_q('#prSearchInput').value.trim(); const status=_q('#prStatusFilter').value; const priority=_q('#prPriorityFilter').value;
+    const params=new URLSearchParams({limit:_PR_LIMIT,offset:_prOffset});
+    if(q) params.set('q',q); if(status) params.set('status',status); if(priority) params.set('priority',priority);
+    const tbody=_q('#prListTbody');
+    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    try {
+      const data=await _api(`/problems?${params}`); const rows=data.problems||[];
+      _q('#prListCount').textContent=`${data.total} total`;
+      if(!rows.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No problems found.</td></tr>';return;}
+      tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_prOpenDetail('${r.id}')">
+        <td><strong>${_esc(r.title||'')}</strong></td><td>${_esc(r.category||'')}</td>
+        <td><span class="badge ${r.priority==='critical'?'bad':r.priority==='high'?'warn':'ok'}">${_esc(r.priority||'')}</span></td>
+        <td><span class="badge">${_esc(r.status||'')}</span></td><td>${_esc(r.owner||'')}</td>
+        <td><button class="btn xs" onclick="event.stopPropagation();_openPrModal('${r.id}')">Edit</button></td>
+      </tr>`).join('');
+      const pages=Math.ceil(data.total/_PR_LIMIT)||1; const page=Math.floor(_prOffset/_PR_LIMIT)+1;
+      _q('#prPagination').innerHTML=`<button class="btn xs" ${_prOffset===0?'disabled':''} onclick="_prOffset=Math.max(0,_prOffset-${_PR_LIMIT});_loadProblems()">Prev</button>
+        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <button class="btn xs" ${_prOffset+_PR_LIMIT>=data.total?'disabled':''} onclick="_prOffset+=_PR_LIMIT;_loadProblems()">Next</button>`;
+    } catch(err){tbody.innerHTML=`<tr><td colspan="6" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`;}
+  }
+
+  async function _prOpenDetail(id) {
+    _prCurrentId=id; _q('#prDetailModal').hidden=false; _q('#prDetailModalBody').innerHTML='Loading...';
+    try {
+      const p=await _api(`/problems/${id}`);
+      _q('#prDetailModalTitle').textContent=p.title||'Problem';
+      const [tlData]=await Promise.all([_api(`/problems/${id}/timeline`)]);
+      const tl=(tlData.timeline||[]).slice(0,8);
+      const allowed={open:['in_analysis','closed'],in_analysis:['known_error','closed'],known_error:['in_fix','closed'],in_fix:['resolved','closed'],resolved:[],closed:[]};
+      _q('#prTransitionStatus').innerHTML=(allowed[p.status]||[]).map(s=>`<option value="${s}">${s}</option>`).join('')||'<option value="">No transitions</option>';
+      _q('#prDetailModalBody').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+        <div><b>Priority</b><br>${_esc(p.priority||'')}</div><div><b>Status</b><br>${_esc(p.status||'')}</div>
+        <div><b>Category</b><br>${_esc(p.category||'')}</div><div><b>Owner</b><br>${_esc(p.owner||'—')}</div>
+      </div>
+      ${p.description?`<p style="margin-top:8px;font-size:13px;">${_esc(p.description)}</p>`:''}
+      ${p.root_cause?`<p style="font-size:13px;"><b>Root Cause:</b> ${_esc(p.root_cause)}</p>`:''}
+      ${p.workaround?`<p style="font-size:13px;"><b>Workaround:</b> ${_esc(p.workaround)}</p>`:''}
+      <h4 style="margin:12px 0 4px;">Timeline</h4>
+      <div>${tl.map(e=>`<div style="font-size:12px;padding:2px 0;border-bottom:1px solid var(--border);">${(e.created_at||'').slice(0,16)} <strong>${_esc(e.event_type||'')}</strong> ${_esc(e.note||'')} <em style="color:var(--text-muted);">${_esc(e.author||'')}</em></div>`).join('')||'<span style="color:var(--text-muted);">No timeline</span>'}</div>`;
+    } catch(err){_q('#prDetailModalBody').innerHTML=`<p style="color:var(--danger);">${_esc(err.message||'Error')}</p>`;}
+  }
+
+  async function _openPrModal(id) {
+    _q('#prEditModal').hidden=false; _q('#prEditModalTitle').textContent=id?'Edit Problem':'New Problem'; _q('#prFormId').value=id||'';
+    const map={title:'prFormTitle',description:'prFormDesc',priority:'prFormPriority',category:'prFormCategory',owner:'prFormOwner',assignee:'prFormAssignee',root_cause:'prFormRootCause',workaround:'prFormWorkaround',linked_change_id:'prFormLinkedChange'};
+    if(id){try{const p=await _api(`/problems/${id}`);Object.entries(map).forEach(([k,eid])=>{const el=_q('#'+eid);if(el&&p[k]!=null)el.value=p[k];});}catch(_){}}
+    else{Object.values(map).forEach(eid=>{const el=_q('#'+eid);if(el)el.value=''});}
+  }
+
+  async function _savePr() {
+    const id=_q('#prFormId').value;
+    const body={title:_q('#prFormTitle').value,description:_q('#prFormDesc').value,priority:_q('#prFormPriority').value,
+      category:_q('#prFormCategory').value,owner:_q('#prFormOwner').value,assignee:_q('#prFormAssignee').value,
+      root_cause:_q('#prFormRootCause').value,workaround:_q('#prFormWorkaround').value,
+      linked_change_id:_q('#prFormLinkedChange').value||null};
+    try{await _api(id?`/problems/${id}`:'/problems',id?'PATCH':'POST',body);_q('#prEditModal').hidden=true;_loadPrStats();_loadProblems();}
+    catch(err){alert('Save failed: '+(err.message||err));}
+  }
+
+  async function _openPrTransModal() { _q('#prTransitionModal').hidden=false; }
+
+  async function _doPrTransition() {
+    const status=_q('#prTransitionStatus').value; const note=_q('#prTransitionNote').value; if(!status) return;
+    try{await _api(`/problems/${_prCurrentId}/transition`,'POST',{status,note});_q('#prTransitionModal').hidden=true;_prOpenDetail(_prCurrentId);_loadPrStats();_loadProblems();}
+    catch(err){alert('Transition failed: '+(err.message||err));}
+  }
+
+  async function _linkPrIncident() {
+    const incident_id=_q('#prLinkIncidentId').value.trim(); if(!incident_id) return;
+    try{await _api(`/problems/${_prCurrentId}/incidents`,'POST',{incident_id});_q('#prLinkIncidentModal').hidden=true;_prOpenDetail(_prCurrentId);}
+    catch(err){alert('Failed: '+(err.message||err));}
+  }
+
+  async function _addPrTimeline() {
+    const body={event_type:_q('#prTimelineEventType').value,note:_q('#prTimelineNote').value,author:_q('#prTimelineAuthor').value};
+    try{await _api(`/problems/${_prCurrentId}/timeline`,'POST',body);_q('#prTimelineModal').hidden=true;_prOpenDetail(_prCurrentId);}
+    catch(err){alert('Failed: '+(err.message||err));}
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
