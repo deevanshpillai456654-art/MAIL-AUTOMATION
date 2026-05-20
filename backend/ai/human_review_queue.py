@@ -51,6 +51,14 @@ class HumanReviewQueue:
                 if self._items[i].tenant_id == tenant_id and self._items[i].status == "pending"
             ]
 
+    def stats(self) -> Dict[str, int]:
+        with self._lock:
+            pending = [item for item in self._items.values() if item.status == "pending"]
+            return {
+                "pending": len(pending),
+                "tenants_with_pending": len({item.tenant_id for item in pending}),
+            }
+
     def resolve(self, item_id: str, resolution: str) -> None:
         with self._lock:
             if item_id in self._items:

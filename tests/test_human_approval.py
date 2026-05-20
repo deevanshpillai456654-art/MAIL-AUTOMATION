@@ -18,6 +18,20 @@ def test_human_review_queue_returns_pending_items_for_tenant_only():
     assert all(item.status == "pending" for item in pending)
 
 
+def test_human_review_queue_stats_counts_pending_without_payloads():
+    from backend.ai.human_review_queue import HumanReviewQueue
+
+    queue = HumanReviewQueue()
+    approved = queue.enqueue("tenant-a", "review", {"secret": "hidden"})
+    queue.enqueue("tenant-a", "review", {"secret": "hidden"})
+    queue.enqueue("tenant-b", "review", {"secret": "hidden"})
+    queue.resolve(approved, "approved")
+
+    stats = queue.stats()
+
+    assert stats == {"pending": 2, "tenants_with_pending": 2}
+
+
 def test_human_approval_api_enqueue_list_and_decide(monkeypatch):
     import backend.api.human_approval as approval_mod
     from backend.ai.human_review_queue import HumanReviewQueue

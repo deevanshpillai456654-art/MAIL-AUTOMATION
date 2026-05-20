@@ -199,15 +199,7 @@ def _human_approval_metrics() -> Dict[str, Any]:
         from backend.api.human_approval import get_human_approval_queue
 
         queue = get_human_approval_queue()
-        pending = [
-            item for item in queue._items.values()
-            if getattr(item, "status", "") == "pending"
-        ]
-        tenants = {item.tenant_id for item in pending}
-        return {
-            "pending": len(pending),
-            "tenants_with_pending": len(tenants),
-        }
+        return queue.stats()
     except Exception:
         return {"pending": 0, "tenants_with_pending": 0}
 
