@@ -1,0 +1,56 @@
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+
+def test_human_review_queue_returns_pending_items_for_tenant_only():
+    from backend.ai.human_review_queue import HumanReviewQueue
+
+    queue = HumanReviewQueue()
+    keep = queue.enqueue("tenant-a", "low_confidence", {"message": "review"})
+    done = queue.enqueue("tenant-a", "policy", {"message": "done"})
+    queue.enqueue("tenant-b", "policy", {"message": "other"})
+    queue.resolve(done, "approved")
+
+    pending = queue.pending_for_tenant("tenant-a")
+
+    assert [item.item_id for item in pending] == [keep]
+    assert all(item.tenant_id == "tenant-a" for item in pending)
+    assert all(item.status == "pending" for item in pending)
+
+
+def test_human_approval_api_enqueue_list_and_decide(monkeypatch):
+    import backend.api.human_approval as approval_mod
+    from backend.ai.human_review_queue import HumanReviewQueue
+    from backend.auth.local_auth import require_local_auth
+
+    monkeypatch.setattr(approval_mod, "_queue", HumanReviewQueue())
+    app = FastAPI()
+    app.dependency_overrides[require_local_auth] = lambda: True
+    app.include_router(approval_mod.router, prefix="/api/v1")
+    client = TestClient(app)
+
+    created = client.post("/api/v1/approvals", json={
+        "tenant_id": "tenant-a",
+        "reason": "human_approval_required",
+        "payload": {"action": "send_email"},
+    })
+    assert created.status_code == 201
+    item_id = created.json()["id"]
+
+    listed = client.get("/api/v1/approvals?tenant_id=tenant-a")
+    assert listed.status_code == 200
+    assert listed.json()["count"] == 1
+    assert listed.json()["items"][0]["id"] == item_id
+
+    decided = client.patch(f"/api/v1/approvals/{item_id}", json={"status": "approved"})
+    assert decided.status_code == 200
+    assert decided.json()["status"] == "approved"
+
+    listed_again = client.get("/api/v1/approvals?tenant_id=tenant-a")
+    assert listed_again.json()["count"] == 0
+
+
+def test_human_approval_router_registered():
+    from backend.app.router_registry import API_ROUTER_SPECS
+
+    assert "human_approval" in {spec.name for spec in API_ROUTER_SPECS}

@@ -45,7 +45,11 @@ class HumanReviewQueue:
 
     def pending_for_tenant(self, tenant_id: str) -> List[ReviewItem]:
         with self._lock:
-            return [self._items[i] for i in self._order if self._items[i].tenant_id == tenant_id]
+            return [
+                self._items[i]
+                for i in self._order
+                if self._items[i].tenant_id == tenant_id and self._items[i].status == "pending"
+            ]
 
     def resolve(self, item_id: str, resolution: str) -> None:
         with self._lock:

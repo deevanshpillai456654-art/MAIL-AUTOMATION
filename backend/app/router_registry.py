@@ -30,6 +30,7 @@ from backend.api.workflow_scheduler import router as workflow_scheduler_router
 from backend.api.workflows import router as workflows_router
 from backend.api.frontend_runtime import router as frontend_runtime_router
 from backend.api.health import router as health_router
+from backend.api.human_approval import router as human_approval_router
 from backend.api.integrations import router as integrations_router
 from backend.api.learning import router as learning_router
 from backend.api.port import router as port_router
@@ -96,6 +97,7 @@ API_ROUTER_SPECS: tuple[RouterSpec, ...] = (
     RouterSpec("ocr", ocr_router),
     RouterSpec("workflows", workflows_router),
     RouterSpec("events", event_bus_router),
+    RouterSpec("human_approval", human_approval_router),
     RouterSpec("intelligence", intelligence_router),
     RouterSpec("telemetry", telemetry_router),
     RouterSpec("agents", agents_router),

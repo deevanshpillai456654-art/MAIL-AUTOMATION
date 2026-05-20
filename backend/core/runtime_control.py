@@ -76,6 +76,7 @@ class AgentPolicy:
 SERVICE_POLICIES: Dict[str, ServicePolicy] = {
     "enterprise_system": ServicePolicy("enterprise_system", "Enterprise System", "core", True, False, True, True, True, heavy=True),
     "event_bus": ServicePolicy("event_bus", "Event Bus", "core", True, True, True, True, True, "events"),
+    "human_approval": ServicePolicy("human_approval", "Human Approval", "workflow", True, True, True, True, True, "human_approval"),
     "agents": ServicePolicy("agents", "Agent Supervisor", "agents", True, False, True, True, True, "agents", heavy=True),
     "reconciler": ServicePolicy("reconciler", "Operational Reconciler", "operations", True, False, True, True, True, "reconciler", heavy=True),
     "workflow_scheduler": ServicePolicy("workflow_scheduler", "Workflow Scheduler", "workflow", True, False, True, True, True, "workflow_scheduler"),
@@ -122,7 +123,7 @@ AGENT_POLICIES: Dict[str, AgentPolicy] = {
 }
 
 ALWAYS_ON_ROUTERS = {
-    "core", "oauth", "session", "health", "runtime_control", "ai_gateway", "rules", "integrations",
+    "core", "oauth", "session", "health", "runtime_control", "ai_gateway", "human_approval", "rules", "integrations",
     "frontend_runtime", "system", "security", "enterprise_accounts", "connection",
     "port", "discovery", "export", "tally", "workflows",
 }
