@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
+from backend.core.runtime_control import get_runtime_control
 from backend.security.redaction import redact
 
 router = APIRouter(prefix="/frontend", tags=["frontend-runtime"])
@@ -54,8 +55,10 @@ async def get_recent_frontend_telemetry(limit: int = 25):
 
 @router.get("/runtime-policy")
 async def get_frontend_runtime_policy():
+    runtime = get_runtime_control()
     return {
         "authority": "backend",
+        "runtime": runtime.snapshot(),
         "plaintext_tokens_allowed": False,
         "provider_passwords_allowed": False,
         "mailbox_authority_in_frontend": False,
@@ -68,9 +71,20 @@ async def get_frontend_runtime_policy():
 
 @router.get("/clients/runtime-policy")
 async def get_client_runtime_policy():
+    runtime = get_runtime_control()
+    frontend = runtime.frontend_flags()
     return {
         "zero_trust": True,
         "client_authority": "render_only",
+        "runtime_profile": runtime.profile,
+        "ai_mode": runtime.ai_mode,
+        "rendering_budget": {
+            "minimal_animations": frontend["minimal_animations"],
+            "deferred_rendering": frontend["deferred_rendering"],
+            "virtualize_lists": frontend["virtualize_lists"],
+            "max_visible_rows": 100 if runtime.low_resource else 250 if runtime.profile == "lite" else 500,
+            "poll_interval_seconds": runtime.limits["poll_interval_seconds"],
+        },
         "plaintext_tokens_allowed": False,
         "provider_passwords_allowed": False,
         "mailbox_authority_on_client": False,
