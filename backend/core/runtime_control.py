@@ -99,6 +99,22 @@ SERVICE_POLICIES: Dict[str, ServicePolicy] = {
     "ocr": ServicePolicy("ocr", "Document Intelligence", "ai", True, False, True, True, False, "ocr", heavy=True),
     "threat_intelligence": ServicePolicy("threat_intelligence", "Security Insights", "security", True, False, True, True, False, "threat_intelligence", heavy=True),
     "telemetry": ServicePolicy("telemetry", "Platform Telemetry", "observability", True, False, True, True, False, "telemetry"),
+    "runbooks": ServicePolicy("runbooks", "Runbooks", "operations", True, False, True, True, True, "runbooks"),
+    "change_management": ServicePolicy("change_management", "Change Management", "operations", True, False, True, True, True, "change_management"),
+    "problem_management": ServicePolicy("problem_management", "Problem Management", "operations", True, False, True, True, True, "problem_management"),
+    "service_catalog": ServicePolicy("service_catalog", "Service Catalog", "operations", True, False, True, True, True, "service_catalog"),
+    "deployments": ServicePolicy("deployments", "Deployments", "operations", True, False, True, True, True, "deployments"),
+    "asset_management": ServicePolicy("asset_management", "Asset Management", "operations", True, False, True, True, True, "asset_management"),
+    "knowledge_base": ServicePolicy("knowledge_base", "Knowledge Base", "operations", True, False, True, True, True, "knowledge_base"),
+    "capacity_planning": ServicePolicy("capacity_planning", "Capacity Planning", "operations", True, False, True, True, True, "capacity_planning"),
+    "vendor_management": ServicePolicy("vendor_management", "Vendor Management", "operations", True, False, True, True, True, "vendor_management"),
+    "feature_flags": ServicePolicy("feature_flags", "Feature Flags", "core", True, True, True, True, True, "feature_flags"),
+    "budget_tracking": ServicePolicy("budget_tracking", "Budget Tracking", "operations", True, False, True, True, True, "budget_tracking"),
+    "license_management": ServicePolicy("license_management", "License Management", "operations", True, False, True, True, True, "license_management"),
+    "config_management": ServicePolicy("config_management", "Config Management", "core", True, True, True, True, True, "config_management"),
+    "certificate_management": ServicePolicy("certificate_management", "Certificate Management", "security", True, False, True, True, True, "certificate_management"),
+    "risk_register": ServicePolicy("risk_register", "Risk Register", "security", True, False, True, True, True, "risk_register"),
+    "slo_management": ServicePolicy("slo_management", "SLO Management", "operations", True, False, True, True, True, "slo_management"),
 }
 
 AGENT_POLICIES: Dict[str, AgentPolicy] = {
