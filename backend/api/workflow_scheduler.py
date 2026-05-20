@@ -26,6 +26,7 @@ from fastapi import APIRouter, Depends
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
+from backend.core.runtime_control import get_runtime_control
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/workflow-scheduler", tags=["workflow-scheduler"])
@@ -276,6 +277,9 @@ def get_workflow_scheduler() -> WorkflowScheduler:
 
 
 async def ensure_scheduler_running() -> None:
+    if not get_runtime_control().is_service_enabled("workflow_scheduler"):
+        logger.info("WorkflowScheduler disabled by runtime policy")
+        return
     await _scheduler.start()
 
 

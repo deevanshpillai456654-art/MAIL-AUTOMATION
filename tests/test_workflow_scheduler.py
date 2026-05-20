@@ -247,6 +247,25 @@ def test_triggered_ring_buffer_capped_at_100(tmp_path, monkeypatch):
 
 # ── REST endpoints ────────────────────────────────────────────────────────────
 
+def test_ensure_scheduler_running_honors_runtime_service_toggle(monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_WORKFLOW_SCHEDULER", "false")
+    from backend.api import workflow_scheduler as ws
+
+    class FakeScheduler:
+        def __init__(self):
+            self.started = False
+
+        async def start(self):
+            self.started = True
+
+    fake = FakeScheduler()
+    monkeypatch.setattr(ws, "_scheduler", fake)
+
+    _run(ws.ensure_scheduler_running())
+
+    assert fake.started is False
+
+
 def _client(tmp_path, monkeypatch, workflows=None):
     from backend.api import workflow_scheduler as ws
     from backend.auth.local_auth import require_local_auth
