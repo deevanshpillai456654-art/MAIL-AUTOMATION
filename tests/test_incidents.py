@@ -151,6 +151,28 @@ def test_on_breach_sets_severity_and_metric(tmp_path, monkeypatch):
 
 # ── _add_timeline ─────────────────────────────────────────────────────────────
 
+def test_incident_manager_does_not_subscribe_when_service_disabled(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_INCIDENTS", "false")
+    from backend.api import event_bus
+    from backend.api import incidents as im
+    _setup(tmp_path, monkeypatch)
+
+    class FakeBus:
+        def __init__(self):
+            self.subscribed = []
+
+        def subscribe(self, event_type, handler):
+            self.subscribed.append((event_type, handler))
+
+    fake_bus = FakeBus()
+    monkeypatch.setattr(event_bus, "get_event_bus", lambda: fake_bus)
+
+    im.ensure_incident_manager_running()
+
+    assert fake_bus.subscribed == []
+    assert im._subscribed is False
+
+
 def test_add_timeline_entry(tmp_path, monkeypatch):
     from backend.api import incidents as im
     db_path = _setup(tmp_path, monkeypatch)

@@ -41,6 +41,7 @@ from pydantic import BaseModel
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
+from backend.core.runtime_control import get_runtime_control
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/incidents", tags=["incidents"])
@@ -230,6 +231,9 @@ async def _on_breach(event: dict) -> None:
 def ensure_incident_manager_running() -> None:
     global _subscribed
     if _subscribed:
+        return
+    if not get_runtime_control().is_service_enabled("incidents"):
+        logger.info("IncidentManager: disabled by runtime policy")
         return
     _init_db()
     try:
