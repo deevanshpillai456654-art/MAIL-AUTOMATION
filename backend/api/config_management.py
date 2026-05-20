@@ -411,7 +411,7 @@ async def list_versions(
         ).fetchone()[0]
         rows = con.execute(
             f"SELECT {','.join(_VER_COLS)} FROM config_versions "
-            "WHERE config_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            "WHERE config_id=? ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?",
             (config_id, limit, offset),
         ).fetchall()
         con.close()

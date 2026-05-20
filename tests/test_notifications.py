@@ -290,3 +290,23 @@ def test_trim_keeps_max_500(tmp_path, monkeypatch):
     count = con.execute("SELECT COUNT(*) FROM notifications").fetchone()[0]
     con.close()
     assert count <= nc._MAX_STORE
+
+
+def test_trim_uses_runtime_notification_queue_limit(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_NOTIFICATIONS_QUEUE_LIMIT", "3")
+    from backend.api import notifications as nc
+    db_path = _setup(tmp_path, monkeypatch)
+
+    con = sqlite3.connect(db_path)
+    now = datetime.now(timezone.utc).isoformat()
+    for i in range(5):
+        con.execute(
+            "INSERT INTO notifications (id, event_type, title, severity, is_read, created_at) VALUES (?,?,?,?,0,?)",
+            (str(uuid.uuid4()), "threat.detected", f"N{i}", "low", now),
+        )
+    nc._trim(con)
+    con.commit()
+    count = con.execute("SELECT COUNT(*) FROM notifications").fetchone()[0]
+    con.close()
+
+    assert count == 3

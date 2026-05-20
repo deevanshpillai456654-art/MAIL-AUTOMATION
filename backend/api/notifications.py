@@ -39,6 +39,7 @@ from pydantic import BaseModel
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
+from backend.core.runtime_control import get_runtime_control
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/notifications", tags=["notifications"])
@@ -89,10 +90,11 @@ def _now() -> str:
 
 
 def _trim(con: sqlite3.Connection) -> None:
+    max_store = min(_MAX_STORE, get_runtime_control().service_limits("notifications")["queue_limit"])
     con.execute(
         """DELETE FROM notifications WHERE id NOT IN (
                SELECT id FROM notifications ORDER BY created_at DESC LIMIT ?)""",
-        (_MAX_STORE,),
+        (max_store,),
     )
 
 

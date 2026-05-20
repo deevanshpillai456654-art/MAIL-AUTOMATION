@@ -174,6 +174,15 @@ def test_patch_value_creates_new_version(tmp_path, monkeypatch):
     assert vers[0]["note"] == "bump for release"
 
 
+def test_versions_use_insertion_order_when_timestamps_match(tmp_path, monkeypatch):
+    monkeypatch.setattr(cm_mod, "_now", lambda: "2026-05-20T00:00:00+00:00")
+    c = _client(tmp_path, monkeypatch)
+    d = _create(c, value="old_val")
+    _patch(c, d["id"], value="new_val", changed_by="ci-bot")
+    vers = c.get(f"/api/v1/configs/{d['id']}/versions").json()["versions"]
+    assert [v["value"] for v in vers] == ["new_val", "old_val"]
+
+
 def test_patch_same_value_no_new_version(tmp_path, monkeypatch):
     c = _client(tmp_path, monkeypatch)
     d = _create(c, value="same_val")
