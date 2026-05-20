@@ -44,7 +44,7 @@ button, input, select { font: inherit; }
 /* ── layout ──────────────────────────────────────────────────────────────── */
 .wrap          { padding: 12px; }
 .extension-popup { width: 360px; }
-.hidden        { display: none !important; }
+.hidden        { display: none; }
 
 /* ── brand bar ───────────────────────────────────────────────────────────── */
 .brand, .hero-brand {
@@ -202,35 +202,35 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   outline: 2px solid rgba(37,99,235,0.40); outline-offset: 2px;
 }
 .primary {
-  background: linear-gradient(180deg, #2D70FF 0%, #2563EB 55%, #1F5ADE 100%) !important;
-  color: #fff !important;
-  border-color: #1A52D0 !important;
-  box-shadow: var(--shadow-primary) !important;
+  background: linear-gradient(180deg, #2D70FF 0%, #2563EB 55%, #1F5ADE 100%);
+  color: #fff;
+  border-color: #1A52D0;
+  box-shadow: var(--shadow-primary);
 }
 .primary:hover {
-  background: linear-gradient(180deg, #3B7AFF 0%, #2D6EFF 55%, #2461E8 100%) !important;
-  border-color: #2460DF !important;
-  box-shadow: var(--shadow-primary-h) !important;
+  background: linear-gradient(180deg, #3B7AFF 0%, #2D6EFF 55%, #2461E8 100%);
+  border-color: #2460DF;
+  box-shadow: var(--shadow-primary-h);
   transform: translateY(-1px);
 }
 .primary:active {
-  background: linear-gradient(180deg, #2461E8 0%, #1E55D8 100%) !important;
-  box-shadow: 0 1px 2px rgba(37,99,235,0.22), inset 0 1px 3px rgba(0,0,0,0.14) !important;
-  transform: translateY(0) !important;
+  background: linear-gradient(180deg, #2461E8 0%, #1E55D8 100%);
+  box-shadow: 0 1px 2px rgba(37,99,235,0.22), inset 0 1px 3px rgba(0,0,0,0.14);
+  transform: translateY(0);
 }
 .secondary {
-  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%) !important;
-  border-color: var(--line) !important;
-  color: var(--muted) !important;
-  box-shadow: var(--shadow-btn) !important;
+  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+  border-color: var(--line);
+  color: var(--muted);
+  box-shadow: var(--shadow-btn);
 }
 .secondary:hover {
-  background: linear-gradient(180deg, #FFFFFF 0%, #F2F5FA 100%) !important;
-  border-color: #CBD5E1 !important;
-  color: var(--text) !important;
+  background: linear-gradient(180deg, #FFFFFF 0%, #F2F5FA 100%);
+  border-color: #CBD5E1;
+  color: var(--text);
 }
-.danger { background: rgba(220,38,38,0.07) !important; border-color: rgba(220,38,38,0.20) !important; color: var(--bad) !important; box-shadow: none !important; }
-.danger:hover { background: rgba(220,38,38,0.12) !important; transform: translateY(-1px); }
+.danger { background: rgba(220,38,38,0.07); border-color: rgba(220,38,38,0.20); color: var(--bad); box-shadow: none; }
+.danger:hover { background: rgba(220,38,38,0.12); transform: translateY(-1px); }
 .small-btn { padding: 6px 11px; font-size: 12px; }
 
 /* ── footer ──────────────────────────────────────────────────────────────── */
@@ -423,5 +423,5 @@ code {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  *, *::before, *::after { animation: none; transition: none; }
 }

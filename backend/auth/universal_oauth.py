@@ -26,17 +26,24 @@ logger = logging.getLogger(__name__)
 
 
 class UniversalOAuth:
-    def __init__(self, provider: str, db: Database = None, redirect_uri: str = None, cipher: TokenCipher = None):
+    def __init__(self, provider: str, db: Database = None, redirect_uri: str = None,
+                 cipher: TokenCipher = None, email_address: str = None):
         self.provider = normalize_provider(provider)
         if self.provider not in OAUTH_GROUPS:
             raise ValueError(f"Provider {provider!r} is not OAuth-capable")
         self.meta = OAUTH_GROUPS[self.provider]
-        saved = ProviderConfigManager().get_oauth_config(self.provider, runtime_redirect_uri=redirect_uri)
+        saved = ProviderConfigManager().get_oauth_config(
+            self.provider,
+            runtime_redirect_uri=redirect_uri,
+            email_address=email_address,
+        )
         self.client_id = saved.get("client_id")
         self.client_secret = saved.get("client_secret")
         self.redirect_uri = redirect_uri or saved.get("redirect_uri")
         self.tenant_id = saved.get("tenant_id") or "common"
         self.scopes = saved.get("scopes") or self.meta.get("scopes", [])
+        self.oauth_config_provider = saved.get("oauth_config_provider") or self.provider
+        self.oauth_config_email = saved.get("oauth_config_email")
         self.db = db or Database(config.DB_PATH)
         self.cipher = cipher or TokenCipher()
 
@@ -62,7 +69,10 @@ class UniversalOAuth:
     def _format_url(self, template: str) -> str:
         return template.format(tenant=self.tenant_id)
 
-    def create_authorization_request(self, redirect_uri: str = None, login_hint: str = None) -> Dict:
+    def create_authorization_request(self, redirect_uri: str = None, login_hint: str = None,
+                                     oauth_config_provider: str = None,
+                                     oauth_config_email: str = None,
+                                     redirect_after_callback: str = None) -> Dict:
         config_status = self.validate_configuration()
         if not config_status["configured"]:
             return {
@@ -75,8 +85,18 @@ class UniversalOAuth:
         state = self.generate_state()
         pkce = self.generate_pkce_pair()
         callback = redirect_uri or self.redirect_uri
-        expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
-        self.db.create_oauth_state(self.provider, state, pkce["verifier"], callback, expires_at)
+        expires_at = (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat()
+        self.db.create_oauth_state(
+            self.provider,
+            state,
+            pkce["verifier"],
+            callback,
+            expires_at,
+            login_hint,
+            oauth_config_provider=oauth_config_provider or self.oauth_config_provider,
+            oauth_config_email=oauth_config_email if oauth_config_email is not None else self.oauth_config_email,
+            redirect_after_callback=redirect_after_callback,
+        )
         return {
             "configured": True,
             "provider": self.provider,
@@ -97,10 +117,12 @@ class UniversalOAuth:
         if self.provider == "zoho":
             params["access_type"] = "offline"
             params["prompt"] = "consent"
+        if self.provider == "yandex":
+            params["force_confirm"] = "yes"
         if code_challenge:
             params["code_challenge"] = code_challenge
             params["code_challenge_method"] = "S256"
-        if login_hint:
+        if login_hint and self.provider in {"zoho", "yandex"}:
             params["login_hint"] = login_hint
         return f"{self._format_url(self.meta['auth_url'])}?{urlencode(params)}"
 

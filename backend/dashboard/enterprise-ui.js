@@ -1,4 +1,4 @@
-// INTEMO - Enterprise Application Runtime v2
+﻿// INTEMO - Enterprise Application Runtime v2
 (() => {
   'use strict';
 
@@ -20,10 +20,11 @@
 
   const state = {
     currentView: 'dashboard',
-    accounts: [], emails: [], rules: [], templates: [], reports: {}, admin: {},
-    selectedEmail: null, savedFilter: 'all', currentProvider: 'custom',
+    accounts: [], emails: [], folders: [], labels: [], rules: [], templates: [], reports: {}, admin: {},
+    selectedEmail: null, selectedMailboxId: '', savedFilter: 'all', currentProvider: 'custom',
     selectedEmails: new Set(),
-    onnx: {status: null, lastClassification: null, lastPayload: null, learningImportPreview: null}
+    onnx: {status: null, lastClassification: null, lastPayload: null, learningImportPreview: null},
+    runtime: {profile: 'standard', ai_mode: 'cloud', frontend: {low_resource: false, minimal_animations: false, deferred_rendering: false}}
   };
 
   const PROVIDER_DEFAULTS = {
@@ -71,29 +72,39 @@
   };
 
   const PAGES = {
-    dashboard:   ['Dashboard',    'Operational overview — mailboxes, inbox health, AI processing and automations.'],
+    dashboard:   ['Dashboard',    'Operational overview  -  mailboxes, inbox health, AI processing and automations.'],
     accounts:    ['Accounts',     'Connect Gmail, Outlook, Microsoft 365, Exchange, Yahoo, Zoho, IMAP/SMTP and custom domain mailboxes.'],
     inbox:       ['Inbox',        'Threaded conversations with AI summaries, labels, folders and workflow actions.'],
     ai:          ['AI Processing','Analyze, classify and extract entities from emails with controlled workflow actions.'],
     automations: ['Automations',  'Create, simulate and manage forwarding, categorization and workflow rules.'],
     templates:   ['Templates',    'Reusable reply, rule and reporting templates.'],
     reports:     ['Analytics',    'Generate operational, business, forwarding, AI and inbox reports.'],
-    connectors:  ['Connectors',   'Install, configure and monitor integrations — Gmail, Slack, WhatsApp, Shopify, webhooks and plugins.'],
-    ocr:         ['OCR Engine',   'Scan PDFs, images and emails — extract text and structured fields like invoice numbers, dates and amounts.'],
-    workflows:   ['Workflow Engine',    'Build, activate and monitor AI-native operational workflows — from inbox triage to threat escalation.'],
-    command:     ['Command Center',    'Unified operational intelligence — real-time event timeline, AI insights, autonomous agents, and system health.'],
+    connectors:  ['Connectors',   'Install, configure and monitor integrations  -  Gmail, Slack, WhatsApp, Shopify, webhooks and plugins.'],
+    ocr:         ['OCR Engine',   'Scan PDFs, images and emails  -  extract text and structured fields like invoice numbers, dates and amounts.'],
+    workflows:   ['Workflow Engine',    'Build, activate and monitor AI-native operational workflows  -  from inbox triage to threat escalation.'],
+    command:     ['Command Center',    'Unified operational intelligence  -  real-time event timeline, AI insights, autonomous agents, and system health.'],
     webhooks:    ['Webhooks',     'Push platform events to Slack, PagerDuty, n8n or any HTTP endpoint with HMAC-signed payloads.'],
     admin:       ['Admin',        'Manage governance, users, roles, provider settings, queues and update controls.'],
     settings:    ['Settings',     'General, accounts, AI, automations, notifications, security, integrations, updates and advanced.']
   };
   PAGES.dashboard = ['Dashboard', 'Operational overview - mailboxes, inbox health, AI processing, and automations.'];
-  PAGES.dispatches = ['Dispatches', 'Scheduled operational digests — generate and deliver platform reports on a recurring schedule.'];
-  PAGES.playbooks  = ['Playbooks',  'Automation sequences — trigger workflows, webhooks, notifications and incident comments in response to platform events.'];
-  PAGES.sla         = ['SLA Tracker', 'Response and resolution time limits per severity — automatic breach detection and event emission.'];
-  PAGES.maintenance = ['Maintenance', 'Schedule planned downtime windows — suppresses alerts, incidents and SLA tracking for the duration.'];
-  PAGES['api-keys'] = ['API Keys',    'Manage named API keys for external integrations — hashed storage, scope control, expiry and rotation.'];
-  PAGES.oncall      = ['On-call',     'Rotation schedules and escalation policies — automatic escalation events for unacknowledged incidents.'];
-  PAGES.runbooks    = ['Runbooks',   'Human-readable incident response and operational documentation with full version history and search.'];
+  PAGES.dispatches = ['Activity Queue', 'Scheduled operational digests - generate and deliver platform reports on a recurring schedule.'];
+  PAGES.playbooks  = ['AI Actions', 'Automation sequences - trigger workflows, webhooks, notifications and incident comments in response to platform events.'];
+  PAGES.webhooks   = ['Webhook Channels', 'Push platform events to Slack, PagerDuty, n8n or any HTTP endpoint with HMAC-signed payloads.'];
+  PAGES.sla        = ['Service Goals', 'Response and resolution time targets per severity with automatic event emission.'];
+  PAGES.oncall     = ['Team Availability', 'Rotation schedules and escalation policies for unacknowledged incidents.'];
+  PAGES['api-keys'] = ['API Access', 'Manage named access keys for external integrations - hashed storage, scope control, expiry and rotation.'];
+  PAGES.maintenance = ['System Updates', 'Schedule planned update windows and suppress alerts for the duration.'];
+  PAGES.runbooks   = ['Automation Guides', 'Human-readable operational documentation with full version history and search.'];
+  PAGES.changes    = ['Change Requests', 'Plan, approve and track operational changes.'];
+  PAGES.problems   = ['Service Issues', 'Track recurring service issues and root-cause work.'];
+  PAGES.risks      = ['Risk Overview', 'Review business risk, ownership and mitigation status.'];
+  PAGES.certificates = ['Secure Access', 'Track certificates, expiry and renewal readiness.'];
+  PAGES.configs    = ['Workspace Settings', 'Manage workspace configuration and version history.'];
+  PAGES.flags      = ['Status Markers', 'Manage feature flags and rollout status markers.'];
+  PAGES.capacity   = ['System Usage', 'Monitor capacity and resource utilization.'];
+  PAGES.knowledge  = ['Knowledge Base', 'Search and maintain internal operating knowledge.'];
+  PAGES.deployments = ['Releases', 'Track releases, rollout status and operational notes.'];
 
   const FALLBACK_ADMIN_SECTIONS = [
     ['User Management','Manage users, invites and account ownership.'],
@@ -118,7 +129,7 @@
     ['License / Subscription','View license, plan and deployment entitlement.']
   ].map(([name, description]) => ({name, description, items:[{label:'Status',value:'Ready'},{label:'Controls',value:'Available'},{label:'Audit',value:'Enabled'}]}));
 
-  // ── API ─────────────────────────────────────────────────────────────────────
+  // -- API ---------------------------------------------------------------------
   function requiresAiAdminRole(url, method = 'GET') {
     let path = String(url || '');
     try { path = new URL(path, location.origin).pathname; } catch { path = path.split('?')[0]; }
@@ -165,6 +176,18 @@
     if (!error) return 'Request failed.';
     if (typeof error === 'string') return error;
     return error.client_message || error.message || error.status || JSON.stringify(error).slice(0, 220);
+  }
+
+  async function loadRuntimeProfile() {
+    const result = await api('/api/v1/runtime/frontend');
+    if (!result.ok) return state.runtime;
+    state.runtime = result.data || state.runtime;
+    const flags = state.runtime.frontend || {};
+    document.documentElement.dataset.runtimeProfile = state.runtime.profile || 'standard';
+    document.documentElement.dataset.aiMode = state.runtime.ai_mode || 'cloud';
+    document.documentElement.classList.toggle('low-resource-mode', !!flags.low_resource);
+    document.documentElement.classList.toggle('minimal-animations', !!flags.minimal_animations);
+    return state.runtime;
   }
 
   function connectorNavIcon(category) {
@@ -254,7 +277,7 @@
     if (event.data?.type === 'connectors:changed') refreshConnectorFeatureNavigation();
   });
 
-  // ── Toasts ──────────────────────────────────────────────────────────────────
+  // -- Toasts ------------------------------------------------------------------
   function toast(title, msg = '', tone = 'info') {
     const wrap = $('toastWrap');
     if (!wrap) return;
@@ -265,7 +288,7 @@
     setTimeout(() => node.remove(), 5200);
   }
 
-  // ── View routing ────────────────────────────────────────────────────────────
+  // -- View routing ------------------------------------------------------------
   function showView(view, settingsTab) {
     const requestedNav = document.querySelector(`.nav-btn[data-view="${view}"]`);
     if (requestedNav?.hidden) view = 'connectors';
@@ -282,7 +305,7 @@
     if ($('pageSubtitle')) $('pageSubtitle').textContent = subtitle;
     if (view === 'accounts')    loadAccounts();
     if (view === 'inbox')       loadInbox();
-    if (view === 'automations') { loadRules(); loadRuleAnalytics(); loadLabelsAndFolders(); loadPresets(); }
+    if (view === 'automations') { loadRules(); loadRuleAnalytics(); populateRuleMailboxOptions(); loadLabelsAndFolders(); loadPresets(); }
     if (view === 'templates')   loadTemplates();
     if (view === 'reports')     loadReports(true);
     if (view === 'admin')       loadAdmin();
@@ -313,7 +336,7 @@
     window.scrollTo({top:0, behavior:'smooth'});
   }
 
-  // ── Provider helpers ────────────────────────────────────────────────────────
+  // -- Provider helpers --------------------------------------------------------
   function oauthFamily(provider) {
     if (provider === 'gmail') return 'gmail';
     if (['outlook','microsoft365','exchange'].includes(provider)) return 'microsoft';
@@ -339,6 +362,36 @@
     return '';
   }
 
+  function oauthStartUrlWithEmail(provider, email) {
+    const base = oauthStartUrl(provider);
+    if (!base) return '';
+    const parsed = new URL(base, window.location.origin);
+    parsed.searchParams.set('email', email);
+    return `${parsed.pathname}${parsed.search}`;
+  }
+
+  function updateOAuthSubmitState() {
+    const form = $('accountForm');
+    const submit = form?.querySelector('button[type="submit"]');
+    if (!submit) return;
+    const oauthActive = Boolean(oauthFamily(state.currentProvider) && selectedConnectionMethod() === 'oauth');
+    submit.disabled = oauthActive;
+  }
+
+  function useAppPasswordFlow() {
+    const select = $('connectionMethod');
+    if (select) select.value = 'app_password';
+    const pw = $('accountForm')?.password;
+    if (pw) {
+      const label = pw.closest('label');
+      label?.classList.remove('muted-field');
+      pw.required = true;
+      pw.disabled = false;
+    }
+    renderProviderActionPanel(state.currentProvider || 'custom');
+    updateOAuthSubmitState();
+  }
+
   function providerForEmail(email) {
     const domain = String(email || '').toLowerCase().split('@').pop() || '';
     if (['gmail.com','googlemail.com'].includes(domain)) return 'gmail';
@@ -360,7 +413,7 @@
     return base;
   }
 
-  // ── Account status panel (dynamic) ─────────────────────────────────────────
+  // -- Account status panel (dynamic) -----------------------------------------
   function ensureAccountStatusPanel() {
     const form = $('accountForm');
     if (!form) return;
@@ -393,8 +446,15 @@
     if (!panel) return;
     const family = oauthFamily(provider);
     const d = defaultsFor(provider, $('accountForm')?.email?.value || '');
-    if (family) {
-      panel.innerHTML = `<div class="provider-flow-card ${mode === 'setup' ? 'warn' : ''}"><div><b>${esc(oauthLabel(provider))} official OAuth flow</b><span>${esc(detail || 'OAuth uses the provider sign-in page and token vault. Mailbox password fields are hidden in this mode.')}</span><small>Permissions: read, organize, send, refresh offline access and AI indexing.</small></div><div class="provider-flow-actions"><button class="btn primary" data-oauth-start="${esc(provider)}" type="button">Continue with ${esc(oauthLabel(provider))}</button><button class="btn" data-show-oauth-setup="${esc(provider)}" type="button">Configure OAuth App</button></div></div>`;
+    if (family && selectedConnectionMethod() !== 'app_password') {
+      const guidance = family === 'gmail'
+        ? 'Gmail uses Google OAuth. Google OAuth can be blocked until the Google Cloud OAuth consent screen is configured and the mailbox is added as a test user.'
+        : family === 'yahoo'
+          ? 'Yahoo mail requires an app password for IMAP/SMTP, or a correctly configured Yahoo OAuth app for OAuth mail access.'
+          : family === 'zoho'
+            ? 'Zoho supports IMAP/SMTP app passwords and OAuth depending on the account region.'
+            : 'OAuth uses the provider sign-in page and token vault. Mailbox password fields are hidden in this mode.';
+      panel.innerHTML = `<div class="provider-flow-card ${mode === 'setup' ? 'warn' : ''}"><div><b>${esc(oauthLabel(provider))} official OAuth flow</b><span>${esc(detail || guidance)}</span><small>Permissions: read, organize, send, refresh offline access and AI indexing.</small></div><div class="provider-flow-actions"><button class="btn primary" data-oauth-start="${esc(provider)}" type="button">Continue OAuth for entered email</button><button class="btn" data-show-oauth-setup="${esc(provider)}" type="button">Configure OAuth App</button><button class="btn" data-use-app-password type="button">Use app password instead</button></div></div>`;
       return;
     }
     const guidance = provider === 'proton' ? 'Start Proton Mail Bridge first, then enter the bridge credentials and local IMAP/SMTP ports.'
@@ -410,10 +470,11 @@
     const group = oauthFamily(provider);
     if (!group) { renderProviderActionPanel(provider); return; }
     const redirectMap = {gmail:'/api/v1/oauth/google/callback', microsoft:'/api/v1/oauth/microsoft/callback', yahoo:'/api/v1/oauth/yahoo/callback', zoho:'/api/v1/oauth/zoho/callback', yandex:'/api/v1/oauth/yandex/callback'};
-    const cloudMap = {gmail:'Google Cloud Console → APIs & Services → Credentials', microsoft:'Azure Portal → App registrations', yahoo:'Yahoo Developer Network → My Apps', zoho:'Zoho API Console', yandex:'Yandex OAuth Console'};
+    const cloudMap = {gmail:'Google Cloud Console -> APIs & Services -> Credentials', microsoft:'Azure Portal -> App registrations', yahoo:'Yahoo Developer Network -> My Apps', zoho:'Zoho API Console', yandex:'Yandex OAuth Console'};
     const redirect = `${location.origin}${redirectMap[group] || '/api/v1/oauth/google/callback'}`;
     const tenant = group === 'microsoft' ? `<label>Tenant ID<input name="tenant_id" value="common" placeholder="common or tenant ID"></label>` : '';
-    panel.innerHTML = `<form class="oauth-setup-card" id="inlineOAuthSetupForm"><div class="wide"><b>Configure ${esc(oauthLabel(provider))} OAuth once</b><span>${esc(message || 'Save OAuth credentials here, then the provider login opens automatically.')}</span><small>Create the app in ${esc(cloudMap[group] || 'Provider developer console')} and add this redirect URI:</small><code>${esc(redirect)}</code></div><input type="hidden" name="provider" value="${esc(group)}"><input type="hidden" name="redirect_uri" value="${esc(redirect)}"><label>Client ID<input name="client_id" placeholder="OAuth client/application ID" required></label><label>Client Secret<input name="client_secret" type="password" placeholder="Stored encrypted locally" required></label>${tenant}<div class="form-actions wide"><button class="btn primary" type="submit">Save OAuth &amp; Continue</button><button class="btn" data-oauth-start="${esc(provider)}" type="button">Try Existing OAuth</button></div></form>`;
+    const accountEmail = String($('accountForm')?.email?.value || '').trim().toLowerCase();
+    panel.innerHTML = `<form class="oauth-setup-card" id="inlineOAuthSetupForm"><div class="wide"><b>Configure ${esc(oauthLabel(provider))} OAuth app</b><span>${esc(message || 'Save OAuth app details for this mailbox. Provider login starts only when you continue OAuth separately.')}</span><small>${group === 'gmail' ? 'Google OAuth can be blocked until the Google Cloud OAuth consent screen is configured with the correct test user.' : ''} Create the app in ${esc(cloudMap[group] || 'Provider developer console')} and add this redirect URI:</small><code>${esc(redirect)}</code></div><input type="hidden" name="provider" value="${esc(group)}"><input type="hidden" name="email_address" value="${esc(accountEmail)}"><input type="hidden" name="redirect_uri" value="${esc(redirect)}"><label>Email address<input value="${esc(accountEmail)}" readonly></label><label>Client ID<input name="client_id" placeholder="OAuth client/application ID" required></label><label>Client Secret<input name="client_secret" type="password" placeholder="Stored encrypted locally" required></label>${tenant}<div class="form-actions wide"><button class="btn primary" type="submit">Save OAuth app details</button><button class="btn" data-continue-oauth="${esc(provider)}" type="button">Continue OAuth for entered email</button><button class="btn" data-use-app-password type="button">Use app password instead</button></div></form>`;
   }
 
   function renderProviders() {
@@ -447,6 +508,7 @@
       pw.disabled = !!oauthOn;
       if (oauthOn) pw.value = '';
     }
+    updateOAuthSubmitState();
   }
 
   function selectedConnectionMethod() {
@@ -524,10 +586,17 @@
   async function startOAuthFlow(provider, email) {
     const family = oauthFamily(provider);
     if (!family) { setAccountStatus('App-password flow required', 'This provider connects via IMAP/SMTP. Enter the mailbox app password and click Save & Start Sync.', 'warn'); renderProviderActionPanel(provider); return; }
-    const start = oauthStartUrl(provider);
+    const accountEmail = String(email || $('accountForm')?.email?.value || '').trim().toLowerCase();
+    if (!accountEmail) {
+      const msg = 'Enter the email address before configuring or starting OAuth.';
+      setAccountStatus('Email address required', msg, 'warn');
+      toast('Email address required', msg, 'warn');
+      return;
+    }
+    const start = oauthStartUrlWithEmail(provider, accountEmail);
     setAccountStatus(`Starting ${oauthLabel(provider)} sign-in`, 'Checking OAuth configuration before opening the provider login page...', 'loading');
-    const result = await api(start, {method:'POST', body:JSON.stringify({email: email || $('accountForm')?.email?.value || '', redirect_after:'/dashboard'})});
-    if (result.ok && result.data?.auth_url) { const authUrl = String(result.data.auth_url); if (authUrl.startsWith('https://')) { toast(`${oauthLabel(provider)} sign-in`, 'Opening provider authorization page.', 'ok'); window.location.href = authUrl; return; } }
+    const result = await api(start, {method:'POST', body:JSON.stringify({email: accountEmail, email_address: accountEmail, redirect_after:'/dashboard'})});
+    if (result.ok && result.data?.auth_url) { const target = String(result.data.auth_url); if (target.startsWith('https://')) { toast(`${oauthLabel(provider)} sign-in`, 'Opening provider authorization page.', 'ok'); window.location.assign(target); return; } }
     const err = result.error || result.data || {};
     if (result.status === 428 || err.status === 'provider_setup_required' || err.setup_required) { setAccountStatus('OAuth setup required', msgFromError(err), 'warn'); renderOAuthSetupPanel(provider, msgFromError(err)); return; }
     setAccountStatus('OAuth could not start', msgFromError(err), 'bad');
@@ -538,17 +607,24 @@
     event.preventDefault();
     const form = event.target;
     const provider = form.provider.value;
-    const accountProvider = provider === 'gmail' ? 'gmail' : provider === 'microsoft' ? (state.currentProvider || 'outlook') : provider;
     const payload = Object.fromEntries(new FormData(form).entries());
+    const accountEmail = String(payload.email_address || $('accountForm')?.email?.value || '').trim().toLowerCase();
+    if (!accountEmail) return toast('Email address required', 'Enter the email address before configuring or starting OAuth.', 'warn');
     if (!payload.client_id || !payload.client_secret) return toast('OAuth credentials required', 'Client ID and Client Secret are required.', 'warn');
     const btn = form.querySelector('button[type="submit"]');
-    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
-    const result = await api('/api/v1/provider-config/oauth', {method:'POST', body:JSON.stringify(payload)});
-    if (btn) { btn.disabled = false; btn.textContent = 'Save OAuth & Continue'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+    const result = await api('/api/v1/oauth/config', {method:'POST', body:JSON.stringify({
+      provider,
+      email_address: accountEmail,
+      client_id: payload.client_id,
+      client_secret: payload.client_secret,
+      redirect_uri: payload.redirect_uri,
+      provider_options: payload.tenant_id ? {tenant_id: payload.tenant_id} : {}
+    })});
+    if (btn) { btn.disabled = false; btn.textContent = 'Save OAuth app details'; }
     if (!result.ok) { setAccountStatus('OAuth setup not saved', msgFromError(result.error), 'bad'); toast('OAuth setup failed', msgFromError(result.error), 'bad'); return; }
-    setAccountStatus('OAuth setup saved', 'Credentials encrypted locally. Opening provider login now.', 'ok');
-    toast('OAuth configured', 'Provider login will open now.', 'ok');
-    await startOAuthFlow(accountProvider, $('accountForm')?.email?.value || '');
+    setAccountStatus('OAuth setup saved', 'Credentials encrypted locally. Continue OAuth for the entered email when ready.', 'ok');
+    toast('OAuth configured', 'OAuth app details saved for this mailbox.', 'ok');
   }
 
   async function testAccountConnection() {
@@ -570,7 +646,7 @@
     if (!payload.email || !payload.email.includes('@')) return setAccountStatus('Valid email required', 'Enter a valid mailbox address.', 'warn');
     if (oauthFamily(payload.provider) && payload.connection_method === 'oauth') { await startOAuthFlow(payload.provider, payload.email); return; }
     const submit = form.querySelector('button[type="submit"]');
-    if (submit) { submit.disabled = true; submit.textContent = 'Saving…'; }
+    if (submit) { submit.disabled = true; submit.textContent = 'Saving...'; }
     setAccountStatus('Saving account', 'Encrypting credentials and creating account record...', 'loading');
     const result = await api('/api/v1/accounts', {method:'POST', body:JSON.stringify(payload)});
     if (submit) { submit.disabled = false; submit.textContent = 'Save & Start Sync'; }
@@ -674,7 +750,7 @@
     const si = fd.get('sync_interval'); if (si) payload.sync_interval = Number(si);
     payload.ssl = fd.get('ssl') === 'on';
     const submit = form.querySelector('button[type="submit"]');
-    if (submit) { submit.disabled = true; submit.textContent = 'Saving…'; }
+    if (submit) { submit.disabled = true; submit.textContent = 'Saving...'; }
     const result = await api(`/api/v1/accounts/${id}`, {method:'PUT', body:JSON.stringify(payload)});
     if (submit) { submit.disabled = false; submit.textContent = 'Save Changes'; }
     if (result.ok) { toast('Account updated', 'Settings saved.', 'ok'); await loadAccounts(); }
@@ -693,6 +769,24 @@
     await loadAccounts();
   }
 
+  async function refreshInboxSync() {
+    const mailboxId = $('ruleMailboxSelect')?.value || selectedMailboxId();
+    const button = $('refreshInboxBtn');
+    const original = button?.innerHTML;
+    if (button) { button.disabled = true; button.textContent = 'Refreshing...'; }
+    const result = mailboxId
+      ? await api(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/sync`, {method:'POST'})
+      : await api('/api/v1/sync/all', {method:'POST'});
+    if (button) { button.disabled = false; button.innerHTML = original || 'Refresh'; }
+    toast(
+      result.ok ? 'Inbox refreshed' : 'Refresh failed',
+      result.ok ? (mailboxId ? 'Selected mailbox synced.' : 'Enabled mailboxes synced.') : msgFromError(result.error),
+      result.ok ? 'ok' : 'bad'
+    );
+    await loadAccounts();
+    await loadInbox();
+  }
+
   async function reconnectAccount(id) {
     const account = state.accounts.find(a => String(a.id) === String(id));
     const start = oauthStartUrl(account?.provider || '');
@@ -707,7 +801,7 @@
     await loadAccounts(); await loadDashboard();
   }
 
-  // ── Dashboard ───────────────────────────────────────────────────────────────
+  // -- Dashboard ---------------------------------------------------------------
   function renderMetrics(data = {}) {
     const m = data.metrics || {};
     const failedSyncs   = m.failed_syncs ?? 0;
@@ -773,24 +867,22 @@
     if (!r.ok) return;
 
     const d = r.data;
-    const scoreColor = s => s >= 80 ? '#16a34a' : s >= 60 ? '#2563eb' : s >= 40 ? '#d97706' : '#dc2626';
+    const scoreTone = s => s >= 80 ? 'ok' : s >= 60 ? 'accent' : s >= 40 ? 'warn' : 'danger';
     const metrics = d.metrics || [];
 
     const cards = [
-      // Health score card
-      `<button class="action-card" data-open-view="command" type="button" style="min-width:130px;text-align:left;padding:10px 14px;gap:4px;">
-        <div style="font-size:28px;font-weight:800;color:${scoreColor(d.health_score)};line-height:1;">${d.health_score}</div>
-        <strong style="font-size:11px;">Platform Health</strong>
-        <span style="font-size:11px;color:var(--text-muted);">${esc(d.health_status)}</span>
+      `<button class="telemetry-action-card" data-open-view="command" type="button">
+        <div class="telemetry-card-value ${scoreTone(d.health_score)}">${d.health_score}</div>
+        <strong>Platform Health</strong>
+        <span>${esc(d.health_status)}</span>
       </button>`,
-      // Dynamic metric cards from telemetry
       ...metrics.map(m => {
-        const alertColor = m.alert ? '#dc2626' : (m.trend === 'up' && !m.alert ? '#16a34a' : 'var(--accent)');
+        const tone = m.alert ? 'danger' : (m.trend === 'up' && !m.alert ? 'ok' : 'accent');
         const view = m.id === 'active_threats' ? 'security' : m.id === 'workflow_success' ? 'workflows' : 'command';
-        return `<button class="action-card" data-open-view="${view}" type="button" style="min-width:130px;text-align:left;padding:10px 14px;gap:4px;">
-          <div style="font-size:28px;font-weight:800;color:${alertColor};line-height:1;">${m.value}${esc(m.unit || '')}</div>
-          <strong style="font-size:11px;">${esc(m.label)}</strong>
-          <span style="font-size:11px;color:var(--text-muted);">${m.alert ? '⚠ Needs attention' : (m.trend === 'up' ? '↑ Trending up' : 'Nominal')}</span>
+        return `<button class="telemetry-action-card" data-open-view="${view}" type="button">
+          <div class="telemetry-card-value ${tone}">${m.value}${esc(m.unit || '')}</div>
+          <strong>${esc(m.label)}</strong>
+          <span>${m.alert ? 'Needs attention' : (m.trend === 'up' ? 'Trending up' : 'Nominal')}</span>
         </button>`;
       }),
     ];
@@ -801,7 +893,7 @@
     });
   }
 
-  // ── OCR Engine ───────────────────────────────────────────────────────────────
+  // -- OCR Engine ---------------------------------------------------------------
 
   let _ocrFile       = null;   // selected file for single scan
   let _ocrLastResult = null;   // last scan result (for copy/download)
@@ -886,7 +978,7 @@
     _ocrFile = file;
     const info = $('ocrFileInfo');
     const btn  = $('ocrScanBtn');
-    if (info) { info.classList.remove('hidden'); info.textContent = `${file.name}  ·  ${(file.size / 1024).toFixed(1)} KB`; }
+    if (info) { info.classList.remove('hidden'); info.textContent = `${file.name}  Â·  ${(file.size / 1024).toFixed(1)} KB`; }
     if (btn)  btn.disabled = false;
   }
 
@@ -895,7 +987,7 @@
     const btn  = $('ocrScanBtn');
     const mode = document.querySelector('input[name="ocrMode"]:checked')?.value || 'auto';
 
-    if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Scanning...'; }
     _renderResult($('ocrResultBody'), null, 'loading');
 
     const fd = new FormData();
@@ -924,13 +1016,13 @@
   function _renderResult(el, data, state = 'done', errMsg = '') {
     if (!el) return;
     if (state === 'loading') {
-      el.innerHTML = '<div class="empty-state"><div class="spinner" aria-hidden="true"></div><p style="margin-top:10px;font-size:13px;">Extracting text…</p></div>';
+      el.innerHTML = '<div class="ocr-result-loading"><div class="spinner" aria-hidden="true"></div><p>Extracting text...</p></div>';
       return;
     }
     if (state === 'error') {
-      el.innerHTML = `<div class="empty-state" style="padding:20px;">
-        <p style="color:var(--red);font-size:13px;font-weight:500;">Scan failed</p>
-        <p style="color:var(--text-muted);font-size:12px;margin-top:6px;">${esc(errMsg || 'Unknown error')}</p>
+      el.innerHTML = `<div class="ocr-result-error">
+        <p>Scan failed</p>
+        <p class="ocr-result-muted">${esc(errMsg || 'Unknown error')}</p>
       </div>`;
       return;
     }
@@ -941,22 +1033,22 @@
     const dtype     = fields._detected_type || data.mode || 'document';
 
     el.innerHTML = `
-      <div style="display:flex;gap:8px;align-items:center;padding:10px 0 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;">
-        <span style="padding:2px 8px;border-radius:10px;background:var(--accent-subtle);color:var(--accent);font-size:11px;font-weight:600;">${esc(dtype)}</span>
-        <span style="font-size:12px;color:var(--text-muted);">${data.page_count || 1} page(s)</span>
-        <span style="font-size:12px;color:var(--text-muted);">${data.word_count || 0} words</span>
-        <span style="font-size:12px;color:var(--text-muted);flex:1;">${esc(data.filename || '')}</span>
+      <div class="ocr-result-meta">
+        <span class="ocr-result-chip">${esc(dtype)}</span>
+        <span class="ocr-result-muted">${data.page_count || 1} page(s)</span>
+        <span class="ocr-result-muted">${data.word_count || 0} words</span>
+        <span class="ocr-result-muted">${esc(data.filename || '')}</span>
       </div>
       ${fieldKeys.length ? `
-        <h3 style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin:14px 0 8px;">Extracted Fields</h3>
-        <table style="width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+        <h3 class="ocr-result-section-title">Extracted Fields</h3>
+        <table class="ocr-result-table">
           <tbody>${fieldKeys.map(k => `<tr>
-            <td style="padding:7px 12px;font-size:12px;color:var(--text-muted);width:36%;border-bottom:1px solid var(--border);white-space:nowrap;">${esc(k.replace(/_/g, ' '))}</td>
-            <td style="padding:7px 12px;font-size:13px;font-weight:500;border-bottom:1px solid var(--border);">${esc(String(fields[k]))}</td>
+            <td class="ocr-result-key">${esc(k.replace(/_/g, ' '))}</td>
+            <td class="ocr-result-value">${esc(String(fields[k]))}</td>
           </tr>`).join('')}</tbody>
-        </table>` : '<p style="margin:14px 0 8px;font-size:12px;color:var(--text-muted);">No structured fields detected.</p>'}
-      <h3 style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin:14px 0 8px;">Raw Text</h3>
-      <pre style="white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.65;background:var(--bg);border:1px solid var(--border);padding:14px;border-radius:6px;max-height:400px;overflow-y:auto;">${esc((data.raw_text || '').substring(0, 15000))}</pre>`;
+        </table>` : '<p class="ocr-result-muted">No structured fields detected.</p>'}
+      <h3 class="ocr-result-section-title">Raw Text</h3>
+      <pre class="ocr-result-raw">${esc((data.raw_text || '').substring(0, 15000))}</pre>`;
   }
 
   async function _loadOcrEmails() {
@@ -968,31 +1060,28 @@
     _ocrEmails = (res.ok && Array.isArray(res.data?.emails)) ? res.data.emails : [];
 
     if (!_ocrEmails.length) {
-      list.innerHTML = `<div class="empty-state" style="padding:40px 20px;">
-        <p style="font-weight:500;">No emails loaded</p>
-        <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Connect a mailbox account first, or use the Scan Document tab.</p>
+      list.innerHTML = `<div class="empty-state ocr-table-state">
+        <p>No emails loaded</p>
+        <p class="ocr-table-muted">Connect a mailbox account first, or use the Scan Document tab.</p>
       </div>`;
       return;
     }
 
-    list.innerHTML = `<table style="width:100%;border-collapse:collapse;">
-      <thead><tr style="background:var(--bg);">
-        <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);">Subject</th>
-        <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);">From</th>
-        <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);">Category</th>
-        <th style="padding:9px 14px;border-bottom:1px solid var(--border);width:80px;"></th>
+    list.innerHTML = `<table class="ocr-data-table">
+      <thead><tr>
+        <th>Subject</th>
+        <th>From</th>
+        <th>Category</th>
+        <th></th>
       </tr></thead>
       <tbody>${_ocrEmails.map((e, i) => `<tr>
-        <td style="padding:9px 14px;font-size:13px;border-bottom:1px solid var(--border);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(e.subject||'')}">${esc(e.subject || '(no subject)')}</td>
-        <td style="padding:9px 14px;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(e.sender || e.sender_email || '')}</td>
-        <td style="padding:9px 14px;font-size:12px;border-bottom:1px solid var(--border);">${esc(e.category || '—')}</td>
-        <td style="padding:9px 14px;border-bottom:1px solid var(--border);">
-          <button class="btn sm ocr-email-scan-btn" type="button" data-ocr-idx="${i}">Scan</button>
-        </td>
+        <td class="ocr-table-text" title="${esc(e.subject||'')}">${esc(e.subject || '(no subject)')}</td>
+        <td class="ocr-table-muted">${esc(e.sender || e.sender_email || '')}</td>
+        <td>${esc(e.category || '-')}</td>
+        <td class="ocr-table-actions"><button class="btn sm ocr-email-scan-btn" type="button" data-ocr-idx="${i}">Scan</button></td>
       </tr>`).join('')}</tbody>
     </table>`;
 
-    // Event delegation — attach once; remove-and-re-add to avoid duplicates on refresh
     list.removeEventListener('click', _ocrEmailListClick);
     list.addEventListener('click', _ocrEmailListClick);
   }
@@ -1054,28 +1143,26 @@
     const jobs = res.ok ? (res.data?.jobs || []) : [];
 
     if (!jobs.length) {
-      list.innerHTML = '<div class="empty-state" style="padding:40px 20px;"><p style="font-weight:500;">No scans yet</p><p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Upload a document or scan an email to get started.</p></div>';
+      list.innerHTML = '<div class="empty-state ocr-table-state"><p>No scans yet</p><p class="ocr-table-muted">Upload a document or scan an email to get started.</p></div>';
       return;
     }
 
-    list.innerHTML = `<table style="width:100%;border-collapse:collapse;">
-      <thead><tr style="background:var(--bg);">
-        <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);">File / Email</th>
-        <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);">Mode</th>
-        <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);">Words</th>
-        <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);">Scanned</th>
-        <th style="padding:9px 14px;border-bottom:1px solid var(--border);"></th>
+    list.innerHTML = `<table class="ocr-data-table">
+      <thead><tr>
+        <th>File / Email</th>
+        <th>Mode</th>
+        <th>Words</th>
+        <th>Scanned</th>
+        <th></th>
       </tr></thead>
       <tbody>${jobs.map(j => `<tr>
-        <td style="padding:9px 14px;font-size:13px;border-bottom:1px solid var(--border);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(j.filename||'—')}</td>
-        <td style="padding:9px 14px;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border);">${esc(j.mode||'auto')}</td>
-        <td style="padding:9px 14px;font-size:12px;border-bottom:1px solid var(--border);">${j.word_count||0}</td>
-        <td style="padding:9px 14px;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border);">${j.created_at ? new Date(j.created_at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'}</td>
-        <td style="padding:9px 14px;border-bottom:1px solid var(--border);">
-          <div style="display:flex;gap:6px;">
-            <button class="btn sm" type="button" data-hview="${esc(j.id)}">View</button>
-            <button class="btn sm" style="color:var(--red);" type="button" data-hdel="${esc(j.id)}">Delete</button>
-          </div>
+        <td class="ocr-table-text">${esc(j.filename||'-')}</td>
+        <td class="ocr-table-muted">${esc(j.mode||'auto')}</td>
+        <td>${j.word_count||0}</td>
+        <td class="ocr-table-muted">${j.created_at ? new Date(j.created_at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '-'}</td>
+        <td class="ocr-table-actions">
+          <button class="btn sm" type="button" data-hview="${esc(j.id)}">View</button>
+          <button class="btn sm btn-danger-text" type="button" data-hdel="${esc(j.id)}">Delete</button>
         </td>
       </tr>`).join('')}</tbody>
     </table>`;
@@ -1096,14 +1183,14 @@
     const wrap = document.createElement('div');
     wrap.className = 'modal-overlay';
     wrap.innerHTML = `
-      <div class="modal" style="max-width:740px;width:96%;display:flex;flex-direction:column;max-height:90vh;">
-        <div class="modal-head" style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);">
-          <strong style="flex:1;font-size:14px;">${esc(data.filename || 'OCR Result')}</strong>
+      <div class="ocr-modal">
+        <div class="ocr-modal-head">
+          <strong class="ocr-modal-title">${esc(data.filename || 'OCR Result')}</strong>
           <button class="btn sm" type="button" id="_ocrMCopy">Copy Text</button>
           <button class="btn sm primary" type="button" id="_ocrMDl">Download JSON</button>
-          <button class="icon-btn" type="button" id="_ocrMClose" style="font-size:18px;line-height:1;padding:2px 6px;">×</button>
+          <button class="ocr-modal-close" type="button" id="_ocrMClose" aria-label="Close">x</button>
         </div>
-        <div style="padding:16px 18px;overflow-y:auto;flex:1;" id="_ocrMBody"></div>
+        <div class="ocr-modal-body" id="_ocrMBody"></div>
       </div>`;
     document.body.appendChild(wrap);
     _renderResult(document.getElementById('_ocrMBody'), data);
@@ -1152,11 +1239,11 @@
     if (!_ocrBatchFiles.length) { list.innerHTML = ''; if (runBtn) runBtn.disabled = true; return; }
     if (runBtn) runBtn.disabled = false;
     list.innerHTML = _ocrBatchFiles.map((f, i) => `
-      <div style="display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:5px;margin-bottom:4px;font-size:12px;">
+      <div class="ocr-batch-file">
         <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h8l4 4v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M12 4v4h4"/></svg>
-        <span style="flex:1;">${esc(f.name)}</span>
-        <span style="color:var(--text-muted);">${(f.size / 1024).toFixed(1)} KB</span>
-        <button class="icon-btn" type="button" data-brm="${i}" style="font-size:16px;">×</button>
+        <span class="ocr-batch-file-name">${esc(f.name)}</span>
+        <span class="ocr-batch-file-size">${(f.size / 1024).toFixed(1)} KB</span>
+        <button class="ocr-batch-remove" type="button" data-brm="${i}" aria-label="Remove file">x</button>
       </div>`).join('');
     list.querySelectorAll('[data-brm]').forEach(btn => btn.addEventListener('click', () => {
       _ocrBatchFiles.splice(Number(btn.dataset.brm), 1); _renderBatchList();
@@ -1167,13 +1254,13 @@
     const out    = $('batchResults');
     const runBtn = $('batchRunBtn');
     if (!out || !_ocrBatchFiles.length) return;
-    runBtn.disabled = true; runBtn.textContent = 'Processing…';
-    out.innerHTML = `<div class="empty-state"><div class="spinner"></div><p style="margin-top:10px;font-size:13px;">Processing ${_ocrBatchFiles.length} file(s)…</p></div>`;
+    runBtn.disabled = true; runBtn.textContent = 'Processing...';
+    out.innerHTML = `<div class="empty-state ocr-batch-results"><div class="spinner"></div><p>Processing ${_ocrBatchFiles.length} file(s)...</p></div>`;
 
     const results = [];
     for (let i = 0; i < _ocrBatchFiles.length; i++) {
       const f = _ocrBatchFiles[i];
-      runBtn.textContent = `Processing ${i + 1}/${_ocrBatchFiles.length}…`;
+      runBtn.textContent = `Processing ${i + 1}/${_ocrBatchFiles.length}...`;
       const fd = new FormData();
       fd.append('file', f); fd.append('mode', 'auto');
       try {
@@ -1183,19 +1270,19 @@
       } catch (e) { results.push({ name: f.name, ok: false, data: null, err: e.message }); }
     }
 
-    out.innerHTML = `<div style="margin-bottom:12px;font-size:13px;font-weight:600;">Batch complete — ${results.filter(r=>r.ok).length}/${results.length} succeeded</div>
+    out.innerHTML = `<div class="ocr-batch-summary">Batch complete - ${results.filter(r=>r.ok).length}/${results.length} succeeded</div>
       ${results.map(r => `
-        <div style="margin-bottom:10px;border:1px solid var(--border);border-radius:7px;overflow:hidden;">
-          <div style="display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--bg);border-bottom:${r.ok?'1px solid var(--border)':'none'};">
-            <span style="font-size:11px;font-weight:700;color:${r.ok?'var(--green)':'var(--red)'};">${r.ok?'✓':'✗'}</span>
-            <span style="font-size:13px;font-weight:500;flex:1;">${esc(r.name)}</span>
-            ${r.ok ? `<span style="font-size:12px;color:var(--text-muted);">${r.data.word_count||0} words</span>
+        <div class="ocr-batch-card">
+          <div class="ocr-batch-card-head">
+            <span class="ocr-batch-status ${r.ok ? 'ocr-batch-status--ok' : 'ocr-batch-status--error'}">${r.ok ? 'OK' : 'Error'}</span>
+            <span class="ocr-batch-file-name">${esc(r.name)}</span>
+            ${r.ok ? `<span class="ocr-table-muted">${r.data.word_count||0} words</span>
               <button class="btn sm" data-bc="${esc(r.data.job_id)}">Copy</button>
-              <button class="btn sm" data-bd="${esc(r.data.job_id)}">JSON</button>` : `<span style="font-size:12px;color:var(--red);">${esc(r.err||'')}</span>`}
+              <button class="btn sm" data-bd="${esc(r.data.job_id)}">JSON</button>` : `<span class="ocr-batch-status--error">${esc(r.err||'')}</span>`}
           </div>
-          ${r.ok && r.data ? `<div style="padding:8px 14px;display:flex;flex-wrap:wrap;gap:4px;">
+          ${r.ok && r.data ? `<div class="ocr-batch-fields">
             ${Object.entries(r.data.fields||{}).filter(([k])=>!k.startsWith('_')).slice(0,6).map(([k,v])=>`
-              <span style="padding:2px 8px;background:var(--accent-subtle);color:var(--accent);border-radius:10px;font-size:11px;"><b>${esc(k.replace(/_/g,' '))}:</b> ${esc(String(v))}</span>`).join('')}
+              <span class="ocr-batch-field"><b>${esc(k.replace(/_/g,' '))}:</b> ${esc(String(v))}</span>`).join('')}
           </div>` : ''}
         </div>`).join('')}`;
 
@@ -1221,7 +1308,7 @@
     if (span) span.textContent = `Production governance score ${score}%. Runtime checks are available under Settings > Advanced.`;
   }
 
-  // ── Inbox ───────────────────────────────────────────────────────────────────
+  // -- Inbox -------------------------------------------------------------------
   function seedEmails() {
     return [
       {id:1,subject:'RFQ for Mumbai to Dubai shipment',sender:'Apex Imports',sender_email:'rfq@apex.example',category:'RFQ',priority:'Critical',folder:'INBOX',labels:'RFQ,Logistics',is_read:0,ai_summary:'Buyer requested freight pricing, sailing options and document timeline.',body_text:'Please quote for LCL shipment from Mumbai to Dubai.',attachments:[{filename:'shipment-rfq.pdf',content_type:'application/pdf',size:184320,download_url:'#'}]},
@@ -1230,22 +1317,91 @@
     ];
   }
 
+  function providerLabel(provider) {
+    const key = String(provider || '').toLowerCase();
+    return PROVIDER_DEFAULTS[key]?.label || (key ? key.replace(/[_-]+/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase()) : '');
+  }
+
+  function accountLabel(account) {
+    if (!account) return '';
+    const provider = providerLabel(account.provider || account.oauth_provider || '');
+    return `${account.email || account.email_address || 'Mailbox'}${provider ? ` (${provider})` : ''}`;
+  }
+
+  function selectedMailboxId() {
+    const value = $('accountFilter')?.value || state.selectedMailboxId || '';
+    return value ? String(value) : '';
+  }
+
+  function selectedMailbox() {
+    const id = selectedMailboxId();
+    return id ? state.accounts.find(a => String(a.id) === id) : null;
+  }
+
+  async function loadMailboxBuckets(mailboxId) {
+    state.folders = [];
+    state.labels = [];
+    if (!mailboxId) return;
+    const [folders, labels] = await Promise.all([
+      api(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/folders`),
+      api(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/labels`)
+    ]);
+    state.folders = folders.ok ? (folders.data.folders || []) : [];
+    state.labels = labels.ok ? (labels.data.labels || []) : [];
+  }
+
   async function loadInbox() {
-    const params = new URLSearchParams();
+    if (!state.accounts.length) await loadAccounts();
+    state.selectedMailboxId = selectedMailboxId();
+    await loadMailboxBuckets(state.selectedMailboxId);
+    const params = new URLSearchParams({limit: '50'});
     const folder = $('folderFilter')?.value || '';
     const label  = $('labelFilter')?.value || '';
+    if (state.selectedMailboxId) params.set('mailbox_id', state.selectedMailboxId);
     if (folder) params.set('folder', folder);
     if (label)  params.set('label', label);
-    const result = await api(`/api/v1/emails?${params}`);
-    state.emails = result.ok && Array.isArray(result.data.emails) ? result.data.emails : seedEmails();
+    if (state.savedFilter === 'unread') params.set('unread', 'true');
+    const result = await api(`/api/v1/inbox?${params}`);
+    state.emails = result.ok && Array.isArray(result.data.emails) ? result.data.emails : [];
+    if (!result.ok) toast('Inbox not loaded', msgFromError(result.error), 'warn');
     populateInboxFilters(); renderInbox();
   }
 
   function populateInboxFilters() {
-    const folders = [...new Set(state.emails.map(e => e.folder).filter(Boolean))];
-    const labels  = [...new Set(state.emails.flatMap(e => String(e.labels||'').replace(/[\[\]"]/g,'').split(',').map(x=>x.trim()).filter(Boolean)))];
-    if ($('folderFilter')) $('folderFilter').innerHTML = '<option value="">All folders</option>' + folders.map(x=>`<option>${esc(x)}</option>`).join('');
-    if ($('labelFilter'))  $('labelFilter').innerHTML  = '<option value="">All labels</option>'  + labels.map(x=>`<option>${esc(x)}</option>`).join('');
+    const accountFilter = $('accountFilter');
+    if (accountFilter) {
+      const current = state.selectedMailboxId || accountFilter.value || '';
+      accountFilter.innerHTML = '<option value="">All accounts</option>' + state.accounts.map(account =>
+        `<option value="${esc(account.id)}" ${String(account.id) === String(current) ? 'selected' : ''}>${esc(accountLabel(account))}</option>`
+      ).join('');
+      accountFilter.value = current && state.accounts.some(a => String(a.id) === String(current)) ? current : '';
+      state.selectedMailboxId = accountFilter.value;
+    }
+
+    const mailbox = selectedMailbox();
+    const hint = $('mailboxFilterHint');
+    if (hint) hint.textContent = mailbox
+      ? `Showing folders and labels for ${mailbox.email || mailbox.email_address}.`
+      : 'Showing all connected mailboxes.';
+
+    const folderSelect = $('folderFilter');
+    const labelSelect = $('labelFilter');
+    const currentFolder = folderSelect?.value || '';
+    const currentLabel = labelSelect?.value || '';
+    if (folderSelect) {
+      const folderOptions = state.selectedMailboxId
+        ? state.folders.map(x => `<option value="${esc(x.name)}" ${x.name === currentFolder ? 'selected' : ''}>${esc(x.name)}</option>`).join('')
+        : '<option value="" disabled>Select an account to view folders</option>';
+      folderSelect.innerHTML = '<option value="">All folders</option>' + folderOptions;
+      if (currentFolder && state.folders.some(x => x.name === currentFolder)) folderSelect.value = currentFolder;
+    }
+    if (labelSelect) {
+      const labelOptions = state.selectedMailboxId
+        ? state.labels.map(x => `<option value="${esc(x.name)}" ${x.name === currentLabel ? 'selected' : ''}>${esc(x.name)}</option>`).join('')
+        : '<option value="" disabled>Select an account to view labels</option>';
+      labelSelect.innerHTML = '<option value="">All labels</option>' + labelOptions;
+      if (currentLabel && state.labels.some(x => x.name === currentLabel)) labelSelect.value = currentLabel;
+    }
     populateFilterChips();
   }
 
@@ -1287,8 +1443,8 @@
     const label  = $('labelFilter')?.value  || '';
     let rows = state.emails.filter(e =>
       (!folder || e.folder === folder) &&
-      (!label  || String(e.labels||'').includes(label)) &&
-      (!term   || [e.sender,e.sender_email,e.subject,e.category,e.priority,e.folder,e.labels].join(' ').toLowerCase().includes(term))
+      (!label  || labelsForEmail(e).includes(label)) &&
+      (!term   || [e.sender,e.sender_email,e.subject,e.category,e.priority,e.folder,labelsForEmail(e).join(' '),e.email_address,e.provider].join(' ').toLowerCase().includes(term))
     );
     // Static filters
     if (state.savedFilter === 'unread')   rows = rows.filter(e => !e.is_read);
@@ -1306,13 +1462,16 @@
         rows = rows.filter(e => (e.folder||'').toLowerCase() === val.toLowerCase());
       }
     }
-    const emptyState = emptyStateForFilter(state.savedFilter);
+    const emptyState = emptyStateForInbox(rows.length);
     const emptyTitle = emptyState.title;
     const emptyBody  = emptyState.body;
     if ($('inboxRows')) $('inboxRows').innerHTML = rows.length
       ? rows.map(e => {
           const sel = state.selectedEmails.has(String(e.id));
           const active = state.selectedEmail?.id === e.id;
+          const sourceEmail = e.email_address || e.account_email || e.source?.email_address || 'Unknown account';
+          const provider = providerLabel(e.provider || e.source?.provider || '');
+          const labelBadges = labelsForEmail(e).slice(0, 2).map(x => `<span class="badge neutral">${esc(x)}</span>`).join('');
           // Checkbox is outside the button so clicking it never triggers email-open
           return `<div class="thread-row-wrap ${active?'active':''} ${sel?'selected-row':''}" data-wrap-id="${esc(e.id)}">`
             + `<label class="thread-row-cb" aria-label="Select email">`
@@ -1322,11 +1481,12 @@
             +   `<span class="${e.is_read?'read-dot':'unread-dot'}"></span>`
             +   `<span>`
             +     `<span class="thread-subject">${esc(e.subject||'(No subject)')}</span>`
-            +     `<span class="thread-meta">${esc(e.sender||e.sender_email||'Unknown')} · ${esc(e.category||'Unclassified')}</span>`
-            +     `<span class="thread-summary">${esc((e.ai_summary||e.body_text||'').slice(0,120))}</span>`
-            +     `<span class="thread-tags"><span class="badge">${esc(e.priority||'Medium')}</span><span class="badge ok">${esc(e.folder||'INBOX')}</span></span>`
+            +     `<span class="thread-meta">From: ${esc(e.sender||e.sender_email||'Unknown sender')}</span>`
+            +     `<span class="thread-meta">Account: ${esc(sourceEmail)}${provider ? ` - Provider: ${esc(provider)}` : ''}</span>`
+            +     `<span class="thread-summary">${esc((e.ai_summary||e.snippet||e.body_text||'').slice(0,140))}</span>`
+            +     `<span class="thread-tags"><span class="badge">${esc(e.priority||'Medium')}</span><span class="badge ok">${esc(e.folder||'INBOX')}</span>${labelBadges}</span>`
             +   `</span>`
-            +   `<span aria-hidden="true">›</span>`
+            +   `<span aria-hidden="true">&rsaquo;</span>`
             + `</button>`
             + `</div>`;
         }).join('')
@@ -1338,6 +1498,18 @@
     }
     if (!state.selectedEmail || !rows.some(e => String(e.id) === String(state.selectedEmail.id))) state.selectedEmail = rows[0];
     renderPreview(state.selectedEmail);
+  }
+
+  function labelsForEmail(email) {
+    const raw = email?.labels ?? email?.label_names ?? [];
+    if (Array.isArray(raw)) return raw.map(x => String(x).trim()).filter(Boolean);
+    const text = String(raw || '').trim();
+    if (!text) return [];
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) return parsed.map(x => String(x).trim()).filter(Boolean);
+    } catch {}
+    return text.replace(/[\[\]"]/g,'').split(',').map(x => x.trim()).filter(Boolean);
   }
 
   function toggleEmailSelect(id, checked) {
@@ -1368,8 +1540,8 @@
     const label  = $('labelFilter')?.value  || '';
     const visible = state.emails.filter(e =>
       (!folder || e.folder === folder) &&
-      (!label  || String(e.labels||'').includes(label)) &&
-      (!term   || [e.sender,e.sender_email,e.subject,e.category,e.priority,e.folder,e.labels].join(' ').toLowerCase().includes(term))
+      (!label  || labelsForEmail(e).includes(label)) &&
+      (!term   || [e.sender,e.sender_email,e.subject,e.category,e.priority,e.folder,labelsForEmail(e).join(' '),e.email_address,e.provider].join(' ').toLowerCase().includes(term))
     );
     const allSelected = visible.length > 0 && visible.every(e => state.selectedEmails.has(String(e.id)));
     if (allSelected) {
@@ -1401,7 +1573,7 @@
       state.selectedEmails.clear(); updateBulkBar(); renderInbox();
       toast('Marked read', `${ids.length} email(s) marked as read.`, 'ok');
     } else if (action === 'label') {
-      showInlineInput($('bulkBar'), 'Add label', 'Label name…', '', async lbl => {
+      showInlineInput($('bulkBar'), 'Add label', 'Label name...', '', async lbl => {
         if (!lbl) return;
         state.selectedEmails.clear(); updateBulkBar();
         toast('Label applied', `"${lbl}" applied to ${ids.length} email(s).`, 'ok');
@@ -1409,7 +1581,7 @@
         loadInbox();
       });
     } else if (action === 'move') {
-      showInlineInput($('bulkBar'), 'Move to folder', 'Folder name…', $('folderFilter')?.value || 'INBOX', async fld => {
+      showInlineInput($('bulkBar'), 'Move to folder', 'Folder name...', $('folderFilter')?.value || 'INBOX', async fld => {
         if (!fld) return;
         state.selectedEmails.clear(); updateBulkBar();
         toast('Moved', `${ids.length} email(s) moved to "${fld}".`, 'ok');
@@ -1419,7 +1591,7 @@
     }
   }
 
-  // ── AI Analysis ─────────────────────────────────────────────────────────────
+  // -- AI Analysis -------------------------------------------------------------
   function filterLabel(filter) {
     const chip = $$('.filter-chip').find(btn => btn.dataset.filter === filter);
     const label = chip?.textContent?.trim() || String(filter || '').replace(/[-_]+/g, ' ');
@@ -1433,6 +1605,27 @@
     return {title:`No ${label} conversations`, body:'Messages matching this filter will appear here.'};
   }
 
+  function emptyStateForInbox(rowCount) {
+    if (rowCount) return emptyStateForFilter(state.savedFilter);
+    if (!state.accounts.length) {
+      return {title:'Connect a mailbox to see conversations.', body:'Add Gmail, Outlook, Yahoo, Zoho, Yandex, or IMAP accounts from Accounts.'};
+    }
+    const scoped = selectedMailbox();
+    const relevant = scoped ? [scoped] : state.accounts;
+    const failed = relevant.find(a => a.last_error || ['degraded', 'needs_reconnect'].includes(String(a.status || '').toLowerCase()));
+    if (failed) {
+      return {
+        title:'Mailbox sync failed.',
+        body:`${failed.email || failed.email_address || 'Selected account'} needs attention. ${failed.last_error || 'Reconnect or refresh this mailbox.'}`,
+      };
+    }
+    const hasSynced = relevant.some(a => a.last_sync_at);
+    if (!hasSynced) {
+      return {title:'Mailbox connected. Start sync to load emails.', body:'Use Refresh to sync the selected account or all enabled accounts.'};
+    }
+    return {title:'No conversations found for this filter.', body:'Adjust the account, folder, label, unread, or search filters.'};
+  }
+
   function renderThreadEmptyState(title, body) {
     return `<div class="thread-empty-state"><b>${esc(title)}</b><small>${esc(body)}</small></div>`;
   }
@@ -1444,9 +1637,11 @@
 
   function renderPreview(e) {
     if (!e || !$('messagePreview')) return;
-    const labelBadges = String(e.labels||'').replace(/[\[\]"]/g,'').split(',').filter(Boolean).slice(0,3).map(x=>`<span class="badge ok">${esc(x.trim())}</span>`).join('');
+    const labelBadges = labelsForEmail(e).slice(0,3).map(x=>`<span class="badge ok">${esc(x.trim())}</span>`).join('');
     const isScam = String(e.category||'').toLowerCase() === 'scam';
-    $('messagePreview').innerHTML = `<h2>${esc(e.subject||'Conversation')}</h2><p>${esc(e.sender||e.sender_email||'Unknown sender')} - ${esc(e.category||'Unclassified')}</p><div class="preview-actions"><button class="btn" type="button" data-email-action="reply" data-email-action-id="${esc(e.id)}">Reply</button><button class="btn" type="button" data-email-action="forward" data-email-action-id="${esc(e.id)}">Forward</button><button class="btn" type="button" data-email-action="assign" data-email-action-id="${esc(e.id)}">Assign</button><button class="btn" type="button" data-email-action="label" data-email-action-id="${esc(e.id)}">Label</button><button class="btn" type="button" data-email-action="move" data-email-action-id="${esc(e.id)}">Move</button><button class="btn" type="button" data-email-action="archive" data-email-action-id="${esc(e.id)}">Archive</button></div><div class="scam-flow ${isScam?'active':''}"><div><strong>Scam filter</strong><span>${isScam?'This sender is currently treated as scam.':'Decide how future email from this sender should be handled.'}</span></div><div class="verdict-actions"><button class="btn danger sm" data-email-category-id="${esc(e.id)}" data-email-category="Scam" type="button">Mark Scam</button><button class="btn sm" data-email-category-id="${esc(e.id)}" data-email-category="Normal" type="button">Mark Normal</button></div><small>Future emails from this sender will follow this decision.</small></div><h3>AI Summary</h3><p>${esc(e.ai_summary||'No summary yet.')}</p><h3>Thread</h3><p class="preview-message-body">${esc((e.body_text||'No body preview.').slice(0,4000))}</p>${renderAttachments(e)}<div class="thread-tags"><span class="badge">${esc(e.priority||'Medium')}</span><span class="badge ok">${esc(e.folder||'INBOX')}</span>${labelBadges}</div>`;
+    const sourceEmail = e.email_address || e.account_email || e.source?.email_address || 'Unknown account';
+    const provider = providerLabel(e.provider || e.source?.provider || '');
+    $('messagePreview').innerHTML = `<h2>${esc(e.subject||'Conversation')}</h2><p>${esc(e.sender||e.sender_email||'Unknown sender')} - ${esc(e.category||'Unclassified')}</p><p class="preview-source">Account: ${esc(sourceEmail)}${provider ? ` - Provider: ${esc(provider)}` : ''}</p><div class="preview-actions"><button class="btn" type="button" data-email-action="reply" data-email-action-id="${esc(e.id)}">Reply</button><button class="btn" type="button" data-email-action="forward" data-email-action-id="${esc(e.id)}">Forward</button><button class="btn" type="button" data-email-action="assign" data-email-action-id="${esc(e.id)}">Assign</button><button class="btn" type="button" data-email-action="label" data-email-action-id="${esc(e.id)}">Label</button><button class="btn" type="button" data-email-action="move" data-email-action-id="${esc(e.id)}">Move</button><button class="btn" type="button" data-email-action="archive" data-email-action-id="${esc(e.id)}">Archive</button></div><div class="scam-flow ${isScam?'active':''}"><div><strong>Scam filter</strong><span>${isScam?'This sender is currently treated as scam.':'Decide how future email from this sender should be handled.'}</span></div><div class="verdict-actions"><button class="btn danger sm" data-email-category-id="${esc(e.id)}" data-email-category="Scam" type="button">Mark Scam</button><button class="btn sm" data-email-category-id="${esc(e.id)}" data-email-category="Normal" type="button">Mark Normal</button></div><small>Future emails from this sender will follow this decision.</small></div><h3>AI Summary</h3><p>${esc(e.ai_summary||'No summary yet.')}</p><h3>Thread</h3><p class="preview-message-body">${esc((e.body_text||'No body preview.').slice(0,4000))}</p>${renderAttachments(e)}<div class="thread-tags"><span class="badge">${esc(e.priority||'Medium')}</span><span class="badge ok">${esc(e.folder||'INBOX')}</span>${labelBadges}</div>`;
   }
 
   async function applyEmailVerdict(emailId, category) {
@@ -1517,7 +1712,7 @@
     } else if (action === 'assign') {
       toast('Assign', 'Assignment queues are configured in the Admin panel under Team Management.', 'info');
     } else if (action === 'label') {
-      showInlineInput(btn, 'Add label', 'Label name…', '', async label => {
+      showInlineInput(btn, 'Add label', 'Label name...', '', async label => {
         const result = await api(`/api/v1/email/${emailId}/label`, {method:'POST', body:JSON.stringify({label})});
         if (!result.ok) { toast('Label failed', msgFromError(result.error), 'bad'); return; }
         state.emails = state.emails.map(item => {
@@ -1531,7 +1726,7 @@
         toast('Label added', `Label "${label}" applied.`, 'ok');
       });
     } else if (action === 'move') {
-      showInlineInput(btn, 'Move to folder', 'Folder name…', email.folder || 'INBOX', async folder => {
+      showInlineInput(btn, 'Move to folder', 'Folder name...', email.folder || 'INBOX', async folder => {
         const result = await api(`/api/v1/email/${emailId}/move`, {method:'POST', body:JSON.stringify({folder})});
         if (!result.ok) { toast('Move failed', msgFromError(result.error), 'bad'); return; }
         state.emails = state.emails.map(item => String(item.id) === String(emailId) ? {...item, folder} : item);
@@ -1914,7 +2109,7 @@
     if (result.ok) { loadOnnxStatus(); loadLearningMemory(); loadLearningAudit(); }
   }
 
-  // ── Rules / Automations ─────────────────────────────────────────────────────
+  // -- Rules / Automations -----------------------------------------------------
   async function loadRules() {
     const result = await api('/api/v1/rules');
     state.rules = result.ok ? (result.data.rules || []) : [];
@@ -1926,13 +2121,13 @@
     const status = $('ruleStatusFilter')?.value || '';
     const rows   = state.rules.filter(r => (!term || String(r.name).toLowerCase().includes(term)) && (!status || String(r.status||'Active').toLowerCase() === status.toLowerCase()));
     if ($('ruleList')) $('ruleList').innerHTML = rows.length
-      ? rows.map(r => `<div class="rule-item" role="listitem"><div><b>${esc(r.name)}</b><small>${esc(r.status||'Active')} - priority ${esc(r.priority||'Medium')} - executions ${esc(r.execution_count||0)}</small></div><div><button class="btn sm" type="button">Edit</button><button class="btn sm" type="button">Pause</button><button class="btn sm" type="button">Duplicate</button><button class="btn sm" type="button">Archive</button></div></div>`).join('')
-      : '<div class="rule-item"><div><b>No rules yet</b><small>Create a rule above or apply a template.</small></div><span class="badge warn">Empty</span></div>';
+      ? rows.map(r => `<div class="rule-item" role="listitem" data-rule-id="${esc(r.id)}"><div><b>${esc(r.name)}</b><small>${esc(r.status||'Active')} - ${esc(r.mailbox_scope === 'selected' ? 'one mailbox' : 'all mailboxes')} - priority ${esc(r.priority||'Medium')} - executions ${esc(r.execution_count||0)}</small></div><div><button class="btn sm" data-simulate-rule-id="${esc(r.id)}" type="button">Test</button><button class="btn sm" type="button">Pause</button><button class="btn sm" type="button">Duplicate</button><button class="btn sm" type="button">Archive</button></div></div>`).join('')
+      : '<div class="rule-item"><div><b>No rules created yet. Create your first automation rule.</b><small>Sample rules are hidden until you load a pack.</small></div><span class="badge warn">Empty</span></div>';
     renderRuleDiagram();
   }
 
   function renderRuleDiagram() {
-    if ($('ruleDiagram')) $('ruleDiagram').innerHTML = ['Analyze','Match','Prioritize','Execute','Log','Report'].map(n => `<span class="workflow-node">${esc(n)}</span>`).join(' → ');
+    if ($('ruleDiagram')) $('ruleDiagram').innerHTML = ['Analyze','Match','Prioritize','Execute','Log','Report'].map(n => `<span class="workflow-node">${esc(n)}</span>`).join(' -> ');
   }
 
   function renderWorkflowSteps(steps) {
@@ -1949,23 +2144,56 @@
     const actionType = f.get('action_type');
     let actionValue = f.get('action_value') || '';
     if (actionType === 'forward_email') actionValue = {to:actionValue.split(',').map(x=>x.trim()).filter(Boolean), subject_prefix:'Fwd:', include_body:true, requires_approval:false};
-    const conditionMap = {subject_keywords:'subject_contains', body_keywords:'body_contains', sender:'sender_contains', sender_domain:'domain_is', ai_intent:'category_is', category_is:'category_is'};
-    const conditionType = conditionMap[f.get('condition_type')] || f.get('condition_type');
-    const payload = {name:f.get('name'), condition:{type:conditionType, value:[f.get('condition_value')]}, actions:[{type:actionType, value:actionValue}], priority:f.get('priority'), execution_type:f.get('execution_type'), enabled:f.get('status')==='active', status:f.get('status'), apply_existing:true, exceptions:f.get('exceptions')};
+    const mailboxId = String(f.get('mailbox_id') || '').trim();
+    const values = String(f.get('condition_value') || '').split(',').map(x => x.trim()).filter(Boolean);
+    const action = {type:actionType, value:actionValue, auto_create_target:f.get('auto_create_target') === 'on', provider_action_required:true};
+    if (f.get('target_folder_id')) action.target_folder_id = Number(f.get('target_folder_id'));
+    if (f.get('target_label_id')) action.target_label_id = Number(f.get('target_label_id'));
+    const payload = {name:f.get('name'), mailbox_scope:mailboxId ? 'selected' : 'all', mailbox_id:mailboxId ? Number(mailboxId) : null, scan_scope:f.get('scan_scope') || 'entire_email_with_attachments', match_mode:f.get('match_mode') || 'any', condition:{type:f.get('condition_type') || 'entire_email_contains', value:values}, actions:[action], priority:f.get('priority'), enabled:f.get('status')==='active', status:f.get('status'), apply_existing:false, exceptions:f.get('exceptions')};
     const result = await api('/api/v1/rules', {method:'POST', body:JSON.stringify(payload)});
     if (result.ok) {
-      const s = result.data.apply_summary || {};
-      toast('Rule saved', `Applied to ${s.emails_checked??0} email(s) — ${s.matched_rules??0} action(s) executed.`, 'ok');
+      state.lastRuleId = result.data.rule_id;
+      toast('Rule saved', 'Rule is ready. Use Test rule to preview matches or Apply Rules to All to run it.', 'ok');
       loadRules(); loadDashboard(); loadLabelsAndFolders();
     } else toast('Rule not saved', msgFromError(result.error), 'bad');
   }
 
-  async function simulateRule() {
+  function currentRuleFormPayload() {
     const f = new FormData($('ruleForm'));
-    const payload = {subject:String(f.get('condition_value')||'RFQ'), sender_email:'customer@example.com', body:'Sample email for rule simulation'};
-    const result = await api('/api/v1/rules/evaluate', {method:'POST', body:JSON.stringify(payload)});
-    if ($('ruleTimeline')) $('ruleTimeline').innerHTML = `<div class="timeline-item"><b>Simulation</b><br><small>${esc(result.ok ? `${result.data.count||0} rule(s) matched` : msgFromError(result.error))}</small></div>`;
-    toast('Simulation complete', result.ok ? 'Execution preview updated.' : msgFromError(result.error), result.ok ? 'ok' : 'warn');
+    const mailboxId = String(f.get('mailbox_id') || '').trim();
+    const values = String(f.get('condition_value') || '').split(',').map(x => x.trim()).filter(Boolean);
+    const actionType = f.get('action_type');
+    let actionValue = f.get('action_value') || '';
+    if (actionType === 'forward_email') actionValue = {to:String(actionValue).split(',').map(x=>x.trim()).filter(Boolean), subject_prefix:'Fwd:', include_body:true, requires_approval:false};
+    return {name:f.get('name') || 'Untitled rule', mailbox_scope:mailboxId ? 'selected' : 'all', mailbox_id:mailboxId ? Number(mailboxId) : null, scan_scope:f.get('scan_scope') || 'entire_email_with_attachments', match_mode:f.get('match_mode') || 'any', condition:{type:f.get('condition_type') || 'entire_email_contains', value:values}, actions:[{type:actionType, value:actionValue}], priority:f.get('priority') || 'Medium', enabled:true, apply_existing:false};
+  }
+
+  function renderSimulationPanel(data, ok = true) {
+    const panel = $('ruleSimulationPanel');
+    if (!panel) return;
+    if (!ok) { panel.innerHTML = `<strong>Simulation failed</strong><p>${esc(data)}</p>`; return; }
+    const matches = data.matches || [];
+    panel.innerHTML = `<strong>Simulation complete</strong><p>Matched ${esc(data.matched_count || 0)} of ${esc(data.scanned_count || 0)} scanned emails. No messages were modified.</p>${matches.length ? `<ul>${matches.map(m => `<li><b>${esc(m.subject || '(no subject)')}</b><span>${esc(m.matched_source || 'email')} - ${(m.planned_actions || []).map(esc).join(', ')}</span></li>`).join('')}</ul>` : '<p>No conversations found for this filter.</p>'}`;
+  }
+
+  async function simulateRule(ruleId = null) {
+    let id = ruleId || state.lastRuleId || state.rules?.[0]?.id;
+    if (!id) {
+      const draft = currentRuleFormPayload();
+      if (!draft.name || !draft.condition.value.length) return renderSimulationPanel('Enter a rule name and keyword before testing.', false);
+      const saved = await api('/api/v1/rules', {method:'POST', body:JSON.stringify(draft)});
+      if (!saved.ok) return renderSimulationPanel(msgFromError(saved.error), false);
+      id = saved.data.rule_id;
+      state.lastRuleId = id;
+      await loadRules();
+    }
+    const mailboxId = $('ruleMailboxSelect')?.value || selectedMailboxId();
+    const payload = {limit:100};
+    if (mailboxId) payload.mailbox_id = Number(mailboxId);
+    const result = await api(`/api/v1/rules/${encodeURIComponent(id)}/simulate`, {method:'POST', body:JSON.stringify(payload)});
+    if ($('ruleTimeline')) $('ruleTimeline').innerHTML = `<div class="timeline-item"><b>Simulation</b><br><small>${esc(result.ok ? `Matched ${result.data.matched_count||0} of ${result.data.scanned_count||0}` : msgFromError(result.error))}</small></div>`;
+    if (result.ok) renderSimulationPanel(result.data, true); else renderSimulationPanel(msgFromError(result.error), false);
+    toast('Simulation complete', result.ok ? 'No messages were modified.' : msgFromError(result.error), result.ok ? 'ok' : 'warn');
   }
 
   function duplicateRule() {
@@ -1976,26 +2204,61 @@
     toast('Rule duplicated', 'Modify the name and click Save Rule.', 'info');
   }
 
+  async function populateRuleMailboxOptions() {
+    if (!state.accounts.length) await loadAccounts();
+    const select = $('ruleMailboxSelect');
+    if (!select) return;
+    const current = select.value || '';
+    select.innerHTML = '<option value="">All connected mailboxes</option>' + state.accounts.map(account =>
+      `<option value="${esc(account.id)}" ${String(account.id) === String(current) ? 'selected' : ''}>${esc(accountLabel(account))}</option>`
+    ).join('');
+    if (current && state.accounts.some(a => String(a.id) === String(current))) select.value = current;
+  }
+
   async function loadLabelsAndFolders() {
-    const [lr, fr] = await Promise.all([api('/api/v1/rules/labels'), api('/api/v1/rules/folders')]);
+    const ruleMailboxId = $('ruleMailboxSelect')?.value || selectedMailboxId();
+    const labelUrl = ruleMailboxId ? `/api/v1/mailboxes/${encodeURIComponent(ruleMailboxId)}/labels` : '/api/v1/rules/labels';
+    const folderUrl = ruleMailboxId ? `/api/v1/mailboxes/${encodeURIComponent(ruleMailboxId)}/folders` : '/api/v1/rules/folders';
+    const [lr, fr] = await Promise.all([api(labelUrl), api(folderUrl)]);
     const labels  = lr.ok ? (lr.data.labels  || []) : [];
     const folders = fr.ok ? (fr.data.folders || []) : [];
-    if ($('labelInventory'))  $('labelInventory').innerHTML  = labels.length  ? labels.map(l  => `<span class="badge ok" role="listitem">${esc(typeof l==='string'?l:(l.name||''))}</span>`).join(' ') : '<span class="empty-muted">No labels yet — created automatically when rules run.</span>';
-    if ($('folderInventory')) $('folderInventory').innerHTML = folders.length ? folders.map(fl => `<span class="badge" role="listitem">${esc(typeof fl==='string'?fl:(fl.name||''))}</span>`).join(' ') : '<span class="empty-muted">No folders yet — created automatically when rules run.</span>';
+    if ($('labelInventory'))  $('labelInventory').innerHTML  = labels.length  ? labels.map(l  => `<span class="badge ok" role="listitem">${esc(typeof l==='string'?l:(l.name||''))}</span>`).join(' ') : '<span class="empty-muted">Sync folders and labels first.</span>';
+    if ($('folderInventory')) $('folderInventory').innerHTML = folders.length ? folders.map(fl => `<span class="badge" role="listitem">${esc(typeof fl==='string'?fl:(fl.name||''))}</span>`).join(' ') : '<span class="empty-muted">Sync folders and labels first.</span>';
+    const folderSelect = $('ruleTargetFolder');
+    const labelSelect = $('ruleTargetLabel');
+    if (folderSelect) folderSelect.innerHTML = '<option value="">Use folder name below</option>' + folders.map(fl => `<option value="${esc(fl.id)}">${esc(fl.name || '')}</option>`).join('');
+    if (labelSelect) labelSelect.innerHTML = '<option value="">Use label name below</option>' + labels.map(l => `<option value="${esc(l.id)}">${esc(l.name || '')}</option>`).join('');
+  }
+
+  async function scanRuleMailboxStructure() {
+    const mailboxId = $('ruleMailboxSelect')?.value || selectedMailboxId();
+    if (!mailboxId) return toast('Select an email account first', 'Choose one mailbox before scanning folders and labels.', 'warn');
+    const btn = $('scanRuleStructureBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Scanning folders and labels...'; }
+    const result = await api(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/sync-structure`, {method:'POST'});
+    if (btn) { btn.disabled = false; btn.textContent = 'Scan folders and labels'; }
+    toast(result.ok ? 'Folders and labels synced' : 'Folder scan failed', result.ok ? 'Folders and labels synced.' : 'Could not sync folders/labels for this mailbox. Retry.', result.ok ? 'ok' : 'bad');
+    await loadMailboxBuckets(mailboxId);
+    populateInboxFilters();
+    await loadLabelsAndFolders();
   }
 
   async function createLabel(name) {
     if (!name?.trim()) return toast('Label name required', '', 'warn');
-    const result = await api('/api/v1/rules/labels', {method:'POST', body:JSON.stringify({name:name.trim()})});
-    toast(result.ok ? 'Label created' : 'Label not created', result.ok ? `"${name.trim()}" is ready.` : msgFromError(result.error), result.ok ? 'ok' : 'bad');
-    if (result.ok) loadLabelsAndFolders();
+    const mailboxId = $('ruleMailboxSelect')?.value || selectedMailboxId();
+    if (!mailboxId) return toast('Select an email account before creating a label.', 'Labels must be created inside one connected mailbox.', 'warn');
+    const result = await api(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/labels`, {method:'POST', body:JSON.stringify({name:name.trim()})});
+    toast(result.ok ? 'Label created' : 'Label not created', result.ok ? (result.data.message || `Label created in ${selectedMailbox()?.email || 'selected mailbox'}`) : msgFromError(result.error), result.ok ? 'ok' : 'bad');
+    if (result.ok) { await loadMailboxBuckets(mailboxId); populateInboxFilters(); loadLabelsAndFolders(); }
   }
 
   async function createFolder(name) {
     if (!name?.trim()) return toast('Folder name required', '', 'warn');
-    const result = await api('/api/v1/rules/folders', {method:'POST', body:JSON.stringify({name:name.trim()})});
-    toast(result.ok ? 'Folder created' : 'Folder not created', result.ok ? `"${name.trim()}" is ready.` : msgFromError(result.error), result.ok ? 'ok' : 'bad');
-    if (result.ok) loadLabelsAndFolders();
+    const mailboxId = selectedMailboxId();
+    if (!mailboxId) return toast('Select an email account before creating a folder.', 'Folders must be created inside one connected mailbox.', 'warn');
+    const result = await api(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/folders`, {method:'POST', body:JSON.stringify({name:name.trim()})});
+    toast(result.ok ? 'Folder created' : 'Folder not created', result.ok ? (result.data.message || `Folder created in ${selectedMailbox()?.email || 'selected mailbox'}`) : msgFromError(result.error), result.ok ? 'ok' : 'bad');
+    if (result.ok) { await loadMailboxBuckets(mailboxId); populateInboxFilters(); loadLabelsAndFolders(); }
   }
 
   async function loadPresets() {
@@ -2008,8 +2271,8 @@
   }
 
   async function installPreset(presetId, btn) {
-    if (btn) { btn.disabled = true; btn.textContent = 'Installing…'; }
-    toast('Installing preset', `Installing rules from "${presetId}" pack…`, 'info');
+    if (btn) { btn.disabled = true; btn.textContent = 'Installing...'; }
+    toast('Installing preset', `Installing rules from "${presetId}" pack...`, 'info');
     const result = await api(`/api/v1/rules/presets/${encodeURIComponent(presetId)}`, {method:'POST'});
     if (btn) { btn.disabled = false; btn.textContent = 'Install Pack'; }
     if (result.ok) { const d = result.data; toast(`Pack installed: ${d.preset}`, `${d.installed_count} rule(s) installed, ${d.skipped_count} already existed.`, 'ok'); loadRules(); loadLabelsAndFolders(); loadRuleAnalytics(); }
@@ -2018,8 +2281,8 @@
 
   async function applyRulesToAll() {
     const btn = $('applyRulesBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Applying…'; }
-    toast('Applying rules', 'Scanning all emails and executing matching rules…', 'info');
+    if (btn) { btn.disabled = true; btn.textContent = 'Applying...'; }
+    toast('Applying rules', 'Scanning all emails and executing matching rules...', 'info');
     const result = await api('/api/v1/rules/apply', {method:'POST', body:JSON.stringify({limit:1000, provider_write:true})});
     if (btn) { btn.disabled = false; btn.textContent = 'Apply Rules to All'; }
     if (result.ok) { const matched = result.data.matched_rules ?? result.data.count ?? 0; const checked = result.data.emails_checked ?? 0; toast('Rules applied', `${matched} action(s) executed across ${checked} email(s).`, 'ok'); loadRuleAnalytics(); loadLabelsAndFolders(); }
@@ -2035,7 +2298,7 @@
     if ($('ruleTimeline')) $('ruleTimeline').innerHTML = timeline.map(x => `<div class="timeline-item"><b>${esc(x.title)}</b><br><small>${esc(x.detail)}</small></div>`).join('') || '<div class="timeline-item"><b>No executions yet</b><br><small>Rule execution history appears here.</small></div>';
   }
 
-  // ── Templates ───────────────────────────────────────────────────────────────
+  // -- Templates ---------------------------------------------------------------
   async function loadTemplates() {
     const result = await api('/api/v1/templates');
     state.templates = result.ok ? (result.data.templates || []) : [
@@ -2057,7 +2320,7 @@
     if (result.ok) { if ($('templateNameInput')) $('templateNameInput').value = ''; if ($('templateVarsInput')) $('templateVarsInput').value = ''; loadTemplates(); }
   }
 
-  // ── Reports ─────────────────────────────────────────────────────────────────
+  // -- Reports -----------------------------------------------------------------
   function fallbackReports() {
     return {
       email: {received:state.emails.length||3, processed:state.emails.length||3, unread:state.emails.filter(e=>!e.is_read).length||2, categorized:state.emails.length||3, forwarded:0, failed:0},
@@ -2102,7 +2365,7 @@
     renderBars('businessChart', reportValues(business));
     renderBars('learningChart', reportValues(learning));
     renderBars('modelHealthChart', reportValues(modelHealth));
-    if (showToast) toast('Reports generated', result.ok ? 'Report data loaded from backend.' : 'Backend unavailable — local fallback displayed.', result.ok ? 'ok' : 'warn');
+    if (showToast) toast('Reports generated', result.ok ? 'Report data loaded from backend.' : 'Backend unavailable  -  local fallback displayed.', result.ok ? 'ok' : 'warn');
   }
 
   async function scheduleReport() {
@@ -2163,7 +2426,7 @@ ${section('Model Health', modelHealth)}
     setTimeout(() => { win.print(); }, 350);
   }
 
-  // ── Admin ───────────────────────────────────────────────────────────────────
+  // -- Admin -------------------------------------------------------------------
   async function loadAdmin() {
     const [adminResult, govResult] = await Promise.all([api('/api/v1/admin/overview'), api('/api/v1/governance/readiness')]);
     state.admin = adminResult.ok ? adminResult.data : {sections:FALLBACK_ADMIN_SECTIONS};
@@ -2176,10 +2439,10 @@ ${section('Model Health', modelHealth)}
 
   function adminActionButtons(name) {
     const n = String(name || '').toLowerCase();
-    // Sections whose detail panels already contain the primary action button — no header duplicates
+    // Sections whose detail panels already contain the primary action button  -  no header duplicates
     if (n.includes('user') || n.includes('roles') || n.includes('team') ||
         n.includes('notification') || n.includes('ai config'))  return '';
-    // Read-only status / info sections — no action needed in the header
+    // Read-only status / info sections  -  no action needed in the header
     if (n.includes('system health') || n.includes('database') || n.includes('license')) return '';
     // Sections with meaningful per-section header actions
     if (n.includes('update'))      return '<button class="btn primary" data-admin-open-updates type="button">Open Update Center</button><button class="btn" data-admin-preview-update type="button">Preview Patch Flow</button>';
@@ -2225,7 +2488,7 @@ ${section('Model Health', modelHealth)}
 
   async function loadAuditLogs() {
     const detail = $('adminDetail');
-    if (detail) { detail.innerHTML = '<div class="activity-item"><div><b>Loading audit log…</b><small>Fetching recent activity.</small></div></div>'; detail.scrollIntoView({behavior:'smooth', block:'nearest'}); }
+    if (detail) { detail.innerHTML = '<div class="activity-item"><div><b>Loading audit log...</b><small>Fetching recent activity.</small></div></div>'; detail.scrollIntoView({behavior:'smooth', block:'nearest'}); }
     const result = await api('/api/v1/admin/audit');
     if (!result.ok) {
       if (detail) detail.innerHTML = `<div class="activity-item"><div><b>Audit log unavailable</b><small>${esc(msgFromError(result.error))}</small></div><span class="badge bad">Error</span></div>`;
@@ -2234,7 +2497,7 @@ ${section('Model Health', modelHealth)}
     }
     const rows = result.data.audit || [];
     if (detail) detail.innerHTML = rows.length
-      ? rows.slice(0, 50).map(x => `<div class="activity-item"><div><b>${esc(x.rule_name||'Audit event')}</b><small>${esc(x.action_type||'')} — ${esc(x.created_at||'')}</small></div><span class="badge ok">Logged</span></div>`).join('')
+      ? rows.slice(0, 50).map(x => `<div class="activity-item"><div><b>${esc(x.rule_name||'Audit event')}</b><small>${esc(x.action_type||'')}  -  ${esc(x.created_at||'')}</small></div><span class="badge ok">Logged</span></div>`).join('')
       : '<div class="activity-item"><div><b>No audit events yet</b><small>Rule, sync and forwarding actions will appear here as they occur.</small></div></div>';
     toast('Audit log', `${rows.length} event${rows.length !== 1 ? 's' : ''} found.`, rows.length > 0 ? 'ok' : 'info');
   }
@@ -2249,7 +2512,7 @@ ${section('Model Health', modelHealth)}
     const result = await api('/api/v1/updates/preview', {method:'POST', body:JSON.stringify({})});
     const steps = result.ok ? (result.data.steps || []) : ['Validate ZIP','Preview changes','Backup','Install','Rollback ready'];
     if ($('updatePreview')) $('updatePreview').innerHTML = steps.map(s => `<span class="workflow-node">${esc(s)}</span>`).join(' ');
-    toast(result.ok ? 'Patch preview ready' : 'Patch preview opened', steps.join(' → '), result.ok ? 'ok' : 'warn');
+    toast(result.ok ? 'Patch preview ready' : 'Patch preview opened', steps.join(' -> '), result.ok ? 'ok' : 'warn');
   }
 
   async function submitPatch(event) {
@@ -2271,7 +2534,7 @@ ${section('Model Health', modelHealth)}
     );
   }
 
-  // ── Settings ────────────────────────────────────────────────────────────────
+  // -- Settings ----------------------------------------------------------------
   function renderSettings(tab = 'general') {
     $$('.settings-tab').forEach(b => b.classList.toggle('active', b.dataset.settings === tab));
     const blocks = {
@@ -2290,7 +2553,7 @@ ${section('Model Health', modelHealth)}
     if (tab === 'advanced') loadAdvancedDiagnostics();
   }
 
-  // ── Command palette ─────────────────────────────────────────────────────────
+  // -- Command palette ---------------------------------------------------------
   const PALETTE_ACTIONS = [
     {title:'Add email account',           section:'Accounts',    action:'accounts',          shortcut:'A'},
     {title:'Open inbox',                  section:'Inbox',       action:'inbox',             shortcut:'I'},
@@ -2331,7 +2594,24 @@ ${section('Model Health', modelHealth)}
     closeCommandPalette();
   }
 
-  // ── Global click delegation ─────────────────────────────────────────────────
+  function applyNavigationRole(role = localStorage.getItem('ai36NavRole') || 'basic-client') {
+    const nav = document.querySelector('.main-nav');
+    if (!nav) return;
+    nav.dataset.navRole = role;
+    nav.querySelectorAll('[data-nav-role]').forEach(item => {
+      const roles = String(item.dataset.navRole || '').split(/\s+/).filter(Boolean);
+      item.hidden = roles.length > 0 && !roles.includes(role);
+    });
+    const chip = $('navRoleChip');
+    if (chip) chip.textContent = role === 'advanced-admin' ? 'Advanced admin' : role === 'business-admin' ? 'Business admin' : role === 'admin' ? 'Admin' : 'Essentials';
+  }
+
+  function setNavigationRole(role) {
+    localStorage.setItem('ai36NavRole', role);
+    applyNavigationRole(role);
+  }
+
+  // -- Global click delegation -------------------------------------------------
   document.addEventListener('click', async event => {
     const target = event.target.closest('button');
     if (!target) return;
@@ -2350,7 +2630,9 @@ ${section('Model Health', modelHealth)}
     if (target.id === 'detectProviderBtn' || target.dataset.detectInline !== undefined) detectProvider();
     if (target.id === 'testConnectionBtn')  testAccountConnection();
     if (target.dataset.oauthStart)         startOAuthFlow(target.dataset.oauthStart, $('accountForm')?.email?.value || '');
+    if (target.dataset.continueOauth)      startOAuthFlow(target.dataset.continueOauth, $('accountForm')?.email?.value || '');
     if (target.dataset.showOauthSetup)     renderOAuthSetupPanel(target.dataset.showOauthSetup);
+    if (target.dataset.useAppPassword !== undefined) useAppPasswordFlow();
 
     if (target.dataset.sync)                      startAccountSync(target.dataset.sync);
     if (target.dataset.editAccount !== undefined) toggleAccountEdit(target.dataset.editAccount);
@@ -2360,7 +2642,7 @@ ${section('Model Health', modelHealth)}
     if (target.dataset.reconnect)                 reconnectAccount(target.dataset.reconnect);
     if (target.dataset.remove)                    removeAccount(target.dataset.remove);
 
-    if (target.id === 'refreshInboxBtn') loadInbox();
+    if (target.id === 'refreshInboxBtn') { refreshInboxSync(); return; }
     if (target.id === 'bulkActionBtn')  { toggleSelectAll(); return; }
     // Bulk bar actions
     if (target.id === 'bulkReadBtn')    { executeBulkAction('markRead'); return; }
@@ -2371,7 +2653,7 @@ ${section('Model Health', modelHealth)}
     // Sidebar inline folder/label creation
     if (target.id === 'sidebarCreateFolderBtn') { const inp = $('sidebarNewFolder'); createFolder(inp?.value); if (inp) inp.value = ''; return; }
     if (target.id === 'sidebarCreateLabelBtn')  { const inp = $('sidebarNewLabel');  createLabel(inp?.value);  if (inp) inp.value = ''; return; }
-    // Email checkbox selection — label wraps the checkbox, clicking label fires on label or checkbox
+    // Email checkbox selection  -  label wraps the checkbox, clicking label fires on label or checkbox
     if (target.dataset.cbId || target.closest('.thread-row-cb')) {
       const cb = target.type === 'checkbox' ? target : target.closest('.thread-row-cb')?.querySelector('.email-cb');
       if (cb) toggleEmailSelect(cb.dataset.cbId, cb.checked);
@@ -2384,6 +2666,8 @@ ${section('Model Health', modelHealth)}
     if (emailBtn?.dataset.emailId) { state.selectedEmail = state.emails.find(e => String(e.id) === String(emailBtn.dataset.emailId)); renderPreview(state.selectedEmail); renderInbox(); }
 
     if (target.id === 'simulateRuleBtn')   simulateRule();
+    if (target.dataset.simulateRuleId)     simulateRule(target.dataset.simulateRuleId);
+    if (target.id === 'scanRuleStructureBtn') scanRuleMailboxStructure();
     if (target.dataset.recoverOnnxModel)   recoverOnnxModel(target.dataset.recoverOnnxModel);
     if (target.dataset.forgetLearningKey)  forgetLearningOverride(target.dataset.forgetLearningKey);
     if (target.id === 'exportLearningMemoryBtn') exportLearningMemory();
@@ -2444,22 +2728,36 @@ ${section('Model Health', modelHealth)}
     if (target.id === 'commandPaletteBtn')    openCommandPalette();
     if (target.id === 'closeCommandPalette')  closeCommandPalette();
     if (target.dataset.command)               runCommand(target.dataset.command);
+    if (target.id === 'navModeToggle') {
+      const current = localStorage.getItem('ai36NavRole') || 'basic-client';
+      const next = current === 'basic-client' ? 'advanced-admin' : 'basic-client';
+      setNavigationRole(next);
+      target.setAttribute('aria-pressed', String(next !== 'basic-client'));
+      target.textContent = next === 'basic-client' ? 'Show advanced tools' : 'Show essentials only';
+    }
   });
 
-  // ── Bindings ────────────────────────────────────────────────────────────────
+  // -- Bindings ----------------------------------------------------------------
   function bind() {
     $('sidebarOverlay')?.addEventListener('click', () => $('sidebar')?.classList.remove('open'));
     $('accountForm')?.addEventListener('submit', saveAccount);
     $('accountForm')?.provider?.addEventListener('change', e => selectProvider(e.target.value, true));
-    $('connectionMethod')?.addEventListener('change', () => { renderProviderActionPanel(state.currentProvider); const pw = $('accountForm')?.password; if (pw) pw.closest('label')?.classList.toggle('muted-field', selectedConnectionMethod() === 'oauth'); });
+    $('connectionMethod')?.addEventListener('change', () => { renderProviderActionPanel(state.currentProvider); const pw = $('accountForm')?.password; if (pw) pw.closest('label')?.classList.toggle('muted-field', selectedConnectionMethod() === 'oauth'); updateOAuthSubmitState(); });
     $('accountForm')?.email?.addEventListener('blur', () => { const f = $('accountForm'); if (f?.email?.value && (!f.provider.value || f.provider.value === 'custom')) selectProvider(providerForEmail(f.email.value), true); });
     $('ruleForm')?.addEventListener('submit', saveRule);
     $('analysisForm')?.addEventListener('submit', analyzeEmail);
     $('learningFeedbackForm')?.addEventListener('submit', submitLearningFeedback);
-    $('folderFilter')?.addEventListener('change', renderInbox);
-    $('labelFilter')?.addEventListener('change',  renderInbox);
+    $('accountFilter')?.addEventListener('change', e => {
+      state.selectedMailboxId = e.target.value || '';
+      if ($('folderFilter')) $('folderFilter').value = '';
+      if ($('labelFilter')) $('labelFilter').value = '';
+      loadInbox();
+    });
+    $('folderFilter')?.addEventListener('change', loadInbox);
+    $('labelFilter')?.addEventListener('change',  loadInbox);
     $('ruleSearch')?.addEventListener('input',     renderRules);
     $('ruleStatusFilter')?.addEventListener('change', renderRules);
+    $('ruleMailboxSelect')?.addEventListener('change', loadLabelsAndFolders);
     $('newLabelInput')?.addEventListener('keydown',  e => { if (e.key === 'Enter') { e.preventDefault(); createLabel(e.target.value); e.target.value = ''; } });
     $('newFolderInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); createFolder(e.target.value); e.target.value = ''; } });
     $('sidebarNewFolder')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); createFolder(e.target.value); if (e.target) e.target.value = ''; } });
@@ -2476,7 +2774,7 @@ ${section('Model Health', modelHealth)}
     });
   }
 
-  // ── Workflow Engine ──────────────────────────────────────────────────────────
+  // -- Workflow Engine ----------------------------------------------------------
   let _wfReady = false;
 
   function initWorkflowsView() {
@@ -2532,9 +2830,9 @@ ${section('Model Health', modelHealth)}
       ['Last 24h Succeeded', s.last_24h?.succeeded ?? 0],
       ['Last 24h Failed',    s.last_24h?.failed    ?? 0],
     ].map(([label, val]) => `
-      <div style="background:var(--surface-raised);border:1px solid var(--border);border-radius:8px;padding:10px 16px;min-width:120px;">
-        <div style="font-size:22px;font-weight:700;color:var(--accent);">${esc(String(val))}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${esc(label)}</div>
+      <div class="wf-stat-card">
+        <div class="wf-stat-value">${esc(String(val))}</div>
+        <div class="wf-stat-label">${esc(label)}</div>
       </div>`).join('');
   }
 
@@ -2553,20 +2851,20 @@ ${section('Model Health', modelHealth)}
       return;
     }
     list.innerHTML = items.map(w => `
-      <article class="panel" style="margin-bottom:12px;" data-wf-id="${esc(w.id)}">
+      <article class="wf-active-card" data-wf-id="${esc(w.id)}">
         <div class="panel-head">
           <div>
             <h2>${esc(w.name)}</h2>
             <p>${esc(w.description || '')}</p>
           </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div class="wf-card-actions">
             <span class="badge ${w.is_active ? 'ok' : 'neutral'}">${w.is_active ? 'Active' : 'Inactive'}</span>
             <button class="btn sm wf-run-btn"    type="button" data-wf-id="${esc(w.id)}" ${!w.is_active ? 'disabled' : ''}>Run</button>
             <button class="btn sm ghost wf-toggle-btn" type="button" data-wf-id="${esc(w.id)}" data-wf-active="${w.is_active ? '1' : '0'}">${w.is_active ? 'Deactivate' : 'Activate'}</button>
-            <button class="btn sm ghost wf-delete-btn" type="button" data-wf-id="${esc(w.id)}" style="color:var(--danger)">Delete</button>
+            <button class="btn sm danger wf-delete-btn" type="button" data-wf-id="${esc(w.id)}">Delete</button>
           </div>
         </div>
-        <div style="display:flex;gap:24px;font-size:12px;color:var(--text-muted);margin-top:8px;flex-wrap:wrap;">
+        <div class="wf-card-meta">
           <span>Trigger: <strong>${esc(w.trigger_type || 'manual')}</strong></span>
           <span>Category: <strong>${esc(w.category || 'general')}</strong></span>
           <span>Runs: <strong>${esc(String(w.run_count ?? 0))}</strong></span>
@@ -2577,7 +2875,7 @@ ${section('Model Health', modelHealth)}
     list.querySelectorAll('.wf-run-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.wfId;
-        btn.disabled = true; btn.textContent = 'Running…';
+        btn.disabled = true; btn.textContent = 'Running...';
         const r2 = await api(`/api/v1/workflows/${id}/execute`, { method: 'POST', body: JSON.stringify({}) });
         if (r2.ok) {
           toast('Workflow started', 'Execution dispatched in background.', 'ok');
@@ -2593,7 +2891,7 @@ ${section('Model Health', modelHealth)}
       btn.addEventListener('click', async () => {
         const id     = btn.dataset.wfId;
         const active = btn.dataset.wfActive === '1';
-        btn.disabled = true; btn.textContent = active ? 'Deactivating…' : 'Activating…';
+        btn.disabled = true; btn.textContent = active ? 'Deactivating...' : 'Activating...';
         const r2 = await api(`/api/v1/workflows/${id}/${active ? 'deactivate' : 'activate'}`, { method: 'POST' });
         if (r2.ok) {
           toast(active ? 'Workflow deactivated' : 'Workflow activated', '', 'ok');
@@ -2611,7 +2909,7 @@ ${section('Model Health', modelHealth)}
       btn.addEventListener('click', async () => {
         const id = btn.dataset.wfId;
         if (!confirm('Delete this workflow permanently?')) return;
-        btn.disabled = true; btn.textContent = 'Deleting…';
+        btn.disabled = true; btn.textContent = 'Deleting...';
         const r2 = await api(`/api/v1/workflows/${id}`, { method: 'DELETE' });
         if (r2.ok) {
           toast('Deleted', 'Workflow removed.', 'ok');
@@ -2657,15 +2955,15 @@ ${section('Model Health', modelHealth)}
     });
 
     grid.innerHTML = sorted.map(t => `
-      <article class="panel" style="display:flex;flex-direction:column;gap:10px;" data-tmpl-id="${esc(t.template_id)}">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
-          <div>
-            <h3 style="font-size:14px;font-weight:600;margin:0 0 4px;">${esc(t.name)}</h3>
-            <p style="font-size:12px;color:var(--text-muted);margin:0;">${esc(t.description || '')}</p>
+      <article class="wf-template-card" data-tmpl-id="${esc(t.template_id)}">
+        <div class="wf-template-head">
+          <div class="wf-template-copy">
+            <h3 class="wf-template-title">${esc(t.name)}</h3>
+            <p class="wf-template-desc">${esc(t.description || '')}</p>
           </div>
-          ${recoIds.has(t.template_id) ? '<span class="badge ok" style="flex-shrink:0;white-space:nowrap;">Recommended</span>' : ''}
+          ${recoIds.has(t.template_id) ? '<span class="badge ok workflow-reco-label">Recommended</span>' : ''}
         </div>
-        <div style="display:flex;gap:12px;font-size:11px;color:var(--text-muted);flex-wrap:wrap;">
+        <div class="wf-template-meta">
           <span>Trigger: <strong>${esc(t.trigger_type || 'manual')}</strong></span>
           <span>Steps: <strong>${t.steps?.length ?? 0}</strong></span>
           ${t.category ? `<span>Category: <strong>${esc(t.category)}</strong></span>` : ''}
@@ -2677,7 +2975,7 @@ ${section('Model Health', modelHealth)}
     grid.querySelectorAll('.wf-activate-tmpl-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const tmplId = btn.dataset.tmplId;
-        btn.disabled = true; btn.textContent = 'Activating…';
+        btn.disabled = true; btn.textContent = 'Activating...';
         const r2 = await api('/api/v1/workflows', {
           method: 'POST',
           body: JSON.stringify({ template_id: tmplId }),
@@ -2709,26 +3007,26 @@ ${section('Model Health', modelHealth)}
       return;
     }
     const STATUS_BADGE = { succeeded: 'ok', failed: 'bad', running: 'warn', pending: 'neutral' };
-    list.innerHTML = `<div style="overflow-x:auto;"><table class="data-table"><thead><tr>
+    list.innerHTML = `<div class="wf-history-scroll"><table class="data-table"><thead><tr>
       <th>Workflow</th><th>Trigger</th><th>Status</th><th>Steps</th><th>Duration</th><th>Started</th><th>Error</th>
     </tr></thead><tbody>${items.map(ex => {
       const durMs  = ex.duration_ms != null ? ex.duration_ms : (ex.finished_at && ex.started_at ? new Date(ex.finished_at) - new Date(ex.started_at) : null);
-      const dur    = durMs != null ? `${(durMs / 1000).toFixed(1)}s` : (ex.status === 'running' ? 'Running…' : '—');
-      const steps  = ex.step_count ? `${ex.steps_done ?? 0}/${ex.step_count}` : '—';
+      const dur    = durMs != null ? `${(durMs / 1000).toFixed(1)}s` : (ex.status === 'running' ? 'Running...' : ' - ');
+      const steps  = ex.step_count ? `${ex.steps_done ?? 0}/${ex.step_count}` : ' - ';
       const badge  = STATUS_BADGE[ex.status] || 'neutral';
       return `<tr>
-        <td>${esc(ex.workflow_name || ex.workflow_id || '—')}</td>
+        <td>${esc(ex.workflow_name || ex.workflow_id || ' - ')}</td>
         <td>${esc(ex.trigger_type || 'manual')}</td>
         <td><span class="badge ${badge}">${esc(ex.status)}</span></td>
         <td>${steps}</td>
         <td>${dur}</td>
-        <td>${ex.started_at ? new Date(ex.started_at).toLocaleString() : '—'}</td>
-        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(ex.error || '')}">${esc(ex.error || '—')}</td>
+        <td>${ex.started_at ? new Date(ex.started_at).toLocaleString() : ' - '}</td>
+        <td class="wf-history-error" title="${esc(ex.error || '')}">${esc(ex.error || ' - ')}</td>
       </tr>`;
     }).join('')}</tbody></table></div>`;
   }
 
-  // ── Alert Rules tab ─────────────────────────────────────────────────────────
+  // -- Alert Rules tab ---------------------------------------------------------
 
   let _alertEditId = null;
   let _alertRulesReady = false;
@@ -2790,7 +3088,7 @@ ${section('Model Health', modelHealth)}
             ${badge}
             <div>
               <div style="font-size:14px;font-weight:600;">${esc(rule.rule_name)}</div>
-              <div style="font-size:11px;color:var(--text-muted);">${esc(rule.metric)} ${esc(rule.operator)} ${rule.threshold} — current: <strong>${rule.current_value ?? '—'}</strong></div>
+              <div style="font-size:11px;color:var(--text-muted);">${esc(rule.metric)} ${esc(rule.operator)} ${rule.threshold}  -  current: <strong>${rule.current_value ?? ' - '}</strong></div>
             </div>
           </div>
           <div style="display:flex;gap:6px;align-items:center;">
@@ -2799,7 +3097,7 @@ ${section('Model Health', modelHealth)}
             <button class="btn sm danger" type="button" data-alert-del="${esc(rule.rule_id)}">Delete</button>
           </div>
         </div>
-        ${rule.last_breach ? `<div style="margin-top:6px;font-size:11px;color:var(--text-muted);">Last breach: ${esc(rule.last_breach.slice(0,19).replace('T',' '))} UTC · ${rule.breach_count} total</div>` : ''}
+        ${rule.last_breach ? `<div style="margin-top:6px;font-size:11px;color:var(--text-muted);">Last breach: ${esc(rule.last_breach.slice(0,19).replace('T',' '))} UTC Â· ${rule.breach_count} total</div>` : ''}
       </div>`;
     }).join('')}</div>`;
 
@@ -2861,7 +3159,7 @@ ${section('Model Health', modelHealth)}
     }
   }
 
-  // ── Outbound Webhooks ────────────────────────────────────────────────────────
+  // -- Outbound Webhooks --------------------------------------------------------
 
   let _whReady = false;
   let _whEditId = null;
@@ -2963,8 +3261,8 @@ ${section('Model Health', modelHealth)}
         const rows = deliveries.slice(0, 20).map(d => `
           <tr>
             <td style="font-size:11px;">${esc(d.event_type)}</td>
-            <td style="text-align:center;"><span style="color:${d.success ? 'var(--ok)' : 'var(--danger)'}">${d.success ? '✓' : '✗'}</span></td>
-            <td style="text-align:center;">${d.status_code ?? '—'}</td>
+            <td style="text-align:center;"><span style="color:${d.success ? 'var(--ok)' : 'var(--danger)'}">${d.success ? 'OK' : 'Failed'}</span></td>
+            <td style="text-align:center;">${d.status_code ?? ' - '}</td>
             <td style="text-align:right;">${d.duration_ms}ms</td>
             <td style="font-size:10px;color:var(--text-muted);">${d.attempt > 1 ? `retry ${d.attempt}` : 'first'}</td>
           </tr>`).join('');
@@ -2973,7 +3271,7 @@ ${section('Model Health', modelHealth)}
         modal.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:min(640px,95vw);max-height:80vh;overflow-y:auto;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
             <h3 style="font-size:14px;font-weight:700;margin:0;">Delivery Log (last ${deliveries.length})</h3>
-            <button type="button" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted);">✕</button>
+            <button type="button" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted);">x</button>
           </div>
           <table style="width:100%;border-collapse:collapse;font-size:12px;">
             <thead><tr style="color:var(--text-muted);border-bottom:1px solid var(--border);">
@@ -3041,7 +3339,7 @@ ${section('Model Health', modelHealth)}
     if (r.ok !== undefined) {
       const col = r.ok ? 'var(--ok)' : 'var(--danger)';
       resultEl.innerHTML = `<div style="font-size:12px;color:${col};padding:8px 0;">
-        ${r.ok ? '✓ Success' : '✗ Failed'} — HTTP ${r.status_code ?? 'N/A'} in ${r.duration_ms}ms
+        ${r.ok ? 'OK Success' : 'Failed Failed'}  -  HTTP ${r.status_code ?? 'N/A'} in ${r.duration_ms}ms
         ${r.error ? `<br><span style="color:var(--text-muted);">${esc(r.error)}</span>` : ''}
       </div>`;
     } else {
@@ -3049,7 +3347,7 @@ ${section('Model Health', modelHealth)}
     }
   }
 
-  // ── Operational Command Center ───────────────────────────────────────────────
+  // -- Operational Command Center -----------------------------------------------
   let _cmdReady = false;
   let _cmdWs    = null;
   let _cmdTimelineEvents = [];
@@ -3099,7 +3397,7 @@ ${section('Model Health', modelHealth)}
 
     $('cmdAnalyzeBtn')?.addEventListener('click', async () => {
       const btn = $('cmdAnalyzeBtn');
-      if (btn) { btn.disabled = true; btn.textContent = 'Analysing…'; }
+      if (btn) { btn.disabled = true; btn.textContent = 'Analysing...'; }
       const r = await api('/api/v1/intelligence/analyze', { method: 'POST' });
       if (r.ok) {
         toast('Analysis dispatched', 'Findings will appear in the timeline shortly.', 'ok');
@@ -3118,7 +3416,7 @@ ${section('Model Health', modelHealth)}
     });
   }
 
-  // ── Intelligence tab ────────────────────────────────────────────────────────
+  // -- Intelligence tab --------------------------------------------------------
 
   async function _loadCmdIntelligence() {
     const [healthR, insightR, predR] = await Promise.all([
@@ -3156,21 +3454,21 @@ ${section('Model Health', modelHealth)}
       } else {
         const SEV_BADGE = { critical: 'bad', high: 'bad', medium: 'warn', low: 'neutral' };
         const TYPE_ICON = {
-          anomaly:     '⚠',
-          security:    '🛡',
-          opportunity: '✦',
-          pattern:     '◈',
+          anomaly:     '!',
+          security:    'ðŸ›¡',
+          opportunity: '*',
+          pattern:     '*',
         };
         insightList.innerHTML = items.map(ins => `
           <div class="activity-item" style="padding:12px;border-bottom:1px solid var(--border-soft);">
             <div style="display:flex;flex-direction:column;gap:3px;flex:1;">
               <div style="display:flex;align-items:center;gap:6px;">
-                <span style="font-size:13px;">${TYPE_ICON[ins.type] || '●'}</span>
+                <span style="font-size:13px;">${TYPE_ICON[ins.type] || '*'}</span>
                 <strong style="font-size:13px;">${esc(ins.title)}</strong>
                 <span class="badge ${SEV_BADGE[ins.severity] || 'neutral'}" style="font-size:10px;">${esc(ins.severity)}</span>
               </div>
               <span style="font-size:12px;color:var(--text-muted);">${esc(ins.description)}</span>
-              ${ins.action ? `<span style="font-size:11px;color:var(--accent);margin-top:2px;">→ ${esc(ins.action)}</span>` : ''}
+              ${ins.action ? `<span style="font-size:11px;color:var(--accent);margin-top:2px;">-> ${esc(ins.action)}</span>` : ''}
             </div>
             ${ins.action_type === 'activate_workflow' ? `
               <button class="btn sm" type="button" data-activate-workflow="${esc(ins.action_target)}" style="flex-shrink:0;">Activate</button>
@@ -3183,7 +3481,7 @@ ${section('Model Health', modelHealth)}
         insightList.querySelectorAll('[data-activate-workflow]').forEach(btn => {
           btn.addEventListener('click', async () => {
             const tmplId = btn.dataset.activateWorkflow;
-            btn.disabled = true; btn.textContent = 'Activating…';
+            btn.disabled = true; btn.textContent = 'Activating...';
             const r2 = await api('/api/v1/workflows', { method: 'POST', body: JSON.stringify({ template_id: tmplId }) });
             if (r2.ok) {
               toast('Workflow activated', 'Check the Workflows view to manage it.', 'ok');
@@ -3210,12 +3508,12 @@ ${section('Model Health', modelHealth)}
         <div style="background:var(--surface-raised);border:1px solid var(--border);border-radius:8px;padding:12px 16px;min-width:160px;flex:1;">
           <div style="font-size:24px;font-weight:700;color:var(--accent);">${esc(String(p.value))} <span style="font-size:12px;font-weight:400;color:var(--text-muted);">${esc(p.unit)}</span></div>
           <div style="font-size:12px;font-weight:600;margin:2px 0;">${esc(p.title)}</div>
-          <div style="font-size:11px;color:var(--text-muted);">Confidence: ${p.confidence}% · ${esc(p.horizon)}</div>
+          <div style="font-size:11px;color:var(--text-muted);">Confidence: ${p.confidence}% Â· ${esc(p.horizon)}</div>
         </div>`).join('') || '<p style="color:var(--text-muted);font-size:13px;">No predictions available yet.</p>';
     }
   }
 
-  // ── Live Timeline tab ───────────────────────────────────────────────────────
+  // -- Live Timeline tab -------------------------------------------------------
 
   function _connectCmdTimeline() {
     const statusEl = $('cmdWsStatus');
@@ -3269,7 +3567,7 @@ ${section('Model Health', modelHealth)}
     const list = $('cmdTimelineList');
     if (!list) return;
     if (!events.length) {
-      list.innerHTML = '<div class="empty-state"><p>No events yet — agents will begin emitting events shortly.</p></div>';
+      list.innerHTML = '<div class="empty-state"><p>No events yet  -  agents will begin emitting events shortly.</p></div>';
       return;
     }
     list.innerHTML = '';
@@ -3305,7 +3603,7 @@ ${section('Model Health', modelHealth)}
     const label     = TYPE_LABEL[event.type] || event.type;
     const sev       = event.severity || 'low';
     const badge     = SEV_BADGE[sev] || 'neutral';
-    const source    = event.source || '—';
+    const source    = event.source || ' - ';
     const time      = event.created_at ? new Date(event.created_at).toLocaleTimeString() : '';
     const payload   = event.payload || {};
     const detail    = payload.title || payload.detail || payload.message || payload.description || JSON.stringify(payload).slice(0, 120);
@@ -3333,7 +3631,7 @@ ${section('Model Health', modelHealth)}
     }
   }
 
-  // ── Agents tab ──────────────────────────────────────────────────────────────
+  // -- Agents tab --------------------------------------------------------------
 
   async function _loadCmdAgents() {
     const list = $('cmdAgentList');
@@ -3370,7 +3668,7 @@ ${section('Model Health', modelHealth)}
     list.querySelectorAll('.agent-trigger-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.agentId;
-        btn.disabled = true; btn.textContent = 'Running…';
+        btn.disabled = true; btn.textContent = 'Running...';
         const r2 = await api(`/api/v1/agents/${id}/trigger`, { method: 'POST' });
         if (r2.ok) {
           toast('Agent triggered', `${id} cycle dispatched.`, 'ok');
@@ -3418,7 +3716,7 @@ ${section('Model Health', modelHealth)}
       </div>`).join('');
   }
 
-  // ── Health tab ──────────────────────────────────────────────────────────────
+  // -- Health tab --------------------------------------------------------------
 
   function _svgSparkline(values, min, max, w, h) {
     w = w || 100; h = h || 32;
@@ -3469,7 +3767,7 @@ ${section('Model Health', modelHealth)}
 
     const sparklinesHtml = Object.keys(sparklines).length ? `
       <article class="panel" style="margin-bottom:14px;">
-        <div class="panel-head"><div><h2>Metric Trends</h2><p>Hourly snapshots — last 24 hours</p></div></div>
+        <div class="panel-head"><div><h2>Metric Trends</h2><p>Hourly snapshots  -  last 24 hours</p></div></div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px;">
           ${Object.entries(_SPARK_META).map(([key, meta]) => {
             const s = sparklines[key] || { values: [], min: 0, max: 0, last: 0, count: 0 };
@@ -3479,7 +3777,7 @@ ${section('Model Health', modelHealth)}
               <div style="background:var(--bg-deep);border-radius:6px;padding:10px;">
                 <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
                   <span style="font-size:11px;color:var(--text-muted);">${esc(meta.label)}</span>
-                  <strong style="font-size:14px;color:${isWarn ? 'var(--danger,#e55)' : 'inherit'};">${s.count ? Number(s.last).toFixed(decimals) : '—'}</strong>
+                  <strong style="font-size:14px;color:${isWarn ? 'var(--danger,#e55)' : 'inherit'};">${s.count ? Number(s.last).toFixed(decimals) : ' - '}</strong>
                 </div>
                 ${_svgSparkline(s.values, s.min, s.max)}
                 <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-top:4px;">
@@ -3528,7 +3826,7 @@ ${section('Model Health', modelHealth)}
             <div class="activity-list">
               ${issues.map(a => `
                 <div class="activity-item" style="padding:8px 12px;">
-                  <span style="font-size:12px;color:var(--text-muted);">→ ${esc(a)}</span>
+                  <span style="font-size:12px;color:var(--text-muted);">-> ${esc(a)}</span>
                 </div>`).join('')}
             </div>` : `<p style="font-size:12px;color:var(--text-muted);padding:0 12px 10px;">No issues in last cycle.</p>`}
         </article>`;
@@ -3558,7 +3856,7 @@ ${section('Model Health', modelHealth)}
             <div class="panel-head">
               <div>
                 <h2>Workflow Scheduler</h2>
-                <p>${s.scheduled_workflows} scheduled workflow${s.scheduled_workflows !== 1 ? 's' : ''} · ${s.checks_run} checks run</p>
+                <p>${s.scheduled_workflows} scheduled workflow${s.scheduled_workflows !== 1 ? 's' : ''} Â· ${s.checks_run} checks run</p>
               </div>
               <button class="btn ghost" id="triggerSchedulerBtn" style="font-size:12px;">Check Now</button>
             </div>
@@ -3596,7 +3894,7 @@ ${section('Model Health', modelHealth)}
                     <strong style="font-size:13px;">${esc(a.title)}</strong>
                   </div>
                   <p style="font-size:12px;color:var(--text-muted);margin:0 0 3px;">${esc(a.description)}</p>
-                  ${a.recommended_action ? `<span style="font-size:11px;color:var(--accent);">→ ${esc(a.recommended_action)}</span>` : ''}
+                  ${a.recommended_action ? `<span style="font-size:11px;color:var(--accent);">-> ${esc(a.recommended_action)}</span>` : ''}
                 </div>
               </div>`).join('')}
           </div>
@@ -3620,7 +3918,7 @@ ${section('Model Health', modelHealth)}
     if (triggerBtn) {
       triggerBtn.addEventListener('click', async () => {
         triggerBtn.disabled = true;
-        triggerBtn.textContent = 'Running…';
+        triggerBtn.textContent = 'Running...';
         const r = await api('/api/v1/reconciler/trigger', { method: 'POST' });
         triggerBtn.textContent = r.ok ? 'Dispatched' : 'Error';
         setTimeout(() => _loadCmdHealth(), 2000);
@@ -3632,7 +3930,7 @@ ${section('Model Health', modelHealth)}
     if (schedBtn) {
       schedBtn.addEventListener('click', async () => {
         schedBtn.disabled = true;
-        schedBtn.textContent = 'Checking…';
+        schedBtn.textContent = 'Checking...';
         const r = await api('/api/v1/workflow-scheduler/trigger', { method: 'POST' });
         schedBtn.textContent = r.ok ? 'Done' : 'Error';
         setTimeout(() => _loadCmdHealth(), 1500);
@@ -3640,7 +3938,7 @@ ${section('Model Health', modelHealth)}
     }
   }
 
-  // ── Playbooks ─────────────────────────────────────────────────────────────────
+  // -- Playbooks -----------------------------------------------------------------
 
   let _pbReady = false;
   let _pbEditId = null;
@@ -3699,7 +3997,7 @@ ${section('Model Health', modelHealth)}
       list.innerHTML = '<div class="empty-state"><p>No playbooks defined yet. Create one to automate platform responses.</p></div>';
       return;
     }
-    const _TRIGGER_ICON = { manual: '⚙', event: '⚡', incident: '🚨' };
+    const _TRIGGER_ICON = { manual: 'settings', event: 'event', incident: 'alert' };
     list.innerHTML = `
       <div class="activity-list">
         ${playbooks.map(pb => {
@@ -3708,13 +4006,13 @@ ${section('Model Health', modelHealth)}
             <div class="activity-item" data-pb-id="${esc(pb.id)}" style="padding:10px 12px;gap:10px;cursor:pointer;">
               <div style="flex:1;min-width:0;">
                 <div style="display:flex;gap:6px;align-items:center;margin-bottom:3px;flex-wrap:wrap;">
-                  <span style="font-size:14px;">${_TRIGGER_ICON[pb.trigger_type] || '•'}</span>
+                  <span style="font-size:14px;">${_TRIGGER_ICON[pb.trigger_type] || '*'}</span>
                   <strong style="font-size:13px;">${esc(pb.name)}</strong>
                   ${!pb.enabled ? '<span class="badge neutral" style="font-size:9px;">disabled</span>' : ''}
                 </div>
                 <p style="margin:0;font-size:11px;color:var(--text-muted);">
-                  ${esc(pb.trigger_type)}${pb.trigger_filter ? ': ' + esc(pb.trigger_filter) : ''} ·
-                  ${stepCount} step${stepCount !== 1 ? 's' : ''} ·
+                  ${esc(pb.trigger_type)}${pb.trigger_filter ? ': ' + esc(pb.trigger_filter) : ''} Â·
+                  ${stepCount} step${stepCount !== 1 ? 's' : ''} Â·
                   ${pb.run_count} run${pb.run_count !== 1 ? 's' : ''}
                 </p>
               </div>
@@ -3736,7 +4034,7 @@ ${section('Model Health', modelHealth)}
     list.querySelectorAll('[data-pb-run]').forEach(btn => {
       btn.addEventListener('click', async e => {
         e.stopPropagation();
-        btn.disabled = true; btn.textContent = '…';
+        btn.disabled = true; btn.textContent = '...';
         const r = await api(`/api/v1/playbooks/${btn.dataset.pbRun}/run`, { method: 'POST' });
         btn.textContent = r.ok ? 'Dispatched' : 'Error';
         setTimeout(() => { btn.disabled = false; btn.textContent = 'Run'; _loadPbRuns(); }, 1500);
@@ -3763,7 +4061,7 @@ ${section('Model Health', modelHealth)}
     const list = $('pbRunList');
     const title = $('pbRunsTitle');
     if (!list) return;
-    if (title) title.textContent = playbookName ? `Runs — ${playbookName}` : 'Recent Runs';
+    if (title) title.textContent = playbookName ? `Runs  -  ${playbookName}` : 'Recent Runs';
     list.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
 
     const url = playbookId
@@ -3783,13 +4081,13 @@ ${section('Model Health', modelHealth)}
           const ts    = run.started_at ? new Date(run.started_at).toLocaleString() : '';
           const dur   = (run.started_at && run.finished_at)
             ? `${((new Date(run.finished_at) - new Date(run.started_at)) / 1000).toFixed(1)}s`
-            : (run.status === 'running' ? 'running…' : '—');
+            : (run.status === 'running' ? 'running...' : ' - ');
           return `
             <div class="activity-item" style="padding:9px 12px;gap:10px;cursor:pointer;" data-run-id="${esc(run.id)}">
               <span class="badge ${badge}" style="font-size:10px;flex-shrink:0;">${esc(run.status)}</span>
               <div style="flex:1;min-width:0;">
                 <p style="margin:0;font-size:12px;font-weight:600;">${esc(run.playbook_name)}</p>
-                <p style="margin:2px 0 0;font-size:11px;color:var(--text-muted);">${esc(run.triggered_by)} · ${run.steps_done}/${run.steps_total} steps · ${dur}</p>
+                <p style="margin:2px 0 0;font-size:11px;color:var(--text-muted);">${esc(run.triggered_by)} Â· ${run.steps_done}/${run.steps_total} steps Â· ${dur}</p>
               </div>
               <span style="font-size:10px;color:var(--text-muted);white-space:nowrap;">${esc(ts)}</span>
             </div>`;
@@ -3805,7 +4103,7 @@ ${section('Model Health', modelHealth)}
     const modal = $('pbRunModal');
     if (!modal) return;
     modal.style.display = 'flex';
-    $('pbRunModalTitle').textContent = 'Loading…';
+    $('pbRunModalTitle').textContent = 'Loading...';
     $('pbRunModalSteps').innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
 
     const r = await api(`/api/v1/playbooks/runs/${runId}`);
@@ -3849,7 +4147,7 @@ ${section('Model Health', modelHealth)}
     $('pbModal').style.display = 'flex';
   }
 
-  // ── Dispatches (Scheduled Reports) ───────────────────────────────────────────
+  // -- Dispatches (Scheduled Reports) -------------------------------------------
 
   let _dispReady = false;
   let _dispEditId = null;
@@ -3945,8 +4243,8 @@ ${section('Model Health', modelHealth)}
         <tbody>
           ${configs.map(c => {
             const intLabel = _INTERVAL_LABELS[c.interval_hours] || `${c.interval_hours}h`;
-            const lastRun  = c.last_run ? new Date(c.last_run).toLocaleString() : '—';
-            const nextRun  = c.next_run ? new Date(c.next_run).toLocaleString() : '—';
+            const lastRun  = c.last_run ? new Date(c.last_run).toLocaleString() : ' - ';
+            const nextRun  = c.next_run ? new Date(c.next_run).toLocaleString() : ' - ';
             const sects    = (c.sections || '').split(',').length;
             return `<tr style="border-bottom:1px solid var(--border);" data-cfg-id="${esc(c.id)}">
               <td style="padding:9px 12px;font-weight:600;">${esc(c.name)} ${c.enabled ? '' : '<span class="badge neutral" style="font-size:9px;">paused</span>'}</td>
@@ -3966,7 +4264,7 @@ ${section('Model Health', modelHealth)}
 
     list.querySelectorAll('[data-run-now]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        btn.disabled = true; btn.textContent = '…';
+        btn.disabled = true; btn.textContent = '...';
         const r = await api(`/api/v1/scheduled-reports/${btn.dataset.runNow}/run`, { method: 'POST' });
         btn.textContent = r.ok ? 'Dispatched' : 'Error';
         setTimeout(() => _loadDispatches(), 1500);
@@ -4010,7 +4308,7 @@ ${section('Model Health', modelHealth)}
                 ${run.error_msg ? `<p style="margin:2px 0 0;font-size:11px;color:var(--danger,#e55);">${esc(run.error_msg)}</p>` : ''}
               </div>
               <span style="font-size:10px;color:var(--text-muted);white-space:nowrap;">${esc(ts)}</span>
-              ${run.delivered ? '<span style="font-size:10px;color:var(--ok,#5a5);">✓ delivered</span>' : ''}
+              ${run.delivered ? '<span style="font-size:10px;color:var(--ok,#5a5);">OK delivered</span>' : ''}
             </div>`;
         }).join('')}
       </div>`;
@@ -4024,7 +4322,7 @@ ${section('Model Health', modelHealth)}
     const modal = $('dispRunModal');
     if (!modal) return;
     modal.style.display = 'flex';
-    $('dispRunModalTitle').textContent = 'Loading report…';
+    $('dispRunModalTitle').textContent = 'Loading report...';
     $('dispRunModalContent').textContent = '';
 
     const r = await api(`/api/v1/scheduled-reports/runs/${runId}`);
@@ -4034,7 +4332,7 @@ ${section('Model Health', modelHealth)}
     $('dispRunModalMeta').innerHTML = `
       <span class="badge ${run.status === 'ok' ? 'ok' : 'bad'}">${esc(run.status)}</span>
       <span>${run.generated_at ? new Date(run.generated_at).toLocaleString() : ''}</span>
-      ${run.delivered ? '<span style="color:var(--ok,#5a5);">✓ Delivered</span>' : ''}`;
+      ${run.delivered ? '<span style="color:var(--ok,#5a5);">OK Delivered</span>' : ''}`;
     $('dispRunModalContent').textContent = run.content
       ? JSON.stringify(run.content, null, 2)
       : (run.error_msg || 'No content');
@@ -4058,7 +4356,7 @@ ${section('Model Health', modelHealth)}
     modal.style.display = 'flex';
   }
 
-  // ── Incidents ─────────────────────────────────────────────────────────────────
+  // -- Incidents -----------------------------------------------------------------
 
   let _activeIncidentId = null;
   const _INC_SEV_BADGE = { critical: 'bad', high: 'bad', medium: 'warn', low: 'neutral' };
@@ -4118,7 +4416,7 @@ ${section('Model Health', modelHealth)}
                   ${inc.metric ? `<code style="font-size:10px;color:var(--text-muted);background:var(--bg-deep);padding:1px 5px;border-radius:3px;">${esc(inc.metric)}</code>` : ''}
                 </div>
                 <p style="margin:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(inc.title)}</p>
-                ${inc.assigned_to ? `<span style="font-size:11px;color:var(--text-muted);">→ ${esc(inc.assigned_to)}</span>` : ''}
+                ${inc.assigned_to ? `<span style="font-size:11px;color:var(--text-muted);">-> ${esc(inc.assigned_to)}</span>` : ''}
               </div>
               <div style="flex-shrink:0;text-align:right;">
                 <span style="font-size:10px;color:var(--text-muted);white-space:nowrap;">${esc(ts)}</span>
@@ -4130,9 +4428,9 @@ ${section('Model Health', modelHealth)}
             </div>`;
         }).join('')}
       </div>
-      ${total > 50 ? `<p style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px;">${total} total — showing 50</p>` : ''}`;
+      ${total > 50 ? `<p style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px;">${total} total  -  showing 50</p>` : ''}`;
 
-    // Row click → detail modal
+    // Row click -> detail modal
     list.querySelectorAll('[data-inc-id]').forEach(row => {
       row.addEventListener('click', e => {
         if (e.target.closest('[data-ack],[data-resolve]')) return;
@@ -4143,7 +4441,7 @@ ${section('Model Health', modelHealth)}
     list.querySelectorAll('[data-ack]').forEach(btn => {
       btn.addEventListener('click', async e => {
         e.stopPropagation();
-        btn.disabled = true; btn.textContent = '…';
+        btn.disabled = true; btn.textContent = '...';
         await api(`/api/v1/incidents/${btn.dataset.ack}/acknowledge`, { method: 'POST' });
         _loadIncidents();
       });
@@ -4151,7 +4449,7 @@ ${section('Model Health', modelHealth)}
     list.querySelectorAll('[data-resolve]').forEach(btn => {
       btn.addEventListener('click', async e => {
         e.stopPropagation();
-        btn.disabled = true; btn.textContent = '…';
+        btn.disabled = true; btn.textContent = '...';
         await api(`/api/v1/incidents/${btn.dataset.resolve}/resolve`, { method: 'POST' });
         _loadIncidents();
       });
@@ -4163,7 +4461,7 @@ ${section('Model Health', modelHealth)}
     const modal = $('incidentModal');
     if (!modal) return;
     modal.style.display = 'flex';
-    $('incModalTitle').textContent = 'Loading…';
+    $('incModalTitle').textContent = 'Loading...';
     $('incModalTimeline').innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
 
     const r = await api(`/api/v1/incidents/${incidentId}`);
@@ -4180,7 +4478,7 @@ ${section('Model Health', modelHealth)}
       <span class="badge ${statusBadge}">${esc(inc.status)}</span>
       ${inc.metric ? `<code style="font-size:11px;background:var(--bg-deep);padding:2px 6px;border-radius:3px;">${esc(inc.metric)}</code>` : ''}
       <span style="font-size:11px;color:var(--text-muted);">Created ${inc.created_at ? new Date(inc.created_at).toLocaleString() : ''}</span>`;
-    $('incModalDesc').textContent = inc.description || '—';
+    $('incModalDesc').textContent = inc.description || ' - ';
 
     const actions = [];
     if (inc.status === 'open') actions.push(`<button class="btn sm" id="incAckBtn">Acknowledge</button>`);
@@ -4199,14 +4497,14 @@ ${section('Model Health', modelHealth)}
     });
 
     const _TL_ACTION_ICON = {
-      created: '🆕', acknowledged: '👁', resolved: '✅',
-      repeated_breach: '⚠️', commented: '💬', assigned: '👤',
+      created: 'new', acknowledged: 'view', resolved: 'OK',
+      repeated_breach: '!', commented: 'comment', assigned: 'user',
     };
     $('incModalTimeline').innerHTML = timeline.length ? `
       <div style="display:flex;flex-direction:column;gap:6px;">
         ${timeline.map(t => `
           <div style="display:flex;gap:8px;align-items:flex-start;">
-            <span style="font-size:14px;flex-shrink:0;">${_TL_ACTION_ICON[t.action] || '•'}</span>
+            <span style="font-size:14px;flex-shrink:0;">${_TL_ACTION_ICON[t.action] || '*'}</span>
             <div style="flex:1;min-width:0;">
               <div style="display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;">
                 <strong style="font-size:12px;">${esc(t.action)}</strong>
@@ -4293,7 +4591,7 @@ ${section('Model Health', modelHealth)}
     }
   }
 
-  // ── Audit Log ────────────────────────────────────────────────────────────────
+  // -- Audit Log ----------------------------------------------------------------
 
   const _auditState = { offset: 0, limit: 50, total: 0 };
   const _SEV_BADGE = { critical: 'bad', high: 'bad', medium: 'warn', low: 'neutral', info: 'neutral' };
@@ -4390,9 +4688,9 @@ ${section('Model Health', modelHealth)}
     const page    = Math.floor(offset / limit) + 1;
     const maxPage = Math.max(1, Math.ceil(total / limit));
     pg.innerHTML = `
-      <button class="btn sm ghost" ${page <= 1 ? 'disabled' : ''} id="auditPrevBtn">← Prev</button>
-      <span style="color:var(--text-muted);">Page ${page} / ${maxPage} · ${total} entries</span>
-      <button class="btn sm ghost" ${page >= maxPage ? 'disabled' : ''} id="auditNextBtn">Next →</button>`;
+      <button class="btn sm ghost" ${page <= 1 ? 'disabled' : ''} id="auditPrevBtn"><- Prev</button>
+      <span style="color:var(--text-muted);">Page ${page} / ${maxPage} Â· ${total} entries</span>
+      <button class="btn sm ghost" ${page >= maxPage ? 'disabled' : ''} id="auditNextBtn">Next -></button>`;
     pg.querySelector('#auditPrevBtn')?.addEventListener('click', () => _loadAuditEntries(offset - limit));
     pg.querySelector('#auditNextBtn')?.addEventListener('click', () => _loadAuditEntries(offset + limit));
   }
@@ -4430,7 +4728,7 @@ ${section('Model Health', modelHealth)}
     });
   }
 
-  // ── Notification Center ──────────────────────────────────────────────────────
+  // -- Notification Center ------------------------------------------------------
 
   let _notifOpen = false;
   let _notifPollTimer = null;
@@ -4529,14 +4827,14 @@ ${section('Model Health', modelHealth)}
           ${n.body ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(n.body)}">${esc(n.body)}</div>` : ''}
           <div style="font-size:10px;color:var(--text-muted);margin-top:4px;display:flex;gap:8px;">
             <span>${esc(n.created_at?.slice(0,19)?.replace('T',' '))} UTC</span>
-            ${n.view_hint ? `<span style="color:var(--accent);cursor:pointer;" data-notif-nav="${esc(n.view_hint)}">${esc(VIEW_LABEL[n.view_hint] || n.view_hint)} →</span>` : ''}
+            ${n.view_hint ? `<span style="color:var(--accent);cursor:pointer;" data-notif-nav="${esc(n.view_hint)}">${esc(VIEW_LABEL[n.view_hint] || n.view_hint)} -></span>` : ''}
           </div>
         </div>
         <button type="button" data-notif-del="${esc(n.id)}" aria-label="Dismiss"
-                style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:14px;flex-shrink:0;padding:0 2px;opacity:.5;line-height:1;">✕</button>
+                style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:14px;flex-shrink:0;padding:0 2px;opacity:.5;line-height:1;">x</button>
       </div>`).join('');
 
-    // Click on row → mark read
+    // Click on row -> mark read
     listEl.querySelectorAll('[data-notif-id]').forEach(row => {
       row.addEventListener('click', async (e) => {
         if (e.target.closest('[data-notif-del]') || e.target.closest('[data-notif-nav]')) return;
@@ -4569,10 +4867,13 @@ ${section('Model Health', modelHealth)}
     });
   }
 
-  // ── Init ────────────────────────────────────────────────────────────────────
-  function init() {
+  // -- Init --------------------------------------------------------------------
+  async function init() {
+    await loadRuntimeProfile();
     renderProviders();
     ensureAccountStatusPanel();
+    applyNavigationRole(localStorage.getItem('ai36NavRole') || 'basic-client');
+    updateOAuthSubmitState();
     bind();
     renderMetrics();
     renderPerformance();
@@ -4584,12 +4885,17 @@ ${section('Model Health', modelHealth)}
     loadCertification();
     loadAccounts();
     loadTemplates();
-    loadReports(false);
-    refreshConnectorFeatureNavigation();
+    if (!state.runtime?.frontend?.deferred_rendering) {
+      loadReports(false);
+      refreshConnectorFeatureNavigation();
+    } else {
+      setTimeout(() => loadReports(false), 1200);
+      setTimeout(() => refreshConnectorFeatureNavigation(), 1600);
+    }
     _initNotificationCenter();
   }
 
-  // ── SLA Tracker ──────────────────────────────────────────────────────────
+  // -- SLA Tracker ----------------------------------------------------------
 
   let _slaEditId = null;
 
@@ -4683,7 +4989,7 @@ ${section('Model Health', modelHealth)}
         : '<span class="badge danger">Resolution</span>';
       tbody.innerHTML = list.map(b => `<tr>
         <td title="${_esc(b.incident_id)}">${_esc(b.incident_title)}</td>
-        <td><span class="badge ${_sevClass(b.incident_severity)}">${b.incident_severity || '—'}</span></td>
+        <td><span class="badge ${_sevClass(b.incident_severity)}">${b.incident_severity || ' - '}</span></td>
         <td>${typeLabel(b.breach_type)}</td>
         <td>${_esc(b.policy_name)}</td>
         <td style="font-size:11px;color:var(--text-muted);">${_relativeTime(b.breached_at)}</td>
@@ -4709,7 +5015,7 @@ ${section('Model Health', modelHealth)}
 
   async function _openSlaModal(policyId) {
     _slaEditId = policyId;
-    _q('#slaPolicyModalTitle').textContent = policyId ? 'Edit SLA Policy' : 'New SLA Policy';
+    _q('#slaPolicyModalTitle').textContent = policyId ? 'Edit Service Goal' : 'New Service Goal';
     _q('#slaPolName').value      = '';
     _q('#slaPolSeverity').value  = '';
     _q('#slaPolResponse').value  = '60';
@@ -4745,7 +5051,7 @@ ${section('Model Health', modelHealth)}
     }
   }
 
-  // ── On-call ───────────────────────────────────────────────────────────────
+  // -- On-call ---------------------------------------------------------------
 
   let _oncallEditSchId = null;
 
@@ -4987,7 +5293,7 @@ ${section('Model Health', modelHealth)}
     } catch (err) { alert('Remove tier failed: ' + (err.message || err)); }
   }
 
-  // ── API Keys ──────────────────────────────────────────────────────────────
+  // -- API Keys --------------------------------------------------------------
 
   let _akEditId = null;
 
@@ -5050,7 +5356,7 @@ ${section('Model Health', modelHealth)}
         const scopes  = Array.isArray(k.scopes) ? k.scopes : (k.scopes || '').split(',').filter(Boolean);
         const scopeHtml = scopes.length ? scopes.map(s => `<span class="badge info" style="margin-right:2px;">${_esc(s)}</span>`).join('') : '<span style="color:var(--text-muted);font-size:11px;">full</span>';
         const expiry  = k.expires_at ? _relativeTime(k.expires_at) : '<span style="color:var(--text-muted);">Never</span>';
-        const lastUsed = k.last_used_at ? _relativeTime(k.last_used_at) : '<span style="color:var(--text-muted);">—</span>';
+        const lastUsed = k.last_used_at ? _relativeTime(k.last_used_at) : '<span style="color:var(--text-muted);"> - </span>';
         const statusBadge = k.enabled
           ? '<span class="badge success">Active</span>'
           : '<span class="badge muted">Disabled</span>';
@@ -5092,7 +5398,7 @@ ${section('Model Health', modelHealth)}
 
   async function _openAkModal(keyId) {
     _akEditId = keyId;
-    _q('#akModalTitle').textContent = keyId ? 'Edit API Key' : 'New API Key';
+    _q('#akModalTitle').textContent = keyId ? 'Edit Access Key' : 'New Access Key';
     _q('#akSaveBtn').textContent    = keyId ? 'Save Changes' : 'Create Key';
     _q('#akName').value    = '';
     _q('#akDesc').value    = '';
@@ -5155,7 +5461,7 @@ ${section('Model Health', modelHealth)}
     }
   }
 
-  // ── Maintenance Windows ───────────────────────────────────────────────────
+  // -- Maintenance Windows ---------------------------------------------------
 
   let _maintEditId = null;
 
@@ -5217,7 +5523,7 @@ ${section('Model Health', modelHealth)}
       const list = data.windows || [];
       _q('#maintWindowsCount').textContent = `${data.total ?? list.length} window${list.length !== 1 ? 's' : ''}`;
       if (!list.length) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No maintenance windows found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No system update windows found.</td></tr>';
         return;
       }
       const statusBadge = s => ({
@@ -5232,7 +5538,7 @@ ${section('Model Health', modelHealth)}
           w.suppress_alerts    ? 'Alerts'    : '',
           w.suppress_incidents ? 'Incidents' : '',
           w.suppress_sla       ? 'SLA'       : '',
-        ].filter(Boolean).join(', ') || '—';
+        ].filter(Boolean).join(', ') || ' - ';
         const actions = w.status === 'scheduled'
           ? `<button class="btn xs success" onclick="_maintActivate('${w.id}')">Activate</button>
              <button class="btn xs danger"  onclick="_maintCancel('${w.id}', '${_esc(w.name)}')">Cancel</button>`
@@ -5268,7 +5574,7 @@ ${section('Model Health', modelHealth)}
       if (data.is_active && data.active_window) {
         banner.hidden = false;
         _q('#maintActiveBannerText').textContent =
-          `Maintenance active: "${data.active_window.name}" — ends ${_relativeTime(data.active_window.ends_at)}`;
+          `Maintenance active: "${data.active_window.name}"  -  ends ${_relativeTime(data.active_window.ends_at)}`;
       } else {
         banner.hidden = true;
       }
@@ -5285,7 +5591,7 @@ ${section('Model Health', modelHealth)}
 
   async function _openMaintModal(windowId) {
     _maintEditId = windowId;
-    _q('#maintWindowModalTitle').textContent = windowId ? 'Edit Maintenance Window' : 'New Maintenance Window';
+    _q('#maintWindowModalTitle').textContent = windowId ? 'Edit System Update Window' : 'New System Update Window';
     _q('#maintWinName').value     = '';
     _q('#maintWinDesc').value     = '';
     _q('#maintWinStartsAt').value = '';
@@ -5315,7 +5621,7 @@ ${section('Model Health', modelHealth)}
 
   async function _openMaintLogModal(windowId, name) {
     _q('#maintLogModalTitle').textContent = `Window Log: ${name}`;
-    _q('#maintLogModalBody').innerHTML = '<p style="color:var(--text-muted);text-align:center;">Loading…</p>';
+    _q('#maintLogModalBody').innerHTML = '<p style="color:var(--text-muted);text-align:center;">Loading...</p>';
     _q('#maintLogModal').hidden = false;
     try {
       const w = await _api(`/maintenance/${windowId}`);
@@ -5357,7 +5663,7 @@ ${section('Model Health', modelHealth)}
   }
 
   async function _maintCancel(id, name) {
-    if (!confirm(`Cancel maintenance window "${name}"?`)) return;
+    if (!confirm(`Cancel system update window "${name}"?`)) return;
     try {
       await _api(`/maintenance/${id}/cancel`, 'POST');
       _loadMaintenanceWindows();
@@ -5366,7 +5672,7 @@ ${section('Model Health', modelHealth)}
   }
 
   async function _deleteMaintWindow(id, name) {
-    if (!confirm(`Delete maintenance window "${name}"?`)) return;
+    if (!confirm(`Delete system update window "${name}"?`)) return;
     try {
       await _api(`/maintenance/${id}`, 'DELETE');
       _loadMaintenanceWindows();
@@ -5374,9 +5680,9 @@ ${section('Model Health', modelHealth)}
     } catch (err) { alert('Delete failed: ' + (err.message || err)); }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ===========================================================================
   // RUNBOOKS
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ===========================================================================
   let _rbOffset = 0;
   const _RB_LIMIT = 25;
   let _rbCurrentId = null;
@@ -5441,7 +5747,7 @@ ${section('Model Health', modelHealth)}
     if (q)   params.set('q', q);
     if (cat) params.set('category', cat);
     const tbody = _q('#rbListTbody');
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data = await _api(`/runbooks?${params}`);
       const rbs = data.runbooks || [];
@@ -5453,8 +5759,8 @@ ${section('Model Health', modelHealth)}
           const tags = (r.tags || []).map(t => `<span style="background:var(--accent-bg);color:var(--accent);border-radius:4px;padding:1px 5px;font-size:10px;margin-right:2px;">${_esc(t)}</span>`).join('');
           return `<tr style="cursor:pointer;" onclick="_rbOpenDetail('${r.id}')">
             <td><strong>${_esc(r.title)}</strong><br><small style="color:var(--text-muted);">${_esc((r.content_preview||'').slice(0,80))}</small></td>
-            <td>${_esc(r.category||'—')}</td>
-            <td>${tags||'—'}</td>
+            <td>${_esc(r.category||' - ')}</td>
+            <td>${tags||' - '}</td>
             <td>${r.view_count||0}</td>
             <td style="font-size:11px;">${(r.updated_at||'').slice(0,10)}</td>
             <td>
@@ -5489,17 +5795,17 @@ ${section('Model Health', modelHealth)}
       _q('#rbDetailTitle').textContent = rb.title;
       const tags = (rb.tags || []).join(', ');
       _q('#rbDetailMeta').innerHTML =
-        `<strong>Category:</strong> ${_esc(rb.category||'—')} &nbsp;|&nbsp;
-         <strong>Tags:</strong> ${_esc(tags||'—')} &nbsp;|&nbsp;
-         <strong>Owner:</strong> ${_esc(rb.owner||'—')} &nbsp;|&nbsp;
+        `<strong>Category:</strong> ${_esc(rb.category||' - ')} &nbsp;|&nbsp;
+         <strong>Tags:</strong> ${_esc(tags||' - ')} &nbsp;|&nbsp;
+         <strong>Owner:</strong> ${_esc(rb.owner||' - ')} &nbsp;|&nbsp;
          <strong>Views:</strong> ${rb.view_count}` +
-        (rb.latest_version ? `<br><strong>v${rb.latest_version.version_number}</strong> — ${_esc(rb.latest_version.change_note||'')} by ${_esc(rb.latest_version.edited_by||'?')} on ${(rb.latest_version.edited_at||'').slice(0,10)}` : '');
+        (rb.latest_version ? `<br><strong>v${rb.latest_version.version_number}</strong>  -  ${_esc(rb.latest_version.change_note||'')} by ${_esc(rb.latest_version.edited_by||'?')} on ${(rb.latest_version.edited_at||'').slice(0,10)}` : '');
       _q('#rbDetailContent').textContent = rb.content_md || '(empty)';
     } catch (err) { alert('Load failed: ' + (err.message || err)); }
   }
 
   function _openRbModal(rb) {
-    _q('#rbEditModalTitle').textContent = rb ? 'Edit Runbook' : 'New Runbook';
+    _q('#rbEditModalTitle').textContent = rb ? 'Edit Automation Guide' : 'New Automation Guide';
     _q('#rbFormId').value           = rb ? rb.id : '';
     _q('#rbFormTitle').value        = rb ? rb.title : '';
     _q('#rbFormCategory').value     = rb ? (rb.category||'') : '';

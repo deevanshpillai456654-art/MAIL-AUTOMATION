@@ -12,6 +12,30 @@
  */
 'use strict';
 
+window.setSafeHTML = function(el, html) {
+  if (!el) return;
+  if (typeof html !== 'string') {
+    el.textContent = String(html);
+    return;
+  }
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const badTags = doc.querySelectorAll('script, iframe, object, embed, form, base, applet, meta, link');
+  badTags.forEach(n => n.remove());
+  const all = doc.querySelectorAll('*');
+  for (let i = 0; i < all.length; i++) {
+    const node = all[i];
+    for (let j = node.attributes.length - 1; j >= 0; j--) {
+      const attr = node.attributes[j];
+      if (attr.name.toLowerCase().startsWith('on') || attr.name.toLowerCase() === 'javascript:') {
+        node.removeAttribute(attr.name);
+      }
+    }
+  }
+  el.replaceChildren(...doc.body.childNodes);
+};
+
+
 function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -127,7 +151,6 @@ const SessionStore = {
       this.diagnostics = data.diagnostics;
       return data;
     } catch (e) {
-      console.warn('Session init failed:', e);
       return null;
     }
   },
@@ -296,7 +319,7 @@ const UI = {
   renderSidebar(issues) {
     const nav = document.getElementById('issueNav');
     if (!issues.length) {
-      nav.innerHTML = '<div class="sidebar-empty">No issues found.</div>';
+      window.setSafeHTML(nav, '<div class="sidebar-empty">No issues found.</div>');
       return;
     }
 
@@ -313,7 +336,7 @@ const UI = {
       onboarding: '🚀 Getting Started',
     };
 
-    nav.innerHTML = Object.entries(byCat).map(([cat, items]) => `
+    window.setSafeHTML(nav, Object.entries(byCat).map(([cat, items]) => `
       <div class="cat-group">
         <div class="cat-label">${esc(catLabels[cat] || cat)}</div>
         ${items.map(i => `
@@ -324,7 +347,7 @@ const UI = {
               <div class="btn-cat">${esc(i.step_count)} steps</div>
             </span>
           </button>`).join('')}
-      </div>`).join('');
+      </div>`).join(''));
 
     nav.querySelectorAll('.issue-btn').forEach(btn => {
       btn.addEventListener('click', () => FlowController.open(btn.dataset.issue));
@@ -353,7 +376,7 @@ const UI = {
     if (det.length) {
       document.getElementById('detectedSection').style.display = '';
       const list = document.getElementById('detectedList');
-      list.innerHTML = det.map(id => {
+      window.setSafeHTML(list, det.map(id => {
         const issue = SessionStore.issues.find(i => i.id === id);
         if (!issue) return '';
         return `
@@ -362,7 +385,7 @@ const UI = {
             <span class="dir-title">${esc(issue.title)}</span>
             <span class="dir-action">Fix this →</span>
           </div>`;
-      }).join('');
+      }).join(''));
       list.querySelectorAll('.diag-issue-row').forEach(row => {
         row.addEventListener('click', () => FlowController.open(row.dataset.issue));
       });
@@ -372,20 +395,20 @@ const UI = {
     const recs = diag.recommendations || [];
     if (recs.length) {
       document.getElementById('recsSection').style.display = '';
-      document.getElementById('recsList').innerHTML = recs.map(r =>
+      window.setSafeHTML(document.getElementById('recsList'), recs.map(r =>
         `<li class="rec-item">⚠ ${esc(r)}</li>`
-      ).join('');
+      ).join(''));
     }
 
     // quick issues grid (prioritise suggested)
     const toShow = suggested.length ? suggested : SessionStore.issues.slice(0, 8);
     const grid = document.getElementById('quickIssuesGrid');
-    grid.innerHTML = toShow.slice(0, 9).map(i => `
+    window.setSafeHTML(grid, toShow.slice(0, 9).map(i => `
       <div class="quick-card" data-issue="${esc(i.id)}">
         <div class="qc-sev ${esc(i.severity)}">${esc(i.severity.toUpperCase())}</div>
         <div class="qc-title">${esc(i.title)}</div>
         <div class="qc-desc">${esc((i.description || '').slice(0, 90))}…</div>
-      </div>`).join('');
+      </div>`).join(''));
     grid.querySelectorAll('.quick-card').forEach(c => {
       c.addEventListener('click', () => FlowController.open(c.dataset.issue));
     });
@@ -411,7 +434,7 @@ const UI = {
 
     const grid = document.getElementById('diagGrid');
     const statusIcons = { healthy: '✓', degraded: '⚠', unhealthy: '✗', unknown: '?' };
-    grid.innerHTML = (report.components || []).map(c => `
+    window.setSafeHTML(grid, (report.components || []).map(c => `
       <div class="diag-card">
         <div class="dc-name">${esc(c.name.replace(/_/g, ' '))}</div>
         <div class="dc-status">
@@ -419,14 +442,14 @@ const UI = {
           ${statusIcons[c.status] || '?'} ${esc(c.status)}
         </div>
         <div class="dc-msg">${esc(c.message || '')}</div>
-      </div>`).join('');
+      </div>`).join(''));
 
     // detected issues
     const det = report.detected_issues || [];
     if (det.length) {
       document.getElementById('diagIssuesSection').style.display = '';
       const list = document.getElementById('diagIssuesList');
-      list.innerHTML = det.map(id => {
+      window.setSafeHTML(list, det.map(id => {
         const issue = SessionStore.issues.find(i => i.id === id);
         if (!issue) return '';
         return `
@@ -435,7 +458,7 @@ const UI = {
             <span class="dir-title">${esc(issue.title)}</span>
             <span class="dir-action">Start fix →</span>
           </div>`;
-      }).join('');
+      }).join(''));
       list.querySelectorAll('.diag-issue-row').forEach(row => {
         row.addEventListener('click', () => FlowController.open(row.dataset.issue));
       });
@@ -447,8 +470,8 @@ const UI = {
     const recs = report.recommendations || [];
     if (recs.length) {
       document.getElementById('diagRecsSection').style.display = '';
-      document.getElementById('diagRecsList').innerHTML = recs.map(r =>
-        `<li>${esc(r)}</li>`).join('');
+      window.setSafeHTML(document.getElementById('diagRecsList'), recs.map(r =>
+        `<li>${esc(r)}</li>`).join(''));
     } else {
       document.getElementById('diagRecsSection').style.display = 'none';
     }
@@ -469,8 +492,10 @@ const UI = {
     document.getElementById('flowSeverityBadge').outerHTML =
       `<span id="flowSeverityBadge">${renderSeverityBadge(issue.severity)}</span>`;
 
-    document.getElementById('symptomsList').innerHTML =
-      (issue.symptoms || []).map(s => `<li>• ${esc(s)}</li>`).join('');
+    window.setSafeHTML(
+      document.getElementById('symptomsList'),
+      (issue.symptoms || []).map(s => `<li>• ${esc(s)}</li>`).join('')
+    );
   },
 
   renderFlowProgress(current, total) {
@@ -483,7 +508,7 @@ const UI = {
   },
 
   renderStep(step, sessionId) {
-    document.getElementById('stepsContainer').innerHTML = renderStep(step, sessionId);
+    window.setSafeHTML(document.getElementById('stepsContainer'), renderStep(step, sessionId));
     document.getElementById('stepNav').style.display = '';
     document.getElementById('navHint').textContent =
       step.expected_result ? '✓ Expected: ' + step.expected_result.slice(0, 60) : '';
@@ -495,7 +520,7 @@ const UI = {
   },
 
   renderComplete(msg, related) {
-    document.getElementById('stepsContainer').innerHTML = '';
+    window.setSafeHTML(document.getElementById('stepsContainer'), '');
     document.getElementById('stepNav').style.display = 'none';
     document.getElementById('flowProgress').style.display = 'none';
 
@@ -505,11 +530,11 @@ const UI = {
 
     if (related && related.length) {
       document.getElementById('relatedSection').style.display = '';
-      document.getElementById('relatedGrid').innerHTML = related.map(r => `
+      window.setSafeHTML(document.getElementById('relatedGrid'), related.map(r => `
         <div class="related-card" data-issue="${esc(r.id)}">
           <div class="rc-title">${esc(r.title)}</div>
           <div class="rc-cat">${esc(r.category)}</div>
-        </div>`).join('');
+        </div>`).join(''));
       document.getElementById('relatedGrid').querySelectorAll('.related-card').forEach(c => {
         c.addEventListener('click', () => FlowController.open(c.dataset.issue));
       });
@@ -542,8 +567,10 @@ const FlowController = {
     // hide complete banner, reset
     document.getElementById('flowComplete').style.display = 'none';
     document.getElementById('relatedSection').style.display = 'none';
-    document.getElementById('stepsContainer').innerHTML =
-      '<div class="loading-placeholder skeleton skeleton--flow"></div>';
+    window.setSafeHTML(
+      document.getElementById('stepsContainer'),
+      '<div class="loading-placeholder skeleton skeleton--flow"></div>'
+    );
 
     try {
       // load issue header
@@ -551,8 +578,10 @@ const FlowController = {
       UI.renderFlowHeader(this._data);
 
       // visual flow diagram (step 1 = active)
-      document.getElementById('visualFlow').innerHTML =
-        renderVisualFlow(this._data.visual_flow_nodes, 0);
+      window.setSafeHTML(
+        document.getElementById('visualFlow'),
+        renderVisualFlow(this._data.visual_flow_nodes, 0)
+      );
 
       // start flow in session
       const flowData = await AssistantAPI.startFlow(SessionStore.sessionId, issueId);
@@ -566,8 +595,10 @@ const FlowController = {
       }
     } catch (e) {
       Toast.error('Failed to load issue: ' + e.message);
-      document.getElementById('stepsContainer').innerHTML =
-        `<div class="error-message">${esc(e.message)}</div>`;
+      window.setSafeHTML(
+        document.getElementById('stepsContainer'),
+        `<div class="error-message">${esc(e.message)}</div>`
+      );
     }
   },
 
@@ -584,8 +615,10 @@ const FlowController = {
       if (result.completed) {
         UI.renderComplete(result.message, result.related_issues);
         // update flow nodes to all done
-        document.getElementById('visualFlow').innerHTML =
-          renderVisualFlow(this._data?.visual_flow_nodes || [], 9999);
+        window.setSafeHTML(
+          document.getElementById('visualFlow'),
+          renderVisualFlow(this._data?.visual_flow_nodes || [], 9999)
+        );
         Toast.success('Flow complete!');
         return;
       }
@@ -594,8 +627,10 @@ const FlowController = {
         // redirect to new issue
         this._data = result.issue;
         UI.renderFlowHeader(result.issue);
-        document.getElementById('visualFlow').innerHTML =
-          renderVisualFlow(result.issue.visual_flow_nodes, 0);
+        window.setSafeHTML(
+          document.getElementById('visualFlow'),
+          renderVisualFlow(result.issue.visual_flow_nodes, 0)
+        );
       }
 
       if (result.current_step) {
@@ -605,8 +640,10 @@ const FlowController = {
         UI.renderStep(this._step, SessionStore.sessionId);
 
         // update visual flow diagram active node
-        document.getElementById('visualFlow').innerHTML =
-          renderVisualFlow(this._data?.visual_flow_nodes || [], prog.current - 1);
+        window.setSafeHTML(
+          document.getElementById('visualFlow'),
+          renderVisualFlow(this._data?.visual_flow_nodes || [], prog.current - 1)
+        );
       }
     } catch (e) {
       Toast.error('Could not advance: ' + e.message);
@@ -779,9 +816,7 @@ async function boot() {
   try {
     await SessionStore.loadIssues();
     UI.renderSidebar(SessionStore.issues);
-  } catch (e) {
-    console.warn('Failed to load issues:', e);
-  }
+  } catch (e) {}
 
   // create session with diagnostics
   try {
@@ -797,7 +832,6 @@ async function boot() {
       }
     }
   } catch (e) {
-    console.warn('Session init failed:', e);
     UI.renderHome({});
   }
 

@@ -16,6 +16,8 @@ from typing import Any, Dict, Iterable, List, Optional
 from datetime import datetime
 from enum import Enum
 
+from backend.rules.scanner import build_search_document
+
 
 class RuleAction(str, Enum):
     MOVE_TO_FOLDER = "move_to_folder"
@@ -121,6 +123,78 @@ class BodyContains(RuleCondition):
             str(email.get("snippet") or ""),
         ]).lower()
         return any(kw in body for kw in self.keywords)
+
+
+class SearchTextContains(RuleCondition):
+    def __init__(self, keywords: List[str], source: str = "full_text"):
+        self.keywords = [str(k).lower() for k in keywords if str(k).strip()]
+        self.source = source
+
+    def match(self, email: Dict) -> bool:
+        document = build_search_document(email)
+        if self.source == "full_text":
+            text = document["full_text"]
+        else:
+            text = document["sources"].get(self.source, "")
+        text = str(text or "").lower()
+        return any(kw in text for kw in self.keywords)
+
+
+class FieldOperatorCondition(RuleCondition):
+    def __init__(self, field: str, operator: str, value: Any,
+                 case_sensitive: bool = False, use_regex: bool = False):
+        self.field = str(field or "entire_email").lower()
+        self.operator = str(operator or "contains").lower()
+        self.values = [str(v) for v in _as_list(value) if str(v).strip()]
+        self.case_sensitive = case_sensitive
+        self.use_regex = use_regex
+
+    def _source_text(self, email: Dict) -> str:
+        source_map = {
+            "subject": "subject",
+            "sender": "sender",
+            "from": "sender",
+            "sender_email": "sender",
+            "body": "body",
+            "snippet": "snippet",
+            "attachment_name": "attachment_filename",
+            "attachment_filename": "attachment_filename",
+            "attachment_content": "attachment_content",
+            "attachment_text": "attachment_content",
+            "attachment_type": "attachment_type",
+            "ocr_text": "ocr_text",
+            "headers": "headers",
+            "entire_email": "full_text",
+        }
+        document = build_search_document(email)
+        source_key = source_map.get(self.field, "full_text")
+        return document["full_text"] if source_key == "full_text" else document["sources"].get(source_key, "")
+
+    def match(self, email: Dict) -> bool:
+        text = self._source_text(email)
+        source = text if self.case_sensitive else text.lower()
+        values = self.values if self.case_sensitive else [value.lower() for value in self.values]
+        if self.use_regex or self.operator in {"regex", "regex_match"}:
+            for pattern in self.values:
+                try:
+                    if len(pattern) <= 200 and re.search(pattern, text[:50000], 0 if self.case_sensitive else re.IGNORECASE):
+                        return True
+                except re.error:
+                    continue
+            return False
+        if self.operator in {"has_attachment", "attachment_exists"}:
+            return bool(email.get("attachments") or email.get("has_attachments") or build_search_document(email)["attachments"])
+        if self.operator in {"does_not_contain", "not_contains"}:
+            return all(value not in source for value in values if value)
+        if self.operator in {"equals", "is", "="}:
+            return any(source.strip() == value.strip() for value in values)
+        if self.operator == "starts_with":
+            return any(source.startswith(value) for value in values)
+        if self.operator == "ends_with":
+            return any(source.endswith(value) for value in values)
+        if self.operator in {"all_keywords", "all"}:
+            return all(value in source for value in values if value)
+        return any(value in source for value in values if value)
 
 
 class CategoryIs(RuleCondition):
@@ -238,13 +312,24 @@ def normalize_condition_dict(condition_json: Dict) -> Dict:
             ctype = "subject_contains"
         elif ctype in {"body", "body_has", "body_keywords"}:
             ctype = "body_contains"
+        elif ctype in {"entire_email", "full_email", "entire_email_contains", "message_search_text"}:
+            ctype = "entire_email_contains"
+        elif ctype in {"attachment_name", "attachment_filename", "attachment_name_contains"}:
+            ctype = "attachment_name_contains"
+        elif ctype in {"attachment_content", "attachment_text", "attachment_content_contains"}:
+            ctype = "attachment_content_contains"
+        elif ctype in {"attachment_type", "attachment_type_is"}:
+            ctype = "attachment_type_match"
         elif ctype in {"category", "category_equals", "ai_intent"}:
             ctype = "category_is"
         elif ctype in {"priority", "priority_equals"}:
             ctype = "priority_is"
         elif ctype in {"domain", "sender_domain"}:
             ctype = "domain_is"
-        return {"type": ctype, "value": value}
+        normalized = dict(condition_json)
+        normalized["type"] = ctype
+        normalized["value"] = value
+        return normalized
 
     # Legacy one-key forms used by early UI/extension paths.
     legacy_map = [
@@ -281,6 +366,14 @@ def normalize_condition_dict(condition_json: Dict) -> Dict:
             return {"type": "body_contains", "value": value}
         if field == "category" and op in {"is", "equals", "="}:
             return {"type": "category_is", "value": value}
+        return {
+            "type": "field_operator",
+            "field": field,
+            "operator": op,
+            "value": value,
+            "case_sensitive": condition_json.get("case_sensitive"),
+            "use_regex": condition_json.get("use_regex"),
+        }
 
     return {"type": "never", "value": []}
 
@@ -299,6 +392,22 @@ def parse_condition(condition_json: Dict) -> RuleCondition:
         return SenderContains(value)
     if condition_type == "body_contains":
         return BodyContains(value)
+    if condition_type == "entire_email_contains":
+        return SearchTextContains(value, "full_text")
+    if condition_type == "attachment_name_contains":
+        return SearchTextContains(value, "attachment_filename")
+    if condition_type == "attachment_content_contains":
+        return SearchTextContains(value, "attachment_content")
+    if condition_type == "attachment_type_match":
+        return SearchTextContains(value, "attachment_type")
+    if condition_type in {"field_operator", "contains", "does_not_contain", "equals", "starts_with", "ends_with", "regex_match", "any_keyword", "all_keywords"}:
+        return FieldOperatorCondition(
+            normalized.get("field") or "entire_email",
+            normalized.get("operator") or condition_type,
+            normalized.get("value"),
+            case_sensitive=bool(normalized.get("case_sensitive")),
+            use_regex=bool(normalized.get("use_regex")),
+        )
     if condition_type == "category_is":
         return CategoryIs(value)
     if condition_type == "priority_is":
@@ -381,6 +490,14 @@ class Rule:
         enabled: bool = True,
         description: str = "",
         rule_id: Optional[int] = None,
+        mailbox_scope: str = "all",
+        mailbox_id: Optional[int] = None,
+        scan_scope: str = "entire_email_with_attachments",
+        match_mode: str = "any",
+        priority: str = "Medium",
+        stop_processing: bool = False,
+        is_sample: bool = False,
+        condition_payload: Optional[Dict] = None,
     ):
         self.rule_id = rule_id
         self.name = name
@@ -388,12 +505,24 @@ class Rule:
         self.actions = normalize_actions(actions)
         self.enabled = enabled
         self.description = description
+        self.mailbox_scope = mailbox_scope or "all"
+        self.mailbox_id = mailbox_id
+        self.scan_scope = scan_scope or "entire_email_with_attachments"
+        self.match_mode = match_mode or "any"
+        self.priority = priority or "Medium"
+        self.stop_processing = bool(stop_processing)
+        self.is_sample = bool(is_sample)
+        self.condition_payload = condition_payload or {}
         self.execution_count = 0
         self.last_executed = None
 
     def match(self, email: Dict) -> bool:
         if not self.enabled:
             return False
+        if self.mailbox_scope == "selected" and self.mailbox_id:
+            email_mailbox = email.get("mailbox_id") or email.get("account_id")
+            if str(email_mailbox) != str(self.mailbox_id):
+                return False
         return self.condition.match(email)
 
     def execute(self, email: Dict, context: Dict) -> Dict:
@@ -481,6 +610,14 @@ def create_rule_from_dict(rule_dict: Dict) -> Rule:
         actions=actions,
         enabled=bool(rule_dict.get("enabled", rule_dict.get("is_active", True))),
         description=rule_dict.get("description", ""),
+        mailbox_scope=rule_dict.get("mailbox_scope", "all"),
+        mailbox_id=rule_dict.get("mailbox_id"),
+        scan_scope=rule_dict.get("scan_scope", "entire_email_with_attachments"),
+        match_mode=rule_dict.get("match_mode", "any"),
+        priority=rule_dict.get("priority", "Medium"),
+        stop_processing=bool(rule_dict.get("stop_processing", False)),
+        is_sample=bool(rule_dict.get("is_sample", False)),
+        condition_payload=rule_dict.get("condition", {}),
     )
 
 
@@ -491,6 +628,15 @@ def rule_to_public_dict(rule: Rule) -> Dict[str, Any]:
         "description": rule.description,
         "enabled": rule.enabled,
         "actions": rule.actions,
+        "condition": rule.condition_payload,
+        "status": "Active" if rule.enabled else "Paused",
+        "mailbox_scope": rule.mailbox_scope,
+        "mailbox_id": rule.mailbox_id,
+        "scan_scope": rule.scan_scope,
+        "match_mode": rule.match_mode,
+        "priority": rule.priority,
+        "stop_processing": rule.stop_processing,
+        "is_sample": rule.is_sample,
         "execution_count": rule.execution_count,
         "last_executed": rule.last_executed.isoformat() if rule.last_executed else None,
     }
@@ -499,7 +645,7 @@ def rule_to_public_dict(rule: Rule) -> Dict[str, Any]:
 def load_persisted_rules(db: Any) -> List[Rule]:
     """Load enabled DB rules into executable Rule objects."""
     try:
-        rows = db.fetch_all("SELECT * FROM rules WHERE is_active = 1 ORDER BY created_at ASC, id ASC")
+        rows = db.fetch_all("SELECT * FROM rules WHERE is_active = 1 AND COALESCE(is_sample, 0) = 0 ORDER BY created_at ASC, id ASC")
     except Exception:
         return []
 
@@ -514,13 +660,20 @@ def load_persisted_rules(db: Any) -> List[Rule]:
             "actions": action_payload,
             "enabled": bool(row.get("is_active", 1)),
             "description": row.get("description") or "",
+            "mailbox_scope": row.get("mailbox_scope") or "all",
+            "mailbox_id": row.get("mailbox_id"),
+            "scan_scope": row.get("scan_scope") or "entire_email_with_attachments",
+            "match_mode": row.get("match_mode") or "any",
+            "priority": row.get("priority") or "Medium",
+            "stop_processing": bool(row.get("stop_processing")),
+            "is_sample": bool(row.get("is_sample")),
         })
         if rule.actions:
             rules.append(rule)
     return rules
 
 
-def build_rule_engine(db: Any = None, include_defaults: bool = True) -> RuleEngine:
+def build_rule_engine(db: Any = None, include_defaults: bool = False) -> RuleEngine:
     engine = RuleEngine()
     if include_defaults:
         for rule_dict in DEFAULT_RULES:

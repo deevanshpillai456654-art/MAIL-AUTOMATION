@@ -70,7 +70,7 @@ def detect_mail_provider(email: str, base_url: str = None) -> Dict:
     oauth_status = None
     configured = True
     if oauth_provider:
-        oauth_status = manager.status(oauth_provider, base_url)
+        oauth_status = manager.status(oauth_provider, base_url, email_address=normalized_email)
         configured = bool(oauth_status.get("configured"))
 
     if oauth_provider:

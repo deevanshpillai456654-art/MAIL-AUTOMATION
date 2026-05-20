@@ -43,7 +43,6 @@ class CacheManager {
       
       return true;
     } catch (error) {
-      console.warn('Cache warming failed:', error);
       return false;
     }
   }
@@ -84,7 +83,7 @@ class CacheManager {
 
   async staleWhileRevalidate(key, fetcher, apiFetcher) {
     const memKey = `email:${key}`;
-    const cached = this.memory.get(memKey) || await this.idb.getEmail(key);
+    const cached = this.memory.get(memKey) || (await this.idb.getEmail(key));
     
     if (cached) {
       this._revalidateInBackground(key, fetcher, apiFetcher);
@@ -107,9 +106,7 @@ class CacheManager {
         await idbFetcher(fresh);
         this.stats.updates++;
       }
-    } catch (error) {
-      console.warn('Background revalidation failed:', error);
-    }
+    } catch (error) {}
   }
 
   _addToMemory(key, value) {

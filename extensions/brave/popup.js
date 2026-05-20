@@ -1,6 +1,30 @@
 (function () {
   'use strict';
 
+window.setSafeHTML = function(el, html) {
+  if (!el) return;
+  if (typeof html !== 'string') {
+    el.textContent = String(html);
+    return;
+  }
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const badTags = doc.querySelectorAll('script, iframe, object, embed, form, base, applet, meta, link');
+  badTags.forEach(n => n.remove());
+  const all = doc.querySelectorAll('*');
+  for (let i = 0; i < all.length; i++) {
+    const node = all[i];
+    for (let j = node.attributes.length - 1; j >= 0; j--) {
+      const attr = node.attributes[j];
+      if (attr.name.toLowerCase().startsWith('on') || attr.name.toLowerCase() === 'javascript:') {
+        node.removeAttribute(attr.name);
+      }
+    }
+  }
+  el.replaceChildren(...doc.body.childNodes);
+};
+
+
   const platform = (document.documentElement.dataset.platform || 'extension').toLowerCase();
   AIOExtensionRuntime.configure(platform);
 
@@ -60,7 +84,7 @@
 
     $('threatSection').classList.remove('hidden');
     const list = $('threatList');
-    list.innerHTML = '';
+    window.setSafeHTML(list, '');
     items.forEach(item => {
       const score = item.confidence_score ?? 0;
       const level = scoreToLevel(score);
@@ -138,7 +162,7 @@
     const reasons = (data.reasons || []).slice(0, 2).join('; ') || 'No issues detected';
 
     el.className = 'domain-result';
-    el.innerHTML = '';
+    window.setSafeHTML(el, '');
 
     // FIX: DOM construction — no innerHTML with API data (XSS prevention)
     const header = document.createElement('div');

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aio-dashboard-v1';
+const CACHE_NAME = 'aio-dashboard-v5';
 const CORE_ASSETS = ['/dashboard', '/dashboard/runtime/frontend_runtime.js'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(CORE_ASSETS)).catch(() => undefined));

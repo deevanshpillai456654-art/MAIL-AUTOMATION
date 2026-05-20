@@ -22,16 +22,16 @@ class ProviderTokenManager:
         self.cipher = cipher or TokenCipher()
         self.registry = ProviderCapabilityRegistry()
 
-    def _oauth_client(self, provider: str):
+    def _oauth_client(self, provider: str, email_address: str = None):
         provider = ProviderCapabilityRegistry.normalize(provider)
         if provider == "gmail":
-            return GmailOAuth(db=self.db, cipher=self.cipher)
+            return GmailOAuth(db=self.db, cipher=self.cipher, email_address=email_address)
         if provider in ("outlook", "microsoft365", "exchange"):
-            return OutlookOAuth(db=self.db, cipher=self.cipher)
+            return OutlookOAuth(db=self.db, cipher=self.cipher, email_address=email_address)
         group = oauth_group_for(provider)
         if group in {"yahoo", "zoho", "yandex"}:
             try:
-                return UniversalOAuth(provider=group, db=self.db, cipher=self.cipher)
+                return UniversalOAuth(provider=group, db=self.db, cipher=self.cipher, email_address=email_address)
             except ValueError:
                 return None
         return None
@@ -81,7 +81,7 @@ class ProviderTokenManager:
         if not account:
             return None
         provider = ProviderCapabilityRegistry.normalize(account.get("provider"))
-        client = self._oauth_client(provider)
+        client = self._oauth_client(provider, account.get("email"))
         if not client:
             return None
         token = client.get_valid_token(account_id)

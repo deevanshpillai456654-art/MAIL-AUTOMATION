@@ -48,6 +48,9 @@ local-service/logs/
 local-service/models/
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
+node_modules/
 
 # OS
 .DS_Store

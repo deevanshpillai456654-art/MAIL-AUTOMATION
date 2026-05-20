@@ -12,7 +12,7 @@
   <!-- ── Sidebar ─────────────────────────────────────────────────────────── -->
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-logo" onclick="document.getElementById('sidebar').classList.toggle('collapsed')">
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none">
         <rect width="28" height="28" rx="7" fill="rgba(37,99,235,0.12)"/>
         <path d="M7 14h14M14 7v14M10 10l8 8M18 10l-8 8" stroke="#2563EB" stroke-width="1.8" stroke-linecap="round"/>
       </svg>
@@ -28,7 +28,7 @@
       <div class="sidebar-section">
         <div class="sidebar-label">Overview</div>
         <button class="nav-item active" data-section="dashboard" onclick="showSection('dashboard')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
           <span class="nav-item-label">Dashboard</span>
         </button>
       </div>
@@ -37,11 +37,11 @@
       <div class="sidebar-section">
         <div class="sidebar-label">Connectors</div>
         <button class="nav-item" data-section="marketplace" onclick="showSection('marketplace')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
           <span class="nav-item-label">Marketplace</span>
         </button>
         <button class="nav-item" data-section="installed" onclick="showSection('installed')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
           <span class="nav-item-label">Installed</span>
         </button>
       </div>
@@ -50,31 +50,31 @@
       <div class="sidebar-section" id="sidebar-erp" data-requires-connector-category="erp accounting">
         <div class="sidebar-label">ERP</div>
         <button class="nav-item" data-section="erp" onclick="showSection('erp')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
           <span class="nav-item-label">ERP Overview</span>
         </button>
         <button class="nav-item" data-section="vendors" onclick="showSection('vendors')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           <span class="nav-item-label">Vendors</span>
         </button>
         <button class="nav-item" data-section="purchase-orders" onclick="showSection('purchase-orders')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           <span class="nav-item-label">Purchase Orders</span>
         </button>
         <button class="nav-item" data-section="invoices" onclick="showSection('invoices')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           <span class="nav-item-label">Invoices</span>
         </button>
         <button class="nav-item" data-section="inventory" onclick="showSection('inventory')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27,6.96 12,12.01 20.73,6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27,6.96 12,12.01 20.73,6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
           <span class="nav-item-label">Inventory</span>
         </button>
         <button class="nav-item" data-section="warehouses" onclick="showSection('warehouses')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
           <span class="nav-item-label">Warehouses</span>
         </button>
         <button class="nav-item" data-section="tally" onclick="showSection('tally')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
           <span class="nav-item-label">Tally</span>
         </button>
       </div>
@@ -83,23 +83,23 @@
       <div class="sidebar-section" id="sidebar-crm" data-requires-connector-category="crm">
         <div class="sidebar-label">CRM</div>
         <button class="nav-item" data-section="crm" onclick="showSection('crm')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           <span class="nav-item-label">CRM Overview</span>
         </button>
         <button class="nav-item" data-section="pipeline" onclick="showSection('pipeline')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
           <span class="nav-item-label">Pipeline</span>
         </button>
         <button class="nav-item" data-section="leads" onclick="showSection('leads')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <span class="nav-item-label">Leads</span>
         </button>
         <button class="nav-item" data-section="contacts" onclick="showSection('contacts')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           <span class="nav-item-label">Contacts</span>
         </button>
         <button class="nav-item" data-section="opportunities" onclick="showSection('opportunities')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26 12,2"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26 12,2"/></svg>
           <span class="nav-item-label">Opportunities</span>
         </button>
       </div>
@@ -108,7 +108,7 @@
       <div class="sidebar-section" id="sidebar-tracking" data-requires-connector-category="tracking shipping">
         <div class="sidebar-label">Tracking</div>
         <button class="nav-item" data-section="tracking" onclick="showSection('tracking')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88 16.24,7.76"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88 16.24,7.76"/></svg>
           <span class="nav-item-label">Shipment Tracking</span>
           <span class="nav-badge hidden" id="trackingBadge">0</span>
         </button>
@@ -118,11 +118,11 @@
       <div class="sidebar-section" id="sidebar-automation" data-requires-active-connector>
         <div class="sidebar-label">Automation</div>
         <button class="nav-item" data-section="workflows" onclick="showSection('workflows')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M7 6h10M5 8v2a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3V8M12 13v3"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M7 6h10M5 8v2a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3V8M12 13v3"/></svg>
           <span class="nav-item-label">Workflow Builder</span>
         </button>
         <button class="nav-item" data-section="events" onclick="showSection('events')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
           <span class="nav-item-label">Event Bus</span>
         </button>
       </div>
@@ -131,7 +131,7 @@
       <div class="sidebar-section" id="sidebar-support" data-requires-connector-category="support">
         <div class="sidebar-label">Support</div>
         <button class="nav-item" data-section="support" onclick="showSection('support')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           <span class="nav-item-label">Tickets</span>
           <span class="nav-badge hidden" id="supportBadge">0</span>
         </button>
@@ -141,24 +141,24 @@
       <div class="sidebar-section" id="sidebar-operations" data-requires-active-connector>
         <div class="sidebar-label">Operations</div>
         <button class="nav-item" data-section="queues" onclick="showSection('queues')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
           <span class="nav-item-label">Queue Monitor</span>
           <span class="nav-badge hidden" id="queueBadge">0</span>
         </button>
         <button class="nav-item" data-section="logs" onclick="showSection('logs')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
           <span class="nav-item-label">Logs</span>
         </button>
         <button class="nav-item" data-section="health" onclick="showSection('health')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
           <span class="nav-item-label">Health</span>
         </button>
         <button class="nav-item" data-section="oauth" onclick="showSection('oauth')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10,17 15,12 10,7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10,17 15,12 10,7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
           <span class="nav-item-label">OAuth Manager</span>
         </button>
         <button class="nav-item" data-section="webhooks" onclick="showSection('webhooks')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           <span class="nav-item-label">Webhooks</span>
         </button>
       </div>
@@ -167,15 +167,15 @@
       <div class="sidebar-section">
         <div class="sidebar-label">Management</div>
         <button class="nav-item" data-section="plugins" onclick="showSection('plugins')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
           <span class="nav-item-label">Plugin Registry</span>
         </button>
         <button class="nav-item" data-section="permissions" onclick="showSection('permissions')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           <span class="nav-item-label">Permissions</span>
         </button>
         <button class="nav-item" data-section="settings" onclick="showSection('settings')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           <span class="nav-item-label">Settings</span>
         </button>
       </div>
@@ -202,7 +202,7 @@
           <option value="tenant_002">tenant_002</option>
         </select>
         <button class="btn btn-secondary btn-sm" onclick="reloadCurrentSection();toast('Refreshed','success',1500)">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23,4 23,10 17,10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23,4 23,10 17,10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           Refresh
         </button>
       </div>
@@ -212,17 +212,17 @@
 
       <!-- ── DASHBOARD ─────────────────────────────────────────────────── -->
       <div id="sec-dashboard" class="section active">
-        <div class="stats-grid" id="dashStatsGrid" style="grid-template-columns:repeat(4,1fr)">
-          <div class="stat-card"><div class="stat-icon stat-icon--accent"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div class="stat-value" id="statTotal">—</div><div class="stat-label">Total Connectors</div></div>
-          <div class="stat-card"><div class="stat-icon stat-icon--success"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg></div><div class="stat-value" id="statActive">—</div><div class="stat-label">Active</div></div>
-          <div class="stat-card"><div class="stat-icon stat-icon--amber"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div><div class="stat-value" id="statQueued">—</div><div class="stat-label">Jobs in Queue</div></div>
-          <div class="stat-card"><div class="stat-icon stat-icon--red"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div class="stat-value" id="statDead">—</div><div class="stat-label">Dead Letters</div></div>
+        <div class="stats-grid stats-grid--four" id="dashStatsGrid">
+          <div class="stat-card"><div class="stat-icon stat-icon--accent"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div class="stat-value" id="statTotal">—</div><div class="stat-label">Total Connectors</div></div>
+          <div class="stat-card"><div class="stat-icon stat-icon--success"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg></div><div class="stat-value" id="statActive">—</div><div class="stat-label">Active</div></div>
+          <div class="stat-card"><div class="stat-icon stat-icon--amber"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div><div class="stat-value" id="statQueued">—</div><div class="stat-label">Jobs in Queue</div></div>
+          <div class="stat-card"><div class="stat-icon stat-icon--red"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div class="stat-value" id="statDead">—</div><div class="stat-label">Dead Letters</div></div>
         </div>
 
         <div class="two-col mt-4">
           <div class="card">
             <div class="card-header">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
               <span class="card-title">Installed Connectors</span>
               <button class="btn btn-xs btn-secondary ml-auto" onclick="showSection('installed')">Manage →</button>
             </div>
@@ -230,7 +230,7 @@
           </div>
           <div class="card">
             <div class="card-header">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
               <span class="card-title">Recent Logs</span>
               <button class="btn btn-xs btn-secondary ml-auto" onclick="showSection('logs')">View all →</button>
             </div>
@@ -240,7 +240,7 @@
 
         <div class="card mt-16">
           <div class="card-header"><span class="card-title">Quick Actions</span></div>
-          <div style="display:flex;gap:8px;padding:12px 16px;flex-wrap:wrap;">
+          <div class="quick-actions-row">
             <button class="btn btn-primary btn-sm" onclick="showSection('marketplace')">+ Browse Marketplace</button>
             <button class="btn btn-secondary btn-sm" onclick="showSection('installed')">Manage Installed</button>
             <button class="btn btn-secondary btn-sm" onclick="showSection('health')">Health Check</button>
@@ -266,8 +266,8 @@
       <div id="sec-marketplace" class="section">
         <div class="filter-bar">
           <div class="search-input">
-            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input id="mktSearch" placeholder="Search connectors…" oninput="renderMarketplace(_marketplace)" />
+            <svg aria-hidden="true" class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input aria-label="Search connectors…" id="mktSearch" placeholder="Search connectors…" oninput="renderMarketplace(_marketplace)" />
           </div>
           <select id="mktCategory" class="filter-select" aria-label="Category" title="Category" onchange="renderMarketplace(_marketplace)">
             <option value="">All categories</option>
@@ -292,8 +292,8 @@
       <div id="sec-installed" class="section">
         <div class="filter-bar">
           <div class="search-input flex-1">
-            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input placeholder="Filter connectors…" oninput="filterInstalledTable(this.value)" />
+            <svg aria-hidden="true" class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input aria-label="Filter connectors…" placeholder="Filter connectors…" oninput="filterInstalledTable(this.value)" />
           </div>
           <button class="btn btn-primary btn-sm" onclick="showSection('marketplace')">+ Add Connector</button>
         </div>
@@ -329,7 +329,7 @@
       <!-- ── VENDORS ────────────────────────────────────────────────────── -->
       <div id="sec-vendors" class="section">
         <div class="filter-bar">
-          <div class="search-input flex-1"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="vendorSearch" placeholder="Search vendors…" oninput="loadVendors()"/></div>
+          <div class="search-input flex-1"><svg aria-hidden="true" class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search vendors…" id="vendorSearch" placeholder="Search vendors…" oninput="loadVendors()"/></div>
           <button class="btn btn-primary btn-sm" onclick="createVendorModal()">+ Add Vendor</button>
         </div>
         <div class="table-wrap">
@@ -379,7 +379,7 @@
         <div class="filter-bar">
           <label class="toggle inventory-toggle"><input type="checkbox" id="lowStockOnly" aria-label="Low stock only" title="Low stock only" onchange="loadInventory()"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
           <span class="low-stock-label">Low stock only</span>
-          <div class="search-input flex-1"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="invSearch" placeholder="Search items…"/></div>
+          <div class="search-input flex-1"><svg aria-hidden="true" class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search items…" id="invSearch" placeholder="Search items…"/></div>
           <button class="btn btn-primary btn-sm" onclick="createInventoryModal()">+ Add Item</button>
         </div>
         <div class="table-wrap">
@@ -446,7 +446,7 @@
       <!-- ── CONTACTS ───────────────────────────────────────────────────── -->
       <div id="sec-contacts" class="section">
         <div class="filter-bar">
-          <div class="search-input flex-1"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="contactSearch" placeholder="Search contacts…" oninput="loadContacts()"/></div>
+          <div class="search-input flex-1"><svg aria-hidden="true" class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search contacts…" id="contactSearch" placeholder="Search contacts…" oninput="loadContacts()"/></div>
           <button class="btn btn-primary btn-sm" onclick="createContactModal()">+ New Contact</button>
         </div>
         <div class="table-wrap">
@@ -483,7 +483,7 @@
           <div class="stat-card"><div class="stat-value stat-value--warning" id="trkHighRisk">—</div><div class="stat-label">High Delay Risk</div></div>
         </div>
         <div class="filter-bar">
-          <div class="search-input flex-1"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="trackingSearch" placeholder="Search by AWB, BL, order ref…" oninput="loadTracking()"/></div>
+          <div class="search-input flex-1"><svg aria-hidden="true" class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search by AWB, BL, order ref…" id="trackingSearch" placeholder="Search by AWB, BL, order ref…" oninput="loadTracking()"/></div>
           <select id="trackingCarrierFilter" class="filter-select" aria-label="Carrier" title="Carrier" onchange="loadTracking()">
             <option value="">All carriers</option>
             <option value="fedex">FedEx</option><option value="ups">UPS</option>
@@ -548,7 +548,7 @@
             <option value="urgent">Urgent</option><option value="high">High</option>
             <option value="normal">Normal</option><option value="low">Low</option>
           </select>
-          <div class="search-input flex-1"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="sptSearch" placeholder="Search tickets…" oninput="loadTickets()"/></div>
+          <div class="search-input flex-1"><svg aria-hidden="true" class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search tickets…" id="sptSearch" placeholder="Search tickets…" oninput="loadTickets()"/></div>
           <button class="btn btn-primary btn-sm" onclick="createTicketModal()">+ New Ticket</button>
         </div>
         <div class="table-wrap">
@@ -562,7 +562,7 @@
         <div class="two-col">
           <div class="card">
             <div class="card-header"><span class="card-title">Publish Event</span></div>
-            <div class="form-group"><label for="pubEventType">Event Type</label><input id="pubEventType" placeholder="invoice.created" /></div>
+            <div class="form-group"><label for="pubEventType">Event Type</label><input aria-label="invoice.created" id="pubEventType" placeholder="invoice.created" /></div>
             <div class="form-group"><label for="pubEventPayload">Payload (JSON)</label><textarea id="pubEventPayload" rows="3" placeholder='{"key":"value"}'></textarea></div>
             <button class="btn btn-primary btn-sm" onclick="publishEvent()">Publish</button>
           </div>
@@ -610,7 +610,7 @@
       <div id="sec-logs" class="section">
         <div class="filter-bar">
           <select id="logLevelFilter" class="filter-select" aria-label="Log level" title="Log level" onchange="loadLogs()"><option value="">All levels</option><option value="INFO">INFO</option><option value="WARN">WARN</option><option value="ERROR">ERROR</option></select>
-          <div class="search-input flex-1"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="logConnFilter" placeholder="Filter by connector…" oninput="loadLogs()"/></div>
+          <div class="search-input flex-1"><svg aria-hidden="true" class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Filter by connector…" id="logConnFilter" placeholder="Filter by connector…" oninput="loadLogs()"/></div>
           <button class="btn btn-secondary btn-sm" onclick="loadLogs()">Reload</button>
           <button class="btn btn-primary btn-sm" id="streamBtn" onclick="toggleLogStream()">Start Live Stream</button>
         </div>
@@ -628,7 +628,7 @@
 
       <!-- ── PLUGINS ────────────────────────────────────────────────────── -->
       <div id="sec-plugins" class="section">
-        <div class="filter-bar"><div class="search-input flex-1"><svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search plugins…"/></div><button class="btn btn-secondary btn-sm" onclick="loadPlugins()">Reload Registry</button></div>
+        <div class="filter-bar"><div class="search-input flex-1"><svg aria-hidden="true" class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search plugins…" placeholder="Search plugins…"/></div><button class="btn btn-secondary btn-sm" onclick="loadPlugins()">Reload Registry</button></div>
         <div class="table-wrap"><table><thead><tr><th>Plugin</th><th>Version</th><th>Category</th><th>Status</th><th>Actions</th></tr></thead><tbody id="pluginsTbody"></tbody></table></div>
       </div>
 

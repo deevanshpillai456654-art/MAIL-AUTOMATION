@@ -54,9 +54,7 @@ class OfflineManager {
 
   _registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(err => {
-        console.warn('Service worker registration failed:', err);
-      });
+      navigator.serviceWorker.register('/sw.js').catch(err => {});
     }
   }
 
@@ -66,9 +64,7 @@ class OfflineManager {
       if ('sync' in registration) {
         await registration.sync.register('email-sync');
       }
-    } catch (err) {
-      console.warn('Background sync registration failed:', err);
-    }
+    } catch (err) {}
   }
 
   on(event, handler) {

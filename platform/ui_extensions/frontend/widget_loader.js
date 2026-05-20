@@ -1,3 +1,27 @@
+
+window.setSafeHTML = function(el, html) {
+  if (!el) return;
+  if (typeof html !== 'string') {
+    el.textContent = String(html);
+    return;
+  }
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const badTags = doc.querySelectorAll('script, iframe, object, embed, form, base, applet, meta, link');
+  badTags.forEach(n => n.remove());
+  const all = doc.querySelectorAll('*');
+  for (let i = 0; i < all.length; i++) {
+    const node = all[i];
+    for (let j = node.attributes.length - 1; j >= 0; j--) {
+      const attr = node.attributes[j];
+      if (attr.name.toLowerCase().startsWith('on') || attr.name.toLowerCase() === 'javascript:') {
+        node.removeAttribute(attr.name);
+      }
+    }
+  }
+  el.replaceChildren(...doc.body.childNodes);
+};
+
 /**
  * WidgetLoader — dynamically loads and mounts plugin-contributed widgets
  * into a dashboard grid without modifying core dashboard code.
@@ -59,11 +83,13 @@ export class WidgetLoader {
       } else if (typeof mod.mount === 'function') {
         mod.mount(slot, widgetDef.config || {});
       } else {
-        slot.innerHTML = `<div class="plugin-widget-placeholder">${widgetDef.label}</div>`;
+        window.setSafeHTML(slot, `<div class="plugin-widget-placeholder">${widgetDef.label}</div>`);
       }
     } catch (err) {
-      console.error(`[WidgetLoader] Failed to load widget ${id}:`, err);
-      slot.innerHTML = `<div class="plugin-widget-error">⚠ ${widgetDef.label} failed to load</div>`;
+      window.setSafeHTML(
+        slot,
+        `<div class="plugin-widget-error">⚠ ${widgetDef.label} failed to load</div>`
+      );
     }
 
     grid.appendChild(slot);

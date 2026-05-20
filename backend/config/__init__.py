@@ -126,6 +126,12 @@ APP_ENV = os.environ.get("APP_ENV", os.environ.get("ENVIRONMENT", "local")).lowe
 IS_PRODUCTION = APP_ENV == "production"
 IS_CONTAINERIZED = os.environ.get("CONTAINERIZED", "").lower() in {"1", "true", "yes", "on"}
 IS_PORTABLE = _is_truthy(os.environ.get("AIO_PORTABLE")) or _is_truthy(os.environ.get("AIO_USE_PROJECT_DATA"))
+RUNTIME_PROFILE = os.environ.get("AIO_RUNTIME_PROFILE", os.environ.get("RUNTIME_PROFILE", "standard")).lower().replace("-", "_")
+LOW_RESOURCE_MODE = _is_truthy(os.environ.get("AIO_LOW_RESOURCE_MODE")) or RUNTIME_PROFILE in {"low", "low_resource"}
+OFFLINE_MODE = _is_truthy(os.environ.get("AIO_OFFLINE_MODE")) or _is_truthy(os.environ.get("OFFLINE_MODE"))
+AI_MODE = os.environ.get("AIO_AI_MODE", os.environ.get("AI_MODE", "disabled" if (LOW_RESOURCE_MODE or OFFLINE_MODE) else "cloud")).lower()
+LITE_MODE = RUNTIME_PROFILE == "lite"
+ENTERPRISE_MODE = RUNTIME_PROFILE == "enterprise" or _is_truthy(os.environ.get("AIO_ENTERPRISE_MODE"))
 
 # ── API binding ───────────────────────────────────────────────────────────────
 
@@ -229,7 +235,7 @@ DB_PRAGMAS = {
 
 # ── Performance ───────────────────────────────────────────────────────────────
 
-MAX_WORKERS = 4
+MAX_WORKERS = _get_int_env("MAX_WORKERS", 1 if LOW_RESOURCE_MODE else 2 if LITE_MODE else 4, 1, 16)
 BATCH_SIZE = 50
 CACHE_TTL = 1800
 

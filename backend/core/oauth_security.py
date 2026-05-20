@@ -360,7 +360,8 @@ class OAuthSessionManager:
             "nonce": session.nonce,
             # Include correlation ID for tracking
             "access_type": "offline",
-            "prompt": "consent"
+            "prompt": "consent select_account" if provider == "gmail" else "select_account" if provider == "outlook" else "consent",
+            **({"max_age": "0"} if provider == "gmail" else {}),
         }
         
         # Provider-specific base URLs

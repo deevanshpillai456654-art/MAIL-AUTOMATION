@@ -13,9 +13,11 @@ class MicrosoftOAuthProvider(BaseOAuthProvider):
 
     def __init__(self, db=None, redirect_uri: str = None,
                  client_id: str = None, client_secret: str = None,
-                 tenant_id: str = None):
+                 tenant_id: str = None, email_address: str = None):
         from backend.auth.provider_config import ProviderConfigManager
-        _cfg = ProviderConfigManager().get_oauth_config("microsoft", runtime_redirect_uri=redirect_uri)
+        _cfg = ProviderConfigManager().get_oauth_config("microsoft", runtime_redirect_uri=redirect_uri, email_address=email_address)
+        self.oauth_config_provider = _cfg.get("oauth_config_provider") or "microsoft"
+        self.oauth_config_email = _cfg.get("oauth_config_email")
         self.tenant_id = tenant_id or _cfg.get("tenant_id") or config.OUTLOOK_TENANT_ID or "common"
         super().__init__(
             db=db,
@@ -45,9 +47,8 @@ class MicrosoftOAuthProvider(BaseOAuthProvider):
             "state": state,
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
+            "prompt": "select_account",
         }
-        if login_hint:
-            params["login_hint"] = login_hint
         return f"{self.AUTH_URL.format(tenant=self.tenant_id)}?{urlencode(params)}"
 
     def _token_url(self) -> str:

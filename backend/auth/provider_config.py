@@ -31,7 +31,7 @@ OAUTH_GROUPS = {
         "profile_url": "https://www.googleapis.com/oauth2/v2/userinfo",
         "cloud_console_url": "https://console.cloud.google.com/apis/credentials",
         "scopes": ["openid", "email", "profile", "https://www.googleapis.com/auth/gmail.modify", "https://www.googleapis.com/auth/gmail.send"],
-        "notes": "Enable Gmail API and create an OAuth Web application client.",
+        "notes": "Enable Gmail API and create an OAuth Web application client. If the consent screen is in Testing, add each mailbox as a test user; production Gmail scopes require Google verification.",
     },
     "microsoft": {
         "display_name": "Outlook / Office 365 / Hotmail / Live / Exchange Online",
@@ -142,6 +142,11 @@ def normalize_provider(provider: str) -> str:
     return (provider or "").strip().lower().replace("-", "_").replace(" ", "_")
 
 
+def normalize_email_address(email: Optional[str]) -> Optional[str]:
+    value = (email or "").strip().lower()
+    return value or None
+
+
 def oauth_group_for(provider: str) -> Optional[str]:
     return PROVIDER_GROUP_ALIASES.get(normalize_provider(provider))
 
@@ -168,18 +173,19 @@ class ProviderConfigManager:
 
     def _read(self) -> Dict:
         if not self.path.exists():
-            return {"version": 2, "oauth": {}, "updated_at": None}
+            return {"version": 3, "oauth": {}, "oauth_mailboxes": {}, "updated_at": None}
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
-                return {"version": 2, "oauth": {}, "updated_at": None}
+                return {"version": 3, "oauth": {}, "oauth_mailboxes": {}, "updated_at": None}
             data.setdefault("oauth", {})
+            data.setdefault("oauth_mailboxes", {})
             return data
         except Exception:
-            return {"version": 2, "oauth": {}, "updated_at": None, "read_error": True}
+            return {"version": 3, "oauth": {}, "oauth_mailboxes": {}, "updated_at": None, "read_error": True}
 
     def _write(self, data: Dict) -> None:
-        data["version"] = 2
+        data["version"] = 3
         data["updated_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(self.path.suffix + ".tmp")
@@ -204,43 +210,59 @@ class ProviderConfigManager:
     def redirect_uri_for(self, group: str, base_url: Optional[str] = None, stored_redirect: Optional[str] = None) -> str:
         group = oauth_group_for(group) or normalize_provider(group)
         meta = OAUTH_GROUPS[group]
-        env_redirect = os.environ.get(meta["redirect_env"])
+        env_redirect = os.environ.get(meta["redirect_env"]) or getattr(config, meta["redirect_env"], "")
         if env_redirect and not is_placeholder(env_redirect):
             return env_redirect.strip()
         if stored_redirect and not is_placeholder(stored_redirect):
             return stored_redirect.strip()
         return f"{(base_url or self.default_base_url()).rstrip('/')}{meta['default_callback']}"
 
-    def get_oauth_config(self, provider: str, runtime_redirect_uri: Optional[str] = None) -> Dict:
+    def _decrypt_secret(self, stored: Dict) -> tuple[str, str]:
+        if stored.get("client_secret_encrypted"):
+            try:
+                return self.cipher.decrypt(stored.get("client_secret_encrypted")) or "", "encrypted_store"
+            except Exception:
+                return "", "encrypted_store_unreadable"
+        return "", "missing"
+
+    def get_oauth_config(self, provider: str, runtime_redirect_uri: Optional[str] = None,
+                         email_address: Optional[str] = None) -> Dict:
         group = oauth_group_for(provider) or normalize_provider(provider)
         if group not in OAUTH_GROUPS:
             return {"provider": normalize_provider(provider), "oauth": False, "configured": False, "missing": []}
         meta = OAUTH_GROUPS[group]
+        requested_email = normalize_email_address(email_address)
         data = self._read()
-        stored = (data.get("oauth") or {}).get(group, {})
+        mailbox_rows = (data.get("oauth_mailboxes") or {}).get(group, {})
+        mailbox_stored = mailbox_rows.get(requested_email, {}) if requested_email else {}
+        shared_stored = (data.get("oauth") or {}).get(group, {})
+        stored = mailbox_stored or shared_stored
+        config_scope = "mailbox" if mailbox_stored else ("shared" if shared_stored else "shared")
+        config_email = requested_email if mailbox_stored else None
 
-        env_client_id = os.environ.get(meta["client_id_env"])
-        env_client_secret = os.environ.get(meta["client_secret_env"])
-        env_tenant = os.environ.get(meta.get("tenant_env", ""), "") if meta.get("tenant_env") else ""
+        env_client_id = os.environ.get(meta["client_id_env"]) or getattr(config, meta["client_id_env"], "")
+        env_client_secret = os.environ.get(meta["client_secret_env"]) or getattr(config, meta["client_secret_env"], "")
+        env_tenant = ""
+        if meta.get("tenant_env"):
+            env_tenant = os.environ.get(meta["tenant_env"]) or getattr(config, meta["tenant_env"], "")
 
-        client_id = env_client_id if not is_placeholder(env_client_id) else stored.get("client_id", "")
-        if not is_placeholder(env_client_secret):
-            client_secret = env_client_secret
-            secret_source = "environment"
-        elif stored.get("client_secret_encrypted"):
-            try:
-                client_secret = self.cipher.decrypt(stored.get("client_secret_encrypted")) or ""
-                secret_source = "encrypted_store"
-            except Exception:
-                client_secret = ""
-                secret_source = "encrypted_store_unreadable"
+        if mailbox_stored:
+            client_id = mailbox_stored.get("client_id", "")
+            client_secret, secret_source = self._decrypt_secret(mailbox_stored)
         else:
-            client_secret = ""
-            secret_source = "missing"
+            client_id = env_client_id if not is_placeholder(env_client_id) else shared_stored.get("client_id", "")
+            if not is_placeholder(env_client_secret):
+                client_secret = env_client_secret
+                secret_source = "environment"
+            else:
+                client_secret, secret_source = self._decrypt_secret(shared_stored)
 
         tenant_id = "common"
         if group == "microsoft":
-            tenant_id = env_tenant if not is_placeholder(env_tenant) else (stored.get("tenant_id") or "common")
+            if mailbox_stored:
+                tenant_id = mailbox_stored.get("tenant_id") or "common"
+            else:
+                tenant_id = env_tenant if not is_placeholder(env_tenant) else (shared_stored.get("tenant_id") or "common")
 
         missing = []
         if is_placeholder(client_id):
@@ -249,16 +271,27 @@ class ProviderConfigManager:
             missing.append(meta["client_secret_env"])
 
         redirect_uri = runtime_redirect_uri or self.redirect_uri_for(group, stored_redirect=stored.get("redirect_uri"))
-        source = "environment" if not is_placeholder(env_client_id) or not is_placeholder(env_client_secret) else ("encrypted_store" if stored else "missing")
+        if mailbox_stored:
+            source = "mailbox_store"
+        elif not is_placeholder(env_client_id) or not is_placeholder(env_client_secret):
+            source = "environment"
+        else:
+            source = "encrypted_store" if shared_stored else "missing"
         return {
             "provider": group,
             "oauth": True,
             "configured": not missing,
             "missing": missing,
+            "email_address": requested_email,
+            "config_scope": config_scope,
+            "config_email": config_email,
+            "oauth_config_provider": group,
+            "oauth_config_email": config_email,
             "client_id": client_id or "",
             "client_secret": client_secret or "",
             "tenant_id": tenant_id,
             "redirect_uri": redirect_uri,
+            "provider_options": stored.get("provider_options") or {},
             "source": source,
             "secret_source": secret_source,
             "auth_url": meta.get("auth_url"),
@@ -267,7 +300,8 @@ class ProviderConfigManager:
             "scopes": meta.get("scopes", []),
         }
 
-    def status(self, provider: str, base_url: Optional[str] = None) -> Dict:
+    def status(self, provider: str, base_url: Optional[str] = None,
+               email_address: Optional[str] = None) -> Dict:
         normalized = normalize_provider(provider)
         group = oauth_group_for(normalized)
         if not group:
@@ -285,10 +319,18 @@ class ProviderConfigManager:
             }
         meta = OAUTH_GROUPS[group]
         data = self._read()
-        stored = (data.get("oauth") or {}).get(group, {})
-        cfg = self.get_oauth_config(group, runtime_redirect_uri=self.redirect_uri_for(group, base_url, stored.get("redirect_uri")))
+        requested_email = normalize_email_address(email_address)
+        shared = (data.get("oauth") or {}).get(group, {})
+        mailbox = ((data.get("oauth_mailboxes") or {}).get(group, {}) or {}).get(requested_email, {}) if requested_email else {}
+        stored = mailbox or shared
+        cfg = self.get_oauth_config(
+            group,
+            runtime_redirect_uri=self.redirect_uri_for(group, base_url, stored.get("redirect_uri")),
+            email_address=requested_email,
+        )
         return {
             "provider": group,
+            "email_address": requested_email,
             "display_name": meta["display_name"],
             "auth_mode": "oauth2",
             "configured": cfg["configured"],
@@ -298,9 +340,17 @@ class ProviderConfigManager:
             "missing": cfg["missing"],
             "client_id_present": not is_placeholder(cfg.get("client_id")),
             "client_secret_present": not is_placeholder(cfg.get("client_secret")),
+            "client_id": cfg.get("client_id") or "",
+            "client_secret": "••••••••" if not is_placeholder(cfg.get("client_secret")) else "",
+            "client_secret_masked": not is_placeholder(cfg.get("client_secret")),
             "tenant_id": cfg.get("tenant_id") if group == "microsoft" else None,
             "source": cfg.get("source"),
+            "config_scope": cfg.get("config_scope"),
+            "oauth_config_provider": cfg.get("oauth_config_provider"),
+            "oauth_config_email": cfg.get("oauth_config_email"),
+            "is_shared": cfg.get("config_scope") == "shared",
             "redirect_uri": cfg.get("redirect_uri"),
+            "provider_options": cfg.get("provider_options") or {},
             "start_path": meta["start_path"],
             "setup_url": "/setup#provider-setup",
             "cloud_console_url": meta["cloud_console_url"],
@@ -323,21 +373,30 @@ class ProviderConfigManager:
         }
 
     def save_oauth_config(self, provider: str, client_id: str, client_secret: Optional[str] = None,
-                          tenant_id: Optional[str] = None, redirect_uri: Optional[str] = None) -> Dict:
+                          tenant_id: Optional[str] = None, redirect_uri: Optional[str] = None,
+                          email_address: Optional[str] = None,
+                          provider_options: Optional[Dict] = None) -> Dict:
         group = oauth_group_for(provider) or normalize_provider(provider)
         if group not in OAUTH_GROUPS:
             raise ValueError("Only OAuth-capable providers can be configured here")
         meta = OAUTH_GROUPS[group]
+        email = normalize_email_address(email_address)
         if is_placeholder(client_id):
             raise ValueError(f"{meta['client_id_env']} is required")
 
         data = self._read()
         oauth = data.setdefault("oauth", {})
-        existing = oauth.get(group, {})
+        oauth_mailboxes = data.setdefault("oauth_mailboxes", {})
+        mailbox_group = oauth_mailboxes.setdefault(group, {})
+        existing = mailbox_group.get(email, {}) if email else oauth.get(group, {})
         row = {
             "client_id": client_id.strip(),
             "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
+        if provider_options is not None:
+            row["provider_options"] = provider_options if isinstance(provider_options, dict) else {}
+        elif existing.get("provider_options"):
+            row["provider_options"] = existing["provider_options"]
         if redirect_uri and not is_placeholder(redirect_uri):
             row["redirect_uri"] = redirect_uri.strip()
         elif existing.get("redirect_uri"):
@@ -350,9 +409,13 @@ class ProviderConfigManager:
             row["client_secret_encrypted"] = existing["client_secret_encrypted"]
         else:
             raise ValueError(f"{meta['client_secret_env']} is required")
-        oauth[group] = row
+        if email:
+            row["email_address"] = email
+            mailbox_group[email] = row
+        else:
+            oauth[group] = row
         self._write(data)
-        return self.status(group)
+        return self.status(group, email_address=email)
 
     def clear_oauth_config(self, provider: str) -> Dict:
         group = oauth_group_for(provider) or normalize_provider(provider)

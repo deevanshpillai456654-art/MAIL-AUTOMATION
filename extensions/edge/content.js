@@ -1,4 +1,4 @@
-﻿(function () {
+﻿((function() {
   'use strict';
   if (window.__INTEMO_CONTENT_LOADED__) return;
   window.__INTEMO_CONTENT_LOADED__ = true;
@@ -485,4 +485,4 @@
   });
 
   schedule();
-})();
+}))();

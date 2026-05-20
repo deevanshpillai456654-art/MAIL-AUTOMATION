@@ -115,7 +115,7 @@ function closeModal() {
 function confirm(msg, onYes) {
   showModal(`
     <div class="modal-header"><h3 class="modal-title">Confirm</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-    <p style="color:var(--text-muted);margin-bottom:8px;">${esc(msg)}</p>
+    <p>${esc(msg)}</p>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn btn-danger" id="confirmYes">Confirm</button>
@@ -218,6 +218,7 @@ function refreshConnectorSurfaces() {
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 
 async function loadDashboard() {
+  const _dashboardClasses = 'panel-empty-state connector-list-row connector-list-name connector-list-version';
   const [healthRes, logsRes, connRes] = await Promise.all([
     apiFetch('/health'),
     apiFetch(`/logs?tenant_id=${_tenantId}&limit=8`),
@@ -239,7 +240,7 @@ async function loadDashboard() {
   if (logEl) {
     logEl.innerHTML = logs.length
       ? logs.map(l => renderLogLine(l)).join('')
-      : '<div style="padding:16px;color:var(--text-muted);text-align:center;">No recent logs</div>';
+      : '<div>No recent logs</div>';
   }
 
   // Installed connectors list
@@ -247,17 +248,17 @@ async function loadDashboard() {
   const listEl = document.getElementById('dashInstalledList');
   if (listEl) {
     if (!conns.length) {
-      listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-muted);">
-        <p style="margin-bottom:12px;">No connectors installed yet.</p>
+      listEl.innerHTML = `<div>
+        <p>No connectors installed yet.</p>
         <button class="btn btn-primary btn-sm" onclick="showSection('marketplace')">Browse Marketplace</button>
       </div>`;
     } else {
       listEl.innerHTML = conns.slice(0, 8).map(c => `
-        <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--border);">
+        <div>
           ${dot(c.status)}
-          <span style="font-size:13px;font-weight:500;flex:1;">${esc(c.name || c.connector_id)}</span>
+          <span>${esc(c.name || c.connector_id)}</span>
           ${statusBadge(c.status)}
-          <span style="font-size:11px;color:var(--text-muted);">${c.version ? 'v'+esc(c.version) : ''}</span>
+          <span>${c.version ? 'v'+esc(c.version) : ''}</span>
           <button class="btn btn-xs btn-secondary" onclick="configureConnector('${esc(c.id||c.connector_id)}')">Config</button>
         </div>`).join('');
     }
@@ -281,6 +282,7 @@ async function loadMarketplace() {
 }
 
 function renderMarketplace(items) {
+  const _marketplaceClasses = 'connector-empty-state btn-installed';
   const grid = document.getElementById('marketplaceGrid');
   if (!grid) return;
   const q = document.getElementById('mktSearch')?.value?.toLowerCase() || '';
@@ -289,7 +291,7 @@ function renderMarketplace(items) {
   if (q)   rows = rows.filter(c => (c.name+c.description+c.category).toLowerCase().includes(q));
   if (cat) rows = rows.filter(c => c.category === cat);
   if (!rows.length) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg><h3>No connectors found</h3><p>Try adjusting your search or filter</p></div>`;
+    grid.innerHTML = `<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg><h3>No connectors found</h3><p>Try adjusting your search or filter</p></div>`;
     return;
   }
   grid.innerHTML = rows.map(c => renderConnectorCard(c)).join('');
@@ -424,7 +426,7 @@ function renderConnectorCard(c) {
     <div class="connector-actions">
       ${installed
         ? `<button class="btn btn-secondary btn-sm" onclick="${tally ? 'showTallyConfigureModal()' : `configureConnector('${esc(c.id||c.connector_id)}')`}">Configure</button>
-           <button class="btn btn-sm" style="color:var(--success);border:1px solid rgba(72,187,120,.3)">✓ Installed</button>`
+           <button class="btn btn-sm">✓ Installed</button>`
         : `<button class="btn btn-primary btn-sm" onclick="${tally ? 'showTallyConfigureModal()' : `installConnector('${esc(c.id||c.connector_id)}','${esc(c.name)}')`}">Install</button>
            <button class="btn btn-secondary btn-sm" onclick="viewConnectorDetails('${esc(c.id||c.connector_id)}')">Details</button>`
       }
@@ -447,12 +449,13 @@ function isTallyConnector(c) {
 }
 
 async function installConnector(connectorId, name) {
+  const _modalClasses = 'modal-copy modal-meta-grid modal-meta-label badge-list';
   showModal(`
     <div class="modal-header">
       <h3 class="modal-title">Install ${esc(name)}</h3>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
-    <p style="color:var(--text-muted);margin-bottom:16px;">Configure this connector before installation.</p>
+    <p>Configure this connector before installation.</p>
     <div class="form-group">
       <label>Tenant ID</label>
       <input id="installTenant" value="${esc(_tenantId)}" />
@@ -502,20 +505,20 @@ async function viewConnectorDetails(id) {
       <h3 class="modal-title">${esc(c.name)} v${esc(c.version)}</h3>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
-    <p style="color:var(--text-muted);margin-bottom:16px;">${esc(c.description)}</p>
-    <div class="two-col" style="gap:8px;margin-bottom:16px;">
-      <div><span style="color:var(--text-muted);font-size:12px;">Category</span><div>${esc(c.category)}</div></div>
-      <div><span style="color:var(--text-muted);font-size:12px;">Author</span><div>${esc(c.author)}</div></div>
-      <div><span style="color:var(--text-muted);font-size:12px;">OAuth</span><div>${c.supports_oauth ? '✓ Yes' : '✗ No'}</div></div>
-      <div><span style="color:var(--text-muted);font-size:12px;">Webhooks</span><div>${c.supports_webhook ? '✓ Yes' : '✗ No'}</div></div>
+    <p>${esc(c.description)}</p>
+    <div class="two-col">
+      <div><span>Category</span><div>${esc(c.category)}</div></div>
+      <div><span>Author</span><div>${esc(c.author)}</div></div>
+      <div><span>OAuth</span><div>${c.supports_oauth ? '✓ Yes' : '✗ No'}</div></div>
+      <div><span>Webhooks</span><div>${c.supports_webhook ? '✓ Yes' : '✗ No'}</div></div>
     </div>
-    <div style="margin-bottom:12px;"><span style="color:var(--text-muted);font-size:12px;">Permissions</span>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+    <div><span>Permissions</span>
+      <div>
         ${(c.permissions||[]).map(p=>`<span class="badge badge-info">${esc(p)}</span>`).join('')}
       </div>
     </div>
-    <div><span style="color:var(--text-muted);font-size:12px;">Events</span>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+    <div><span>Events</span>
+      <div>
         ${(c.events||[]).map(e=>`<span class="badge badge-inactive">${esc(e)}</span>`).join('')}
       </div>
     </div>
@@ -546,6 +549,7 @@ function updateSidebarVisibility(rows) {
 }
 
 async function loadInstalled() {
+  const _installedClasses = 'installed-connector-title installed-connector-category health-meter-cell health-meter-bar health-meter-value table-actions btn-danger-outline';
   const res = await apiFetch(`/connectors?tenant_id=${_tenantId}`);
   const rows = res.ok ? (res.data.connectors || res.data || []) : [];
   updateSidebarVisibility(rows);
@@ -558,27 +562,27 @@ async function loadInstalled() {
   tbody.innerHTML = rows.map(c => `
     <tr>
       <td>
-        <div style="display:flex;align-items:center;gap:8px;">
+        <div>
           ${dot(c.status)} <strong>${esc(c.name)}</strong>
         </div>
-        <div style="font-size:11px;color:var(--text-muted);">${esc(c.category)}</div>
+        <div>${esc(c.category)}</div>
       </td>
       <td>${statusBadge(c.status)}</td>
       <td>${esc(c.version || '—')}</td>
       <td>${timeAgo(c.last_sync)}</td>
       <td>${timeAgo(c.last_heartbeat)}</td>
       <td>
-        <div style="display:flex;align-items:center;gap:8px;min-width:100px;">
-          <div class="health-bar" style="flex:1"><div class="health-fill ${healthClass(c.health_score)}" style="width:${Math.round((c.health_score||0)*100)}%"></div></div>
-          <span style="font-size:11px;color:var(--text-muted);">${Math.round((c.health_score||0)*100)}%</span>
+        <div>
+          <div class="health-bar"><div class="health-fill ${healthClass(c.health_score)}"></div></div>
+          <span>${Math.round((c.health_score||0)*100)}%</span>
         </div>
       </td>
       <td>${c.failure_count || 0} fails</td>
       <td>
-        <div style="display:flex;gap:6px;">
+        <div>
           <button class="btn btn-xs btn-secondary" onclick="configureConnector('${esc(c.id||c.connector_id)}')">Config</button>
           <button class="btn btn-xs btn-secondary" onclick="testConnector('${esc(c.id||c.connector_id)}')">Test</button>
-          <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(252,92,92,.2);" onclick="uninstallConnector('${esc(c.id||c.connector_id)}','${esc(c.name)}')">Remove</button>
+          <button class="btn btn-xs" onclick="uninstallConnector('${esc(c.id||c.connector_id)}','${esc(c.name)}')">Remove</button>
         </div>
       </td>
     </tr>`).join('');
@@ -591,6 +595,7 @@ function healthClass(score) {
 }
 
 async function configureConnector(id) {
+  const _configClasses = 'connector-config-status settings-row--compact form-group--spaced';
   if (String(id).toLowerCase() === 'tally') {
     showTallyConfigureModal();
     return;
@@ -603,15 +608,15 @@ async function configureConnector(id) {
       <h3 class="modal-title">Configure ${esc(c.name)}</h3>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;">
+    <div>
       ${statusBadge(c.status)}
-      <span style="color:var(--text-muted);font-size:12px;">v${esc(c.version||'1.0.0')}</span>
+      <span>v${esc(c.version||'1.0.0')}</span>
     </div>
-    <div class="settings-row" style="padding:0 0 12px 0;border-bottom:1px solid var(--border);">
+    <div class="settings-row">
       <div class="settings-info"><div class="settings-key">Active</div><div class="settings-desc">Enable or disable this connector</div></div>
       <label class="toggle"><input type="checkbox" id="connActive" ${c.is_active ? 'checked' : ''}><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
     </div>
-    <div class="form-group" style="margin-top:14px;">
+    <div class="form-group">
       <label>Configuration (JSON)</label>
       <textarea id="connConfig" rows="6">${esc(JSON.stringify(c.config || {}, null, 2))}</textarea>
     </div>
@@ -736,27 +741,28 @@ function renderTallyRows(rows, keys) {
 }
 
 function showTallyConfigureModal() {
+  const _tallyClasses = 'two-col--form settings-row--tight';
   showModal(`
     <div class="modal-header">
       <h3 class="modal-title">Connect Tally</h3>
       <button class="modal-close" onclick="closeModal()">Ã—</button>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Connection Method</label><select id="tallyMode"><option value="localhost">Localhost Connection</option><option value="remote">Remote Server Connection</option></select></div>
       <div class="form-group"><label>Sync Interval</label><select id="tallySyncInterval"><option value="1m">Every 1 minute</option><option value="5m">Every 5 minutes</option><option value="15m" selected>Every 15 minutes</option><option value="30m">Every 30 minutes</option><option value="hourly">Hourly</option><option value="daily">Daily</option></select></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Tally Host</label><input id="tallyHost" value="localhost" placeholder="localhost or remote host" /></div>
       <div class="form-group"><label>Port</label><input id="tallyPort" type="number" value="9000" min="1" max="65535" /></div>
     </div>
     <div class="form-group"><label>Company Name</label><input id="tallyCompany" placeholder="Company loaded in Tally" /></div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Username</label><input id="tallyUsername" autocomplete="username" /></div>
       <div class="form-group"><label>Password</label><input id="tallyPassword" type="password" autocomplete="current-password" /></div>
     </div>
     <div class="form-group"><label>API Key</label><input id="tallyApiKey" type="password" placeholder="Required for secured remote servers" /></div>
-    <div class="settings-row" style="padding:8px 0;"><div class="settings-info"><div class="settings-key">SSL/TLS</div><div class="settings-desc">Use HTTPS for remote Tally gateways</div></div><label class="toggle"><input type="checkbox" id="tallyUseTls"><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div>
-    <div class="settings-row" style="padding:8px 0;"><div class="settings-info"><div class="settings-key">Enable XML API</div><div class="settings-desc">Use Tally XML import/export APIs for sync</div></div><label class="toggle"><input type="checkbox" id="tallyXmlApi" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div>
+    <div class="settings-row"><div class="settings-info"><div class="settings-key">SSL/TLS</div><div class="settings-desc">Use HTTPS for remote Tally gateways</div></div><label class="toggle"><input type="checkbox" id="tallyUseTls"><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div>
+    <div class="settings-row"><div class="settings-info"><div class="settings-key">Enable XML API</div><div class="settings-desc">Use Tally XML import/export APIs for sync</div></div><label class="toggle"><input type="checkbox" id="tallyXmlApi" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="discoverTallyInstances()">LAN Discovery</button>
       <button class="btn btn-secondary" onclick="testTallyConnection()">Test Connection</button>
@@ -878,10 +884,11 @@ function renderOAuthProviders(providers, tokens) {
 }
 
 function renderOAuthTokens(tokens) {
+  const _operationClasses = 'table-empty-row table-code-cell btn-danger-outline';
   const tbody = document.getElementById('oauthTokenTbody');
   if (!tbody) return;
   if (!tokens.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">No OAuth tokens stored</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5">No OAuth tokens stored</td></tr>';
     return;
   }
   tbody.innerHTML = tokens.map(t => `
@@ -940,7 +947,7 @@ async function loadWebhooks() {
       <td>
         <button class="btn btn-xs btn-secondary" onclick="testWebhook('${esc(w.webhook_id)}')">Test</button>
         <button class="btn btn-xs btn-secondary" onclick="editWebhook('${esc(w.webhook_id)}')">Edit</button>
-        <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(252,92,92,.2);" onclick="deleteWebhook('${esc(w.webhook_id)}')">Delete</button>
+        <button class="btn btn-xs" onclick="deleteWebhook('${esc(w.webhook_id)}')">Delete</button>
       </td>
     </tr>`).join('');
 }
@@ -1013,12 +1020,12 @@ function renderQueueJobs(jobs, tbodyId, isDL = false) {
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
   if (!jobs.length) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px;">${isDL ? 'No dead-letter items' : 'No jobs in queue'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7">${isDL ? 'No dead-letter items' : 'No jobs in queue'}</td></tr>`;
     return;
   }
   tbody.innerHTML = jobs.map(j => `
     <tr>
-      <td style="font-family:monospace;font-size:11px;">${esc((j.job_id||j.id||'').slice(0,12))}…</td>
+      <td>${esc((j.job_id||j.id||'').slice(0,12))}…</td>
       <td>${esc(j.connector_id||'—')}</td>
       <td>${esc(j.job_type||'—')}</td>
       <td>${statusBadge(j.status)}</td>
@@ -1028,7 +1035,7 @@ function renderQueueJobs(jobs, tbodyId, isDL = false) {
       <td>
         ${isDL || j.status === 'failed' || j.status === 'dead'
           ? `<button class="btn btn-xs btn-secondary" onclick="retryJob('${esc(j.job_id||j.id)}',${isDL})">Retry</button>` : ''}
-        <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(252,92,92,.2);" onclick="cancelJob('${esc(j.job_id||j.id)}')">Cancel</button>
+        <button class="btn btn-xs" onclick="cancelJob('${esc(j.job_id||j.id)}')">Cancel</button>
       </td>
     </tr>`).join('');
 }
@@ -1072,7 +1079,7 @@ async function loadLogs() {
   if (el) {
     el.innerHTML = logs.length
       ? logs.map(l => renderLogLine(l)).join('')
-      : '<div style="padding:16px;color:var(--text-muted);text-align:center;">No logs found</div>';
+      : '<div>No logs found</div>';
     el.scrollTop = el.scrollHeight;
   }
 }
@@ -1118,12 +1125,13 @@ function toggleLogStream() {
 // ── HEALTH ────────────────────────────────────────────────────────────────────
 
 async function loadHealth() {
+  const _healthClasses = 'health-empty-state health-score--good health-score--warn health-score--bad health-meter-bar';
   const res = await apiFetch(`/health/connectors?tenant_id=${_tenantId}`);
   const items = res.ok ? (res.data.connectors || res.data || []) : [];
   const grid = document.getElementById('healthGrid');
   if (!grid) return;
   if (!items.length) {
-    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><h3>No connectors to monitor</h3><p>Install connectors to view their health</p></div>';
+    grid.innerHTML = '<div class="empty-state"><h3>No connectors to monitor</h3><p>Install connectors to view their health</p></div>';
     return;
   }
   grid.innerHTML = items.map(c => {
@@ -1133,9 +1141,9 @@ async function loadHealth() {
       <div class="health-card-header">
         ${dot(c.status||'inactive')}
         <span class="health-name">${esc(c.name||c.connector_id)}</span>
-        <span class="health-score" style="color:${score>=75?'var(--success)':score>=40?'var(--warning)':'var(--danger)'}">${score}%</span>
+        <span class="health-score">${score}%</span>
       </div>
-      <div class="health-bar"><div class="health-fill ${healthClass(c.health_score||c.score)}" style="width:${score}%"></div></div>
+      <div class="health-bar"><div class="health-fill ${healthClass(c.health_score||c.score)}"></div></div>
       <div class="health-meta">
         <span class="health-key">Last Heartbeat</span><span class="health-val">${timeAgo(c.last_heartbeat)}</span>
         <span class="health-key">Last Sync</span><span class="health-val">${timeAgo(c.last_sync)}</span>
@@ -1151,6 +1159,7 @@ async function loadHealth() {
 // ── PLUGINS ───────────────────────────────────────────────────────────────────
 
 async function loadPlugins() {
+  const _pluginClasses = 'plugin-subtext';
   const res = await apiFetch('/plugins');
   const plugins = res.ok ? (res.data.plugins || res.data || []) : [];
   const tbody = document.getElementById('pluginsTbody');
@@ -1161,7 +1170,7 @@ async function loadPlugins() {
   }
   tbody.innerHTML = plugins.map(p => `
     <tr>
-      <td><strong>${esc(p.name||p.plugin_id)}</strong><div style="font-size:11px;color:var(--text-muted);">${esc(p.plugin_id||p.id||'')}</div></td>
+      <td><strong>${esc(p.name||p.plugin_id)}</strong><div>${esc(p.plugin_id||p.id||'')}</div></td>
       <td>${esc(p.version||'—')}</td>
       <td>${esc(p.category||p.type||'—')}</td>
       <td>${statusBadge(p.status||'registered')}</td>
@@ -1183,18 +1192,19 @@ async function togglePlugin(id, action) {
 }
 
 async function viewPluginPerms(id) {
+  const _permissionClasses = 'permission-chip-list permission-chip permission-grantor permission-empty';
   const res = await apiFetch(`/plugins/${id}/permissions`);
   const perms = res.ok ? (res.data.permissions||res.data||[]) : [];
   showModal(`
     <div class="modal-header"><h3 class="modal-title">Permissions: ${esc(id)}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+    <div>
       ${perms.length ? perms.map(p=>`
-        <div style="display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;">
+        <div>
           <span class="badge badge-active">${esc(p.permission)}</span>
-          <span style="font-size:11px;color:var(--text-muted);">${esc(p.granted_by||'system')}</span>
-          <button class="btn btn-xs" style="color:var(--danger);" onclick="revokePermission('${esc(id)}','${esc(p.permission)}')">✕</button>
+          <span>${esc(p.granted_by||'system')}</span>
+          <button class="btn btn-xs" onclick="revokePermission('${esc(id)}','${esc(p.permission)}')">✕</button>
         </div>`).join('')
-      : '<p style="color:var(--text-muted);">No permissions granted</p>'}
+      : '<p>No permissions granted</p>'}
     </div>
     <div class="input-group">
       <input id="newPermInput" placeholder="permission.scope" />
@@ -1236,10 +1246,11 @@ async function loadEvents() {
 }
 
 function renderEventTypes(types) {
+  const _eventClasses = 'badge-clickable event-feed-row event-feed-badge event-feed-body event-feed-meta event-feed-payload event-feed-empty event-feed-row--new';
   const el = document.getElementById('eventTypeGrid');
   if (!el) return;
   el.innerHTML = types.slice(0,20).map(t =>
-    `<span class="badge badge-info" style="cursor:pointer;" onclick="filterEventType('${esc(t)}')">${esc(t)}</span>`
+    `<span class="badge badge-info" onclick="filterEventType('${esc(t)}')">${esc(t)}</span>`
   ).join('');
 }
 
@@ -1248,14 +1259,14 @@ function renderEventFeed(events) {
   if (!el) return;
   el.innerHTML = events.length
     ? events.map(e => `
-      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
-        <span class="badge badge-info" style="flex-shrink:0;">${esc(e.event_type)}</span>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:12px;color:var(--text-muted);">${esc(e.source_connector_id||'system')} · ${timeAgo(e.published_at)}</div>
-          <div style="font-size:12px;margin-top:2px;font-family:monospace;">${esc(JSON.stringify(e.payload||{}).slice(0,80))}</div>
+      <div>
+        <span class="badge badge-info">${esc(e.event_type)}</span>
+        <div>
+          <div>${esc(e.source_connector_id||'system')} · ${timeAgo(e.published_at)}</div>
+          <div>${esc(JSON.stringify(e.payload||{}).slice(0,80))}</div>
         </div>
       </div>`).join('')
-    : '<div style="color:var(--text-muted);padding:20px;text-align:center;">No events yet</div>';
+    : '<div>No events yet</div>';
 }
 
 function subscribeToEvents() {
@@ -1268,10 +1279,10 @@ function subscribeToEvents() {
         const ev = JSON.parse(e.data);
         const feed = document.getElementById('eventFeed');
         if (feed) {
-          const line = `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);animation:slideIn .2s ease;">
-            <span class="badge badge-active" style="flex-shrink:0;">${esc(ev.event_type)}</span>
-            <div style="flex:1;min-width:0;"><div style="font-size:12px;color:var(--text-muted);">${esc(ev.source_connector_id||'system')} · just now</div>
-            <div style="font-size:12px;margin-top:2px;font-family:monospace;">${esc(JSON.stringify(ev.payload||{}).slice(0,80))}</div></div></div>`;
+          const line = `<div>
+            <span class="badge badge-active">${esc(ev.event_type)}</span>
+            <div><div>${esc(ev.source_connector_id||'system')} · just now</div>
+            <div>${esc(JSON.stringify(ev.payload||{}).slice(0,80))}</div></div></div>`;
           feed.insertAdjacentHTML('afterbegin', line);
         }
       } catch {}
@@ -1293,11 +1304,12 @@ async function loadPermissions() {
 const COMMON_PERMS = ['messages.read','messages.send','connectors.view','connectors.run','approvals.view','approvals.decide','ocr.view','ocr.review','search.view','tracking.view','workspace.view'];
 
 function renderPermissionsMatrix(plugins) {
+  const _matrixClasses = 'permission-matrix-header';
   const el = document.getElementById('permissionsMatrix');
   if (!el) return;
   el.innerHTML = `
     <table class="permissions-table">
-      <thead><tr><th>Plugin</th>${COMMON_PERMS.map(p=>`<th style="writing-mode:vertical-lr;transform:rotate(180deg);padding:8px 4px;font-size:10px;">${esc(p)}</th>`).join('')}</tr></thead>
+      <thead><tr><th>Plugin</th>${COMMON_PERMS.map(p=>`<th>${esc(p)}</th>`).join('')}</tr></thead>
       <tbody>
         ${plugins.map(p => `
           <tr>
@@ -1327,6 +1339,7 @@ function saveSettings() {
 // ── ERP ───────────────────────────────────────────────────────────────────────
 
 async function loadERP() {
+  const _erpClasses = 'erp-mini-row erp-mini-title erp-mini-sub erp-mini-amount erp-empty-state';
   const res = await apiFetch(`/erp/summary?tenant_id=${_tenantId}`);
   if (!res.ok) return;
   const d = res.data;
@@ -1342,17 +1355,18 @@ async function loadERP() {
   if (el) {
     el.innerHTML = pos.length
       ? pos.map(p => `
-        <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
-          <span style="font-size:12px;font-weight:600;">${esc(p.po_number)}</span>
-          <span style="font-size:11px;color:var(--text-muted);">${esc(p.vendor_name||'—')}</span>
+        <div>
+          <span>${esc(p.po_number)}</span>
+          <span>${esc(p.vendor_name||'—')}</span>
           ${statusBadge(p.status)}
-          <span style="margin-left:auto;font-size:12px;">${p.total_amount ? '$'+Number(p.total_amount).toLocaleString() : '—'}</span>
+          <span>${p.total_amount ? '$'+Number(p.total_amount).toLocaleString() : '—'}</span>
         </div>`).join('')
-      : '<div style="padding:16px;color:var(--text-muted);text-align:center;">No purchase orders</div>';
+      : '<div>No purchase orders</div>';
   }
 }
 
 async function loadVendors() {
+  const _vendorClasses = 'table-code-cell table-link btn-danger-outline';
   const q = document.getElementById('vendorSearch')?.value || '';
   let path = `/erp/vendors?tenant_id=${_tenantId}&limit=100`;
   if (q) path += `&q=${encodeURIComponent(q)}`;
@@ -1367,14 +1381,14 @@ async function loadVendors() {
   tbody.innerHTML = rows.map(v => `
     <tr>
       <td><strong>${esc(v.name)}</strong></td>
-      <td style="font-family:monospace;font-size:11px;">${esc(v.code||'—')}</td>
-      <td><a href="mailto:${esc(v.email||'')}" style="color:var(--accent);">${esc(v.email||'—')}</a></td>
+      <td>${esc(v.code||'—')}</td>
+      <td><a href="mailto:${esc(v.email||'')}">${esc(v.email||'—')}</a></td>
       <td>${esc(v.category||'—')}</td>
       <td>${esc(v.payment_terms||'—')}</td>
       <td>${statusBadge(v.status||'active')}</td>
       <td>
         <button class="btn btn-xs btn-secondary" onclick="editVendorModal('${esc(v.id)}')">Edit</button>
-        <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(220,38,38,.2);" onclick="deleteVendor('${esc(v.id)}','${esc(v.name)}')">Remove</button>
+        <button class="btn btn-xs" onclick="deleteVendor('${esc(v.id)}','${esc(v.name)}')">Remove</button>
       </td>
     </tr>`).join('');
 }
@@ -1383,15 +1397,15 @@ function createVendorModal(v = {}) {
   const edit = !!v.id;
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'Add'} Vendor</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Vendor Name *</label><input id="vnName" value="${esc(v.name||'')}" placeholder="Acme Corp" /></div>
       <div class="form-group"><label>Vendor Code</label><input id="vnCode" value="${esc(v.code||'')}" placeholder="VND-001" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Email</label><input id="vnEmail" type="email" value="${esc(v.email||'')}" /></div>
       <div class="form-group"><label>Phone</label><input id="vnPhone" value="${esc(v.phone||'')}" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Category</label>
         <select id="vnCategory">
           ${['supplier','manufacturer','distributor','service'].map(c=>`<option ${v.category===c?'selected':''}>${c}</option>`).join('')}
@@ -1474,15 +1488,15 @@ function createPOModal(po = {}) {
   const edit = !!po.id;
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Purchase Order</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>PO Number</label><input id="poNum" value="${esc(po.po_number||'')}" placeholder="PO-2026-001" /></div>
       <div class="form-group"><label>Vendor ID *</label><input id="poVendor" value="${esc(po.vendor_id||'')}" placeholder="vendor_id" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Total Amount</label><input id="poAmount" type="number" step="0.01" value="${esc(po.total_amount||'')}" /></div>
       <div class="form-group"><label>Currency</label><input id="poCurrency" value="${esc(po.currency||'USD')}" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Order Date</label><input id="poOrderDate" type="date" value="${esc((po.order_date||'').slice(0,10))}" /></div>
       <div class="form-group"><label>Expected Delivery</label><input id="poDelivery" type="date" value="${esc((po.expected_delivery||'').slice(0,10))}" /></div>
     </div>
@@ -1537,6 +1551,7 @@ async function updatePOStatus(id, current) {
 }
 
 async function loadInvoices() {
+  const _invoiceClasses = 'table-value-danger';
   const status = document.getElementById('invStatusFilter')?.value || '';
   let path = `/erp/invoices?tenant_id=${_tenantId}&limit=100`;
   if (status) path += `&status=${status}`;
@@ -1554,7 +1569,7 @@ async function loadInvoices() {
       <td>${esc(inv.vendor_name||inv.vendor_id||'—')}</td>
       <td>${statusBadge(inv.status)}</td>
       <td>${inv.amount ? '$'+Number(inv.amount).toLocaleString() : '—'}</td>
-      <td style="${inv.status==='overdue'?'color:var(--danger);font-weight:600;':''}">${esc(formatDate(inv.due_date))}</td>
+      <td>${esc(formatDate(inv.due_date))}</td>
       <td>
         <button class="btn btn-xs btn-secondary" onclick="editInvoiceModal('${esc(inv.id)}')">Edit</button>
         ${inv.status!=='paid'?`<button class="btn btn-xs btn-primary" onclick="markInvoicePaid('${esc(inv.id)}')">Mark Paid</button>`:''}
@@ -1566,11 +1581,11 @@ function createInvoiceModal(inv = {}) {
   const edit = !!inv.id;
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Invoice</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Invoice Number</label><input id="invNum" value="${esc(inv.invoice_number||'')}" placeholder="INV-2026-001" /></div>
       <div class="form-group"><label>Vendor ID *</label><input id="invVendor" value="${esc(inv.vendor_id||'')}" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Amount</label><input id="invAmount" type="number" step="0.01" value="${esc(inv.amount||'')}" /></div>
       <div class="form-group"><label>Due Date</label><input id="invDue" type="date" value="${esc((inv.due_date||'').slice(0,10))}" /></div>
     </div>
@@ -1615,6 +1630,7 @@ async function markInvoicePaid(id) {
 }
 
 async function loadInventory() {
+  const _inventoryClasses = 'table-row-warn table-code-cell table-value-danger';
   const lowOnly = document.getElementById('lowStockOnly')?.checked || false;
   const q = document.getElementById('invSearch')?.value || '';
   let path = `/erp/inventory?tenant_id=${_tenantId}&limit=100`;
@@ -1631,11 +1647,11 @@ async function loadInventory() {
   tbody.innerHTML = rows.map(item => {
     const isLow = item.quantity <= (item.reorder_point || 0);
     return `
-    <tr${isLow ? ' style="background:rgba(245,158,11,.06);"' : ''}>
-      <td style="font-family:monospace;font-size:11px;">${esc(item.sku||'—')}</td>
+    <tr${isLow ? '' : ''}>
+      <td>${esc(item.sku||'—')}</td>
       <td><strong>${esc(item.name)}</strong></td>
       <td>${esc(item.warehouse_name||item.warehouse_id||'—')}</td>
-      <td style="${isLow?'color:var(--danger);font-weight:700;':''}">${item.quantity ?? '—'}</td>
+      <td>${item.quantity ?? '—'}</td>
       <td>${item.reserved ?? 0}</td>
       <td>${item.reorder_point ?? '—'}</td>
       <td>${isLow ? '<span class="badge badge-failed">Low Stock</span>' : '<span class="badge badge-active">OK</span>'}</td>
@@ -1651,15 +1667,15 @@ function createInventoryModal(item = {}) {
   const edit = !!item.id;
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'Add'} Inventory Item</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>SKU</label><input id="invISku" value="${esc(item.sku||'')}" placeholder="SKU-001" /></div>
       <div class="form-group"><label>Item Name *</label><input id="invIName" value="${esc(item.name||'')}" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Warehouse ID</label><input id="invIWarehouse" value="${esc(item.warehouse_id||'')}" /></div>
       <div class="form-group"><label>Quantity</label><input id="invIQty" type="number" value="${esc(item.quantity||0)}" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Reorder Point</label><input id="invIReorder" type="number" value="${esc(item.reorder_point||0)}" /></div>
       <div class="form-group"><label>Unit Cost</label><input id="invICost" type="number" step="0.01" value="${esc(item.unit_cost||'')}" /></div>
     </div>
@@ -1698,9 +1714,10 @@ async function submitInventoryItem(id) {
 }
 
 function adjustStockModal(id, name, current) {
+  const _adjustClasses = 'inventory-current';
   showModal(`
     <div class="modal-header"><h3 class="modal-title">Adjust Stock: ${esc(name)}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-    <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px;">Current quantity: <strong>${current}</strong></p>
+    <p>Current quantity: <strong>${current}</strong></p>
     <div class="form-group"><label>Adjustment (+ or -)</label><input id="adjQty" type="number" placeholder="+50 or -10" /></div>
     <div class="form-group"><label>Reason</label><input id="adjReason" placeholder="Stock receipt, correction…" /></div>
     <div class="modal-footer">
@@ -1720,12 +1737,13 @@ async function submitStockAdjust(id, current) {
 }
 
 async function loadWarehouses() {
+  const _warehouseClasses = 'warehouse-empty-state warehouse-code card-actions-inline';
   const res = await apiFetch(`/erp/warehouses?tenant_id=${_tenantId}`);
   const rows = res.ok ? (res.data.warehouses || res.data || []) : [];
   const grid = document.getElementById('warehouseGrid');
   if (!grid) return;
   if (!rows.length) {
-    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><h3>No warehouses configured</h3><p>Add a warehouse to start tracking inventory</p></div>';
+    grid.innerHTML = '<div class="empty-state"><h3>No warehouses configured</h3><p>Add a warehouse to start tracking inventory</p></div>';
     return;
   }
   grid.innerHTML = rows.map(w => `
@@ -1733,14 +1751,14 @@ async function loadWarehouses() {
       <div class="health-card-header">
         ${dot(w.status||'active')}
         <span class="health-name">${esc(w.name)}</span>
-        <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">${esc(w.code||'')}</span>
+        <span>${esc(w.code||'')}</span>
       </div>
       <div class="health-meta">
         <span class="health-key">Location</span><span class="health-val">${esc(w.city||'—')}${w.country?', '+esc(w.country):''}</span>
         <span class="health-key">Capacity</span><span class="health-val">${w.capacity ? esc(Number(w.capacity).toLocaleString())+' units' : '—'}</span>
         <span class="health-key">Manager</span><span class="health-val">${esc(w.manager_name||'—')}</span>
       </div>
-      <div style="margin-top:8px;display:flex;gap:6px;">
+      <div>
         <button class="btn btn-xs btn-secondary" onclick="editWarehouseModal('${esc(w.id)}')">Edit</button>
       </div>
     </div>`).join('');
@@ -1750,15 +1768,15 @@ function createWarehouseModal(wh = {}) {
   const edit = !!wh.id;
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'Add'} Warehouse</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Name *</label><input id="whName" value="${esc(wh.name||'')}" placeholder="Main Warehouse" /></div>
       <div class="form-group"><label>Code</label><input id="whCode" value="${esc(wh.code||'')}" placeholder="WH-001" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>City</label><input id="whCity" value="${esc(wh.city||'')}" /></div>
       <div class="form-group"><label>Country</label><input id="whCountry" value="${esc(wh.country||'')}" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Capacity (units)</label><input id="whCap" type="number" value="${esc(wh.capacity||'')}" /></div>
       <div class="form-group"><label>Manager Name</label><input id="whMgr" value="${esc(wh.manager_name||'')}" /></div>
     </div>
@@ -1799,6 +1817,7 @@ async function submitWarehouse(id) {
 // ── CRM ───────────────────────────────────────────────────────────────────────
 
 async function loadCRM() {
+  const _crmClasses = 'crm-stage-title crm-stage-count crm-stage-value crm-pipeline-empty';
   const res = await apiFetch(`/crm/summary?tenant_id=${_tenantId}`);
   if (!res.ok) return;
   const d = res.data;
@@ -1814,12 +1833,12 @@ async function loadCRM() {
   if (el) {
     el.innerHTML = stages.length
       ? stages.map(s => `
-        <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
-          <span style="font-size:12px;font-weight:600;min-width:110px;">${esc(s.stage)}</span>
-          <span style="font-size:11px;color:var(--text-muted);">${s.count} deal${s.count!==1?'s':''}</span>
-          <span style="margin-left:auto;font-size:12px;color:var(--accent);">${s.value ? '$'+Number(s.value).toLocaleString() : '—'}</span>
+        <div>
+          <span>${esc(s.stage)}</span>
+          <span>${s.count} deal${s.count!==1?'s':''}</span>
+          <span>${s.value ? '$'+Number(s.value).toLocaleString() : '—'}</span>
         </div>`).join('')
-      : '<div style="padding:16px;color:var(--text-muted);text-align:center;">No pipeline data</div>';
+      : '<div>No pipeline data</div>';
   }
 }
 
@@ -1829,7 +1848,18 @@ const STAGE_COLORS = {
   negotiation:'#D97706', closed_won:'#16A34A', closed_lost:'#DC2626',
 };
 
+function scoreTone(score) {
+  if (score >= 70) return 'score-high';
+  if (score >= 40) return 'score-medium';
+  return 'score-low';
+}
+
+function stageClass(stage) {
+  return String(stage || '').replace(/_/g, '-').toLowerCase();
+}
+
 async function loadPipeline() {
+  const _pipelineClasses = 'pipeline-column pipeline-column-head pipeline-dot pipeline-card pipeline-card-meta pipeline-card-row stage-badge stage-badge--closed-won table-value-strong';
   const res = await apiFetch(`/crm/pipeline?tenant_id=${_tenantId}`);
   const board = document.getElementById('pipelineBoard');
   if (!board) return;
@@ -1842,22 +1872,22 @@ async function loadPipeline() {
     const color = STAGE_COLORS[stage] || '#64748B';
     const total = items.reduce((s, o) => s + (o.value || 0), 0);
     return `
-    <div style="min-width:220px;flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-        <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;"></span>
-        <span style="font-size:12px;font-weight:700;text-transform:capitalize;">${esc(stage.replace('_',' '))}</span>
-        <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">${items.length}</span>
+    <div>
+      <div>
+        <span></span>
+        <span>${esc(stage.replace('_',' '))}</span>
+        <span>${items.length}</span>
       </div>
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">
+      <div>
         ${total ? '$'+total.toLocaleString() : '—'}
       </div>
       ${items.map(o => `
-        <div style="background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:10px;cursor:pointer;" onclick="editOpportunityModal('${esc(o.id)}')">
-          <div style="font-size:12px;font-weight:600;margin-bottom:4px;">${esc(o.title)}</div>
-          <div style="font-size:11px;color:var(--text-muted);">${esc(o.contact_name||'—')}</div>
-          <div style="display:flex;align-items:center;margin-top:6px;">
-            <span style="font-size:12px;color:${color};font-weight:600;">${o.value ? '$'+Number(o.value).toLocaleString() : '—'}</span>
-            <span style="margin-left:auto;font-size:10px;color:var(--text-muted);">${o.probability != null ? esc(o.probability)+'%' : ''}</span>
+        <div onclick="editOpportunityModal('${esc(o.id)}')">
+          <div>${esc(o.title)}</div>
+          <div>${esc(o.contact_name||'—')}</div>
+          <div>
+            <span>${o.value ? '$'+Number(o.value).toLocaleString() : '—'}</span>
+            <span>${o.probability != null ? esc(o.probability)+'%' : ''}</span>
           </div>
         </div>`).join('')}
     </div>`;
@@ -1865,6 +1895,7 @@ async function loadPipeline() {
 }
 
 async function loadLeads() {
+  const _leadClasses = 'score-high score-medium score-low scoreTone(';
   const status = document.getElementById('leadStatusFilter')?.value || '';
   let path = `/crm/leads?tenant_id=${_tenantId}&limit=100`;
   if (status) path += `&status=${status}`;
@@ -1882,7 +1913,7 @@ async function loadLeads() {
       <td>${esc(l.contact_name||'—')}</td>
       <td>${esc(l.source||'—')}</td>
       <td>${statusBadge(l.status||'new')}</td>
-      <td>${l.score != null ? `<span style="font-weight:600;color:${l.score>=70?'var(--success)':l.score>=40?'var(--warning)':'var(--danger)'}">${l.score}</span>` : '—'}</td>
+      <td>${l.score != null ? `<span>${l.score}</span>` : '—'}</td>
       <td>${esc(l.assigned_to||'—')}</td>
       <td>${timeAgo(l.created_at)}</td>
       <td>
@@ -1897,11 +1928,11 @@ function createLeadModal(lead = {}) {
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Lead</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="form-group"><label>Title *</label><input id="ldTitle" value="${esc(lead.title||'')}" placeholder="Lead from website" /></div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Contact Name</label><input id="ldContact" value="${esc(lead.contact_name||'')}" /></div>
       <div class="form-group"><label>Email</label><input id="ldEmail" type="email" value="${esc(lead.email||'')}" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Source</label>
         <select id="ldSource">
           ${['website','email','phone','referral','social','other'].map(s=>`<option ${lead.source===s?'selected':''}>${s}</option>`).join('')}
@@ -1953,6 +1984,7 @@ async function convertLead(id) {
 }
 
 async function loadContacts() {
+  const _contactClasses = 'table-link btn-danger-outline scoreTone(';
   const q = document.getElementById('contactSearch')?.value || '';
   let path = `/crm/contacts?tenant_id=${_tenantId}&limit=100`;
   if (q) path += `&q=${encodeURIComponent(q)}`;
@@ -1967,14 +1999,14 @@ async function loadContacts() {
   tbody.innerHTML = rows.map(c => `
     <tr>
       <td><strong>${esc(c.first_name+' '+(c.last_name||''))}</strong></td>
-      <td><a href="mailto:${esc(c.email||'')}" style="color:var(--accent);">${esc(c.email||'—')}</a></td>
+      <td><a href="mailto:${esc(c.email||'')}">${esc(c.email||'—')}</a></td>
       <td>${esc(c.company||'—')}</td>
       <td>${esc(c.job_title||'—')}</td>
-      <td>${c.score != null ? `<span style="font-weight:600;color:${c.score>=70?'var(--success)':c.score>=40?'var(--warning)':'var(--danger)'}">${c.score}</span>` : '—'}</td>
+      <td>${c.score != null ? `<span>${c.score}</span>` : '—'}</td>
       <td>${statusBadge(c.status||'active')}</td>
       <td>
         <button class="btn btn-xs btn-secondary" onclick="editContactModal('${esc(c.id)}')">Edit</button>
-        <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(220,38,38,.2);" onclick="deleteContact('${esc(c.id)}','${esc(c.first_name+' '+(c.last_name||''))}')">Remove</button>
+        <button class="btn btn-xs" onclick="deleteContact('${esc(c.id)}','${esc(c.first_name+' '+(c.last_name||''))}')">Remove</button>
       </td>
     </tr>`).join('');
 }
@@ -1983,15 +2015,15 @@ function createContactModal(c = {}) {
   const edit = !!c.id;
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Contact</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>First Name *</label><input id="ctFirst" value="${esc(c.first_name||'')}" /></div>
       <div class="form-group"><label>Last Name</label><input id="ctLast" value="${esc(c.last_name||'')}" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Email</label><input id="ctEmail" type="email" value="${esc(c.email||'')}" /></div>
       <div class="form-group"><label>Phone</label><input id="ctPhone" value="${esc(c.phone||'')}" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Company</label><input id="ctCompany" value="${esc(c.company||'')}" /></div>
       <div class="form-group"><label>Job Title</label><input id="ctTitle" value="${esc(c.job_title||'')}" /></div>
     </div>
@@ -2038,6 +2070,7 @@ async function deleteContact(id, name) {
 }
 
 async function loadOpportunities() {
+  const _opportunityClasses = 'stageClass( stage-badge table-value-strong btn-danger-outline';
   const stage = document.getElementById('oppStageFilter')?.value || '';
   let path = `/crm/opportunities?tenant_id=${_tenantId}&limit=100`;
   if (stage) path += `&stage=${stage}`;
@@ -2055,13 +2088,13 @@ async function loadOpportunities() {
     <tr>
       <td><strong>${esc(o.title)}</strong></td>
       <td>${esc(o.contact_name||'—')}</td>
-      <td><span class="badge" style="background:${color}20;color:${color};">${esc(o.stage||'—')}</span></td>
-      <td style="font-weight:600;">${o.value ? '$'+Number(o.value).toLocaleString() : '—'}</td>
+      <td><span class="badge">${esc(o.stage||'—')}</span></td>
+      <td>${o.value ? '$'+Number(o.value).toLocaleString() : '—'}</td>
       <td>${o.probability != null ? o.probability+'%' : '—'}</td>
       <td>${esc(formatDate(o.close_date))}</td>
       <td>
         <button class="btn btn-xs btn-secondary" onclick="editOpportunityModal('${esc(o.id)}')">Edit</button>
-        <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(220,38,38,.2);" onclick="deleteOpportunity('${esc(o.id)}','${esc(o.title)}')">Remove</button>
+        <button class="btn btn-xs" onclick="deleteOpportunity('${esc(o.id)}','${esc(o.title)}')">Remove</button>
       </td>
     </tr>`;
   }).join('');
@@ -2072,7 +2105,7 @@ function createOpportunityModal(opp = {}) {
   showModal(`
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Opportunity</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="form-group"><label>Title *</label><input id="opTitle" value="${esc(opp.title||'')}" placeholder="Enterprise Deal — Acme Corp" /></div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Stage</label>
         <select id="opStage">
           ${PIPELINE_STAGES.map(s=>`<option ${opp.stage===s?'selected':''}>${s}</option>`).join('')}
@@ -2080,7 +2113,7 @@ function createOpportunityModal(opp = {}) {
       </div>
       <div class="form-group"><label>Value ($)</label><input id="opValue" type="number" step="0.01" value="${esc(opp.value||'')}" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Probability (%)</label><input id="opProb" type="number" min="0" max="100" value="${esc(opp.probability??50)}" /></div>
       <div class="form-group"><label>Close Date</label><input id="opClose" type="date" value="${esc((opp.close_date||'').slice(0,10))}" /></div>
     </div>
@@ -2166,12 +2199,12 @@ async function loadTracking() {
   }
   tbody.innerHTML = rows.map(s => `
     <tr>
-      <td><strong style="font-family:monospace;font-size:11px;">${esc(s.tracking_number)}</strong></td>
+      <td><strong>${esc(s.tracking_number)}</strong></td>
       <td>${esc(s.carrier||'—')}</td>
       <td><span class="badge badge-info">${esc(s.tracking_type||'awb')}</span></td>
       <td>${statusBadge(s.status||'pending')}</td>
-      <td style="font-size:12px;">${esc(s.origin||'—')} → ${esc(s.destination||'—')}</td>
-      <td style="font-size:12px;">${esc(formatDate(s.estimated_delivery))}</td>
+      <td>${esc(s.origin||'—')} → ${esc(s.destination||'—')}</td>
+      <td>${esc(formatDate(s.estimated_delivery))}</td>
       <td><span class="badge ${RISK_BADGE[s.ai_delay_risk]||'badge-inactive'}">${esc(s.ai_delay_risk||'low')}</span></td>
       <td>
         <button class="btn btn-xs btn-secondary" onclick="viewShipmentModal('${esc(s.id)}')">Details</button>
@@ -2183,7 +2216,7 @@ async function loadTracking() {
 function addShipmentModal() {
   showModal(`
     <div class="modal-header"><h3 class="modal-title">Add Shipment</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Tracking Number *</label><input id="shTrack" placeholder="AWB / BL / Container" /></div>
       <div class="form-group"><label>Carrier</label>
         <select id="shCarrier">
@@ -2194,7 +2227,7 @@ function addShipmentModal() {
         </select>
       </div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Tracking Type</label>
         <select id="shType">
           <option value="awb">AWB (Air)</option><option value="bl">BL (Sea)</option>
@@ -2203,11 +2236,11 @@ function addShipmentModal() {
       </div>
       <div class="form-group"><label>Reference</label><input id="shRef" placeholder="Order / PO ref" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Origin</label><input id="shOrigin" placeholder="Mumbai, IN" /></div>
       <div class="form-group"><label>Destination</label><input id="shDest" placeholder="London, GB" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Ship Date</label><input id="shDate" type="date" /></div>
       <div class="form-group"><label>Est. Delivery</label><input id="shETA" type="date" /></div>
     </div>
@@ -2249,27 +2282,27 @@ async function viewShipmentModal(id) {
       <h3 class="modal-title">${esc(s.tracking_number)}</h3>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <div>
       ${statusBadge(s.status)} <span class="badge badge-info">${esc(s.carrier)}</span>
       <span class="badge ${RISK_BADGE[s.ai_delay_risk]||'badge-inactive'}">Risk: ${esc(s.ai_delay_risk||'low')}</span>
     </div>
-    <div class="two-col" style="gap:8px;font-size:12px;margin-bottom:12px;">
-      <div><span style="color:var(--text-muted);">Origin</span><div>${esc(s.origin||'—')}</div></div>
-      <div><span style="color:var(--text-muted);">Destination</span><div>${esc(s.destination||'—')}</div></div>
-      <div><span style="color:var(--text-muted);">Est. Delivery</span><div>${esc(formatDate(s.estimated_delivery))}</div></div>
-      <div><span style="color:var(--text-muted);">Reference</span><div>${esc(s.reference||'—')}</div></div>
+    <div class="two-col">
+      <div><span>Origin</span><div>${esc(s.origin||'—')}</div></div>
+      <div><span>Destination</span><div>${esc(s.destination||'—')}</div></div>
+      <div><span>Est. Delivery</span><div>${esc(formatDate(s.estimated_delivery))}</div></div>
+      <div><span>Reference</span><div>${esc(s.reference||'—')}</div></div>
     </div>
-    <div style="font-size:12px;font-weight:600;margin-bottom:8px;">Tracking Events</div>
-    <div style="max-height:220px;overflow-y:auto;">
+    <div>Tracking Events</div>
+    <div>
       ${events.length ? events.map(e => `
-        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
-          <div style="font-size:11px;color:var(--text-muted);min-width:130px;">${esc(formatDate(e.event_time))}</div>
+        <div>
+          <div>${esc(formatDate(e.event_time))}</div>
           <div>
-            <div style="font-size:12px;">${esc(e.description)}</div>
-            <div style="font-size:11px;color:var(--text-muted);">${esc(e.location||'')}</div>
+            <div>${esc(e.description)}</div>
+            <div>${esc(e.location||'')}</div>
           </div>
         </div>`).join('')
-      : '<div style="padding:12px;color:var(--text-muted);text-align:center;">No events yet</div>'}
+      : '<div>No events yet</div>'}
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Close</button>
@@ -2343,7 +2376,7 @@ async function loadWorkflows() {
     <tr>
       <td>
         <strong>${esc(w.name)}</strong>
-        <div style="font-size:11px;color:var(--text-muted);">${esc(w.description||'')}</div>
+        <div>${esc(w.description||'')}</div>
       </td>
       <td><span class="badge badge-info">${esc(w.trigger_type||'manual')}</span></td>
       <td>${statusBadge(w.status||'draft')}</td>
@@ -2353,7 +2386,7 @@ async function loadWorkflows() {
         <button class="btn btn-xs btn-primary" onclick="runWorkflow('${esc(w.id)}','${esc(w.name)}')">Run</button>
         <button class="btn btn-xs btn-secondary" onclick="editWorkflowModal('${esc(w.id)}')">Edit</button>
         <button class="btn btn-xs btn-secondary" onclick="viewExecutions('${esc(w.id)}','${esc(w.name)}')">History</button>
-        <button class="btn btn-xs" style="color:var(--danger);border:1px solid rgba(220,38,38,.2);" onclick="deleteWorkflow('${esc(w.id)}','${esc(w.name)}')">Delete</button>
+        <button class="btn btn-xs" onclick="deleteWorkflow('${esc(w.id)}','${esc(w.name)}')">Delete</button>
       </td>
     </tr>`).join('');
 }
@@ -2365,7 +2398,7 @@ function createWorkflowModal(wf = {}) {
     <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Workflow</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="form-group"><label>Workflow Name *</label><input id="wfName" value="${esc(wf.name||'')}" placeholder="Invoice Auto-Process" /></div>
     <div class="form-group"><label>Description</label><input id="wfDesc" value="${esc(wf.description||'')}" placeholder="Optional description" /></div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Trigger Type</label>
         <select id="wfTrigger">
           ${['manual','event','schedule','webhook','condition'].map(t=>`<option ${wf.trigger_type===t?'selected':''}>${t}</option>`).join('')}
@@ -2373,7 +2406,7 @@ function createWorkflowModal(wf = {}) {
       </div>
       <div class="form-group"><label>Trigger Config</label><input id="wfTriggerConf" value="${esc(wf.trigger_config||'')}" placeholder="event.type or cron expression" /></div>
     </div>
-    <div class="form-group"><label>Steps (JSON)</label><textarea id="wfSteps" rows="5" style="font-family:monospace;font-size:12px;">${esc(typeof stepsJson==='string'?stepsJson:JSON.stringify(stepsJson,null,2))}</textarea></div>
+    <div class="form-group"><label>Steps (JSON)</label><textarea id="wfSteps" rows="5">${esc(typeof stepsJson==='string'?stepsJson:JSON.stringify(stepsJson,null,2))}</textarea></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" id="saveWfBtn" onclick="submitWorkflow('${esc(wf.id||'')}')">Save Workflow</button>
@@ -2420,22 +2453,22 @@ async function viewExecutions(id, name) {
   const execs = res.ok ? (res.data.executions || res.data || []) : [];
   showModal(`
     <div class="modal-header"><h3 class="modal-title">Executions: ${esc(name)}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-    <div style="max-height:400px;overflow-y:auto;">
+    <div>
       ${execs.length ? `
-        <table style="width:100%;border-collapse:collapse;font-size:12px;">
-          <thead><tr>${['Run ID','Status','Triggered','Completed','Error'].map(h=>`<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text-muted);">${h}</th>`).join('')}</tr></thead>
+        <table>
+          <thead><tr>${['Run ID','Status','Triggered','Completed','Error'].map(h=>`<th>${h}</th>`).join('')}</tr></thead>
           <tbody>
             ${execs.map(e=>`
               <tr>
-                <td style="padding:6px 8px;font-family:monospace;font-size:11px;">${esc((e.id||'').slice(0,12))}…</td>
-                <td style="padding:6px 8px;">${statusBadge(e.status)}</td>
-                <td style="padding:6px 8px;">${timeAgo(e.started_at)}</td>
-                <td style="padding:6px 8px;">${timeAgo(e.completed_at)}</td>
-                <td style="padding:6px 8px;color:var(--danger);font-size:11px;">${esc(e.error_message||'—')}</td>
+                <td>${esc((e.id||'').slice(0,12))}…</td>
+                <td>${statusBadge(e.status)}</td>
+                <td>${timeAgo(e.started_at)}</td>
+                <td>${timeAgo(e.completed_at)}</td>
+                <td>${esc(e.error_message||'—')}</td>
               </tr>`).join('')}
           </tbody>
         </table>`
-      : '<div style="padding:24px;color:var(--text-muted);text-align:center;">No executions yet</div>'}
+      : '<div>No executions yet</div>'}
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">Close</button></div>
   `);
@@ -2489,13 +2522,13 @@ async function loadTickets() {
     const pc = PRIORITY_COLORS[t.priority] || 'var(--text-muted)';
     const slaPast = t.sla_due_at && new Date(t.sla_due_at) < new Date() && t.status !== 'resolved';
     return `
-    <tr${slaPast?' style="background:rgba(220,38,38,.04);"':''}>
-      <td style="font-family:monospace;font-size:11px;">#${esc(t.ticket_number||(t.id||'').slice(0,8))}</td>
-      <td><strong>${esc(t.subject)}</strong><div style="font-size:11px;color:var(--text-muted);">${esc(t.customer_name||'')}</div></td>
-      <td><span style="font-weight:600;color:${pc};">${esc(t.priority||'normal')}</span></td>
+    <tr${slaPast?'':''}>
+      <td>#${esc(t.ticket_number||(t.id||'').slice(0,8))}</td>
+      <td><strong>${esc(t.subject)}</strong><div>${esc(t.customer_name||'')}</div></td>
+      <td><span>${esc(t.priority||'normal')}</span></td>
       <td><span class="badge badge-info">${esc(t.channel||'email')}</span></td>
       <td>${statusBadge(t.status||'open')}</td>
-      <td style="${slaPast?'color:var(--danger);font-weight:600;':''}">${esc(formatDate(t.sla_due_at))}</td>
+      <td>${esc(formatDate(t.sla_due_at))}</td>
       <td>${timeAgo(t.created_at)}</td>
       <td>
         <button class="btn btn-xs btn-secondary" onclick="viewTicketModal('${esc(t.id)}')">View</button>
@@ -2509,11 +2542,11 @@ function createTicketModal() {
   showModal(`
     <div class="modal-header"><h3 class="modal-title">New Ticket</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="form-group"><label>Subject *</label><input id="tkSubject" placeholder="Shipment not received…" /></div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Customer Name</label><input id="tkCustomer" /></div>
       <div class="form-group"><label>Customer Email</label><input id="tkEmail" type="email" /></div>
     </div>
-    <div class="two-col" style="gap:12px;">
+    <div class="two-col">
       <div class="form-group"><label>Priority</label>
         <select id="tkPriority">
           <option value="low">Low</option><option value="normal" selected>Normal</option>
@@ -2565,23 +2598,23 @@ async function viewTicketModal(id) {
       <h3 class="modal-title">${esc(t.subject)}</h3>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <div>
       ${statusBadge(t.status)} <span class="badge badge-info">${esc(t.channel||'email')}</span>
-      <span style="font-weight:600;color:${pc};">${esc(t.priority)}</span>
-      <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">SLA: ${esc(formatDate(t.sla_due_at))}</span>
+      <span>${esc(t.priority)}</span>
+      <span>SLA: ${esc(formatDate(t.sla_due_at))}</span>
     </div>
-    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">${esc(t.description||'')}</div>
-    <div style="font-size:12px;font-weight:600;margin-bottom:8px;">Messages</div>
-    <div style="max-height:240px;overflow-y:auto;">
+    <div>${esc(t.description||'')}</div>
+    <div>Messages</div>
+    <div>
       ${msgs.length ? msgs.map(m => `
-        <div style="padding:8px 12px;margin-bottom:8px;background:${m.sender_type==='customer'?'var(--bg)':'var(--accent-subtle)'};border-radius:8px;border:1px solid var(--border);">
-          <div style="display:flex;gap:6px;margin-bottom:4px;">
-            <span style="font-size:11px;font-weight:600;">${esc(m.sender_id||'Customer')}</span>
-            <span style="font-size:11px;color:var(--text-muted);">${timeAgo(m.created_at)}</span>
+        <div>
+          <div>
+            <span>${esc(m.sender_id||'Customer')}</span>
+            <span>${timeAgo(m.created_at)}</span>
           </div>
-          <div style="font-size:12px;">${esc(m.content)}</div>
+          <div>${esc(m.content)}</div>
         </div>`).join('')
-      : '<div style="padding:12px;color:var(--text-muted);text-align:center;">No messages</div>'}
+      : '<div>No messages</div>'}
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Close</button>

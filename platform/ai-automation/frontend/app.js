@@ -1,4 +1,28 @@
 'use strict';
+
+window.setSafeHTML = function(el, html) {
+  if (!el) return;
+  if (typeof html !== 'string') {
+    el.textContent = String(html);
+    return;
+  }
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const badTags = doc.querySelectorAll('script, iframe, object, embed, form, base, applet, meta, link');
+  badTags.forEach(n => n.remove());
+  const all = doc.querySelectorAll('*');
+  for (let i = 0; i < all.length; i++) {
+    const node = all[i];
+    for (let j = node.attributes.length - 1; j >= 0; j--) {
+      const attr = node.attributes[j];
+      if (attr.name.toLowerCase().startsWith('on') || attr.name.toLowerCase() === 'javascript:') {
+        node.removeAttribute(attr.name);
+      }
+    }
+  }
+  el.replaceChildren(...doc.body.childNodes);
+};
+
 /* =========================================================
    MailPilot AI Automation Platform – Frontend SPA
    ========================================================= */
@@ -49,8 +73,8 @@ function toast(title, msg = '', type = 'info') {
   const icons = { ok: '✅', bad: '❌', info: 'ℹ️' };
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  el.innerHTML = `<span class="toast-icon">${icons[type] || '💬'}</span>
-    <div class="toast-body"><div class="toast-title">${esc(title)}</div>${msg ? `<div class="toast-msg">${esc(msg)}</div>` : ''}</div>`;
+  window.setSafeHTML(el, `<span class="toast-icon">${icons[type] || '💬'}</span>
+    <div class="toast-body"><div class="toast-title">${esc(title)}</div>${msg ? `<div class="toast-msg">${esc(msg)}</div>` : ''}</div>`);
   document.getElementById('toastContainer').appendChild(el);
   setTimeout(() => el.remove(), 4000);
 }
@@ -64,8 +88,8 @@ function esc(s) {
 // ---------------------------------------------------------------------------
 function showModal(title, bodyHtml, footerHtml = '') {
   document.getElementById('modalTitle').textContent = title;
-  document.getElementById('modalBody').innerHTML = bodyHtml;
-  document.getElementById('modalFooter').innerHTML = footerHtml;
+  window.setSafeHTML(document.getElementById('modalBody'), bodyHtml);
+  window.setSafeHTML(document.getElementById('modalFooter'), footerHtml);
   document.getElementById('modalOverlay').style.display = 'flex';
 }
 function closeModal() { document.getElementById('modalOverlay').style.display = 'none'; }
@@ -171,22 +195,26 @@ function renderStats(s) {
     { label: 'AI Requests Today', value: s.ai_requests_today, icon: '🤖', sub: 'across all providers' },
     { label: 'OCR Docs Today', value: s.ocr_documents_today, icon: '📄', sub: 'processed' },
   ];
-  document.getElementById('dashStats').innerHTML = stats.map(s =>
+  window.setSafeHTML(document.getElementById('dashStats'), stats.map(s =>
     `<div class="stat-card">
       <div class="stat-icon">${s.icon}</div>
       <div class="stat-label">${esc(s.label)}</div>
       <div class="stat-value">${s.value ?? 0}</div>
       <div class="stat-change">${esc(s.sub)}</div>
     </div>`
-  ).join('');
+  ).join(''));
 }
 
 function renderRecentExecs(execs) {
   if (!execs.length) {
-    document.getElementById('recentExecs').innerHTML = '<div class="empty" style="padding:20px"><div class="empty-desc">No executions yet</div></div>';
+    window.setSafeHTML(
+      document.getElementById('recentExecs'),
+      '<div class="empty" style="padding:20px"><div class="empty-desc">No executions yet</div></div>'
+    );
     return;
   }
-  document.getElementById('recentExecs').innerHTML =
+  window.setSafeHTML(
+    document.getElementById('recentExecs'),
     `<div class="timeline">${execs.map(e =>
       `<div class="timeline-item">
         <div class="timeline-dot ${e.status}">
@@ -197,15 +225,19 @@ function renderRecentExecs(execs) {
           <div class="timeline-meta">${statusBadge(e.status)} · ${relTime(e.started_at)} · ${fmtDuration(e.duration_ms)}</div>
         </div>
       </div>`
-    ).join('')}</div>`;
+    ).join('')}</div>`
+  );
 }
 
 function renderPendingApprovals(approvals) {
   if (!approvals.length) {
-    document.getElementById('pendingApprovals').innerHTML = '<div class="empty" style="padding:20px"><div class="empty-desc">No pending approvals</div></div>';
+    window.setSafeHTML(
+      document.getElementById('pendingApprovals'),
+      '<div class="empty" style="padding:20px"><div class="empty-desc">No pending approvals</div></div>'
+    );
     return;
   }
-  document.getElementById('pendingApprovals').innerHTML = approvals.map(a =>
+  window.setSafeHTML(document.getElementById('pendingApprovals'), approvals.map(a =>
     `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div style="font-size:13px;font-weight:500">${esc(a.title)}</div>
@@ -217,7 +249,7 @@ function renderPendingApprovals(approvals) {
         <button class="btn btn-danger btn-sm" onclick="decideApproval('${esc(a.id)}','rejected')">✕ Reject</button>
       </div>
     </div>`
-  ).join('');
+  ).join(''));
 }
 
 // ---------------------------------------------------------------------------
@@ -228,13 +260,19 @@ async function loadWorkflows() {
   const path = `/workflows/${status ? `?status=${status}&` : '?'}limit=50`;
   const res = await api(path.replace('?&','?'));
   const grid = document.getElementById('workflowGrid');
-  if (!res.ok) { grid.innerHTML = `<div class="empty"><div class="empty-desc">Error loading workflows</div></div>`; return; }
+  if (!res.ok) { window.setSafeHTML(
+    grid,
+    `<div class="empty"><div class="empty-desc">Error loading workflows</div></div>`
+  ); return; }
   state.workflows = res.data;
   if (!res.data.length) {
-    grid.innerHTML = `<div class="empty"><div class="empty-icon">🔄</div><div class="empty-title">No Workflows</div><div class="empty-desc">Create your first workflow to get started</div></div>`;
+    window.setSafeHTML(
+      grid,
+      `<div class="empty"><div class="empty-icon">🔄</div><div class="empty-title">No Workflows</div><div class="empty-desc">Create your first workflow to get started</div></div>`
+    );
     return;
   }
-  grid.innerHTML = res.data.map(wf => `
+  window.setSafeHTML(grid, res.data.map(wf => `
     <div class="workflow-card" onclick="openWorkflow('${esc(wf.id)}')">
       <div class="workflow-card-header">
         <div>
@@ -257,7 +295,7 @@ async function loadWorkflows() {
         <button class="btn btn-ghost btn-sm" onclick="deleteWorkflow('${esc(wf.id)}')">🗑</button>
       </div>
     </div>
-  `).join('');
+  `).join(''));
 }
 
 function showCreateWorkflow() {
@@ -323,7 +361,7 @@ const TEMPLATES = [
 ];
 
 function loadTemplates() {
-  document.getElementById('templateGrid').innerHTML = TEMPLATES.map(t => `
+  window.setSafeHTML(document.getElementById('templateGrid'), TEMPLATES.map(t => `
     <div class="workflow-card">
       <div class="workflow-card-header">
         <div>
@@ -336,7 +374,7 @@ function loadTemplates() {
         <button class="btn btn-primary btn-sm" onclick="useTemplate('${esc(t.file)}','${esc(t.name)}')">Use Template</button>
       </div>
     </div>
-  `).join('');
+  `).join(''));
 }
 
 async function useTemplate(file, name) {
@@ -364,9 +402,15 @@ async function loadExecutions() {
   const path = `/executions/${status ? `?status=${status}&` : '?'}limit=50`;
   const res = await api(path.replace('?&','?'));
   const tbody = document.getElementById('execTableBody');
-  if (!res.ok) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text3)">Error loading</td></tr>`; return; }
-  if (!res.data.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">No executions</td></tr>`; return; }
-  tbody.innerHTML = res.data.map(e => `
+  if (!res.ok) { window.setSafeHTML(
+    tbody,
+    `<tr><td colspan="6" style="text-align:center;color:var(--text3)">Error loading</td></tr>`
+  ); return; }
+  if (!res.data.length) { window.setSafeHTML(
+    tbody,
+    `<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">No executions</td></tr>`
+  ); return; }
+  window.setSafeHTML(tbody, res.data.map(e => `
     <tr>
       <td class="td-mono">${e.id.slice(0,8)}…</td>
       <td>${esc(e.workflow_name)}</td>
@@ -378,7 +422,7 @@ async function loadExecutions() {
         ${e.status === 'running' ? `<button class="btn btn-danger btn-sm" onclick="cancelExecution('${esc(e.id)}')">Cancel</button>` : ''}
       </td>
     </tr>
-  `).join('');
+  `).join(''));
 }
 
 async function viewExecution(id) {
@@ -430,7 +474,7 @@ async function loadAIMonitor() {
   const configured = providersRes.ok ? providersRes.data : [];
   const allProviders = ['openai', 'claude', 'gemini', 'deepseek', 'local'];
 
-  grid.innerHTML = allProviders.map(p => {
+  window.setSafeHTML(grid, allProviders.map(p => {
     const cfg = configured.find(c => c.provider === p);
     const info = PROVIDER_INFO[p] || { icon: '⚪', name: p };
     const enabled = cfg?.enabled ?? false;
@@ -446,21 +490,23 @@ async function loadAIMonitor() {
       ` : `<div style="font-size:12px;color:var(--text3);margin-bottom:8px">Not configured</div>`}
       <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:6px" onclick="configureProvider('${p}')">⚙️ Configure</button>
     </div>`;
-  }).join('');
+  }).join(''));
 
   if (usageRes.ok && usageRes.data.length) renderAIUsage(usageRes.data);
 }
 
 function renderAIUsage(usage) {
   const max = Math.max(...usage.map(u => u.requests || 1));
-  document.getElementById('aiUsageChart').innerHTML =
+  window.setSafeHTML(
+    document.getElementById('aiUsageChart'),
     `<div class="chart-bar-wrap" style="padding:4px 0">${usage.map(u => `
       <div class="chart-bar-row">
         <div class="chart-bar-label">${esc(u.provider)}</div>
         <div class="chart-bar-track"><div class="chart-bar-fill" style="width:${(u.requests/max*100).toFixed(1)}%"></div></div>
         <div class="chart-bar-val">${u.requests} req</div>
       </div>`).join('')}
-    </div>`;
+    </div>`
+  );
 }
 
 function configureProvider(provider) {
@@ -504,9 +550,15 @@ async function loadOCR() {
   const path = `/ocr/results${reviewOnly ? '?needs_review=true&' : '?'}limit=50`;
   const res = await api(path.replace('?&','?'));
   const grid = document.getElementById('ocrGrid');
-  if (!res.ok) { grid.innerHTML = `<div class="empty"><div class="empty-desc">Error loading OCR results</div></div>`; return; }
+  if (!res.ok) { window.setSafeHTML(
+    grid,
+    `<div class="empty"><div class="empty-desc">Error loading OCR results</div></div>`
+  ); return; }
   if (!res.data.length) {
-    grid.innerHTML = `<div class="empty"><div class="empty-icon">📄</div><div class="empty-title">No Documents</div><div class="empty-desc">No OCR results to review</div></div>`;
+    window.setSafeHTML(
+      grid,
+      `<div class="empty"><div class="empty-icon">📄</div><div class="empty-title">No Documents</div><div class="empty-desc">No OCR results to review</div></div>`
+    );
     return;
   }
   const reviewCount = res.data.filter(d => d.needs_review).length;
@@ -514,7 +566,7 @@ async function loadOCR() {
   badge.textContent = reviewCount;
   badge.style.display = reviewCount ? '' : 'none';
 
-  grid.innerHTML = res.data.map(doc => {
+  window.setSafeHTML(grid, res.data.map(doc => {
     const conf = doc.confidence || 0;
     const confClass = conf >= 0.8 ? '' : conf >= 0.6 ? 'med' : 'low';
     return `<div class="ocr-card ${doc.needs_review ? 'needs-review' : ''}">
@@ -531,7 +583,7 @@ async function loadOCR() {
       ).join('')}</div>
       ${doc.review_reason ? `<div style="font-size:11px;color:var(--yellow);margin-top:6px">⚠ ${esc(doc.review_reason)}</div>` : ''}
     </div>`;
-  }).join('');
+  }).join(''));
 }
 
 // ---------------------------------------------------------------------------
@@ -542,9 +594,15 @@ async function loadApprovals() {
   const path = `/approvals/${status ? `?status=${status}&` : '?'}limit=50`;
   const res = await api(path.replace('?&','?'));
   const grid = document.getElementById('approvalGrid');
-  if (!res.ok) { grid.innerHTML = `<div class="empty"><div class="empty-desc">Error loading</div></div>`; return; }
+  if (!res.ok) { window.setSafeHTML(
+    grid,
+    `<div class="empty"><div class="empty-desc">Error loading</div></div>`
+  ); return; }
   if (!res.data.length) {
-    grid.innerHTML = `<div class="empty"><div class="empty-icon">✅</div><div class="empty-title">All Clear</div><div class="empty-desc">No approvals matching filter</div></div>`;
+    window.setSafeHTML(
+      grid,
+      `<div class="empty"><div class="empty-icon">✅</div><div class="empty-title">All Clear</div><div class="empty-desc">No approvals matching filter</div></div>`
+    );
     return;
   }
   const pendingCount = res.data.filter(a => a.status === 'pending').length;
@@ -552,7 +610,7 @@ async function loadApprovals() {
   badge.textContent = pendingCount;
   badge.style.display = pendingCount ? '' : 'none';
 
-  grid.innerHTML = res.data.map(a => `
+  window.setSafeHTML(grid, res.data.map(a => `
     <div class="approval-card">
       <div class="approval-header">
         <div>
@@ -577,7 +635,7 @@ async function loadApprovals() {
         ${a.decision_notes ? `<br><em>${esc(a.decision_notes)}</em>` : ''}
       </div>`}
     </div>
-  `).join('');
+  `).join(''));
 }
 
 async function decideApproval(id, decision) {
@@ -621,8 +679,11 @@ async function loadAnalytics() {
 
 function renderAnalyticsTable(data) {
   const tbody = document.getElementById('analyticsTableBody');
-  if (!data.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">No data</td></tr>`; return; }
-  tbody.innerHTML = data.map(w => `
+  if (!data.length) { window.setSafeHTML(
+    tbody,
+    `<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">No data</td></tr>`
+  ); return; }
+  window.setSafeHTML(tbody, data.map(w => `
     <tr>
       <td>${esc(w.workflow_name)}</td>
       <td>${w.total_executions}</td>
@@ -634,21 +695,27 @@ function renderAnalyticsTable(data) {
         <span style="font-size:12px">${w.success_rate.toFixed(0)}%</span>
       </div></td>
     </tr>
-  `).join('');
+  `).join(''));
 }
 
 function renderTimeline(data) {
-  if (!data.length) { document.getElementById('timelineChart').innerHTML = '<div class="empty" style="padding:20px"><div class="empty-desc">No execution data</div></div>'; return; }
+  if (!data.length) { window.setSafeHTML(
+    document.getElementById('timelineChart'),
+    '<div class="empty" style="padding:20px"><div class="empty-desc">No execution data</div></div>'
+  ); return; }
   const maxTotal = Math.max(...data.map(d => d.total), 1);
-  document.getElementById('timelineChart').innerHTML = `<div class="chart-bar-wrap" style="padding:4px 0">
-    ${data.map(d => `<div class="chart-bar-row">
-      <div class="chart-bar-label" style="min-width:90px">${esc(d.date)}</div>
-      <div class="chart-bar-track" style="position:relative">
-        <div class="chart-bar-fill" style="width:${(d.total/maxTotal*100).toFixed(1)}%;background:var(--accent)"></div>
-      </div>
-      <div class="chart-bar-val">${d.total} runs</div>
-    </div>`).join('')}
-  </div>`;
+  window.setSafeHTML(
+    document.getElementById('timelineChart'),
+    `<div class="chart-bar-wrap" style="padding:4px 0">
+      ${data.map(d => `<div class="chart-bar-row">
+        <div class="chart-bar-label" style="min-width:90px">${esc(d.date)}</div>
+        <div class="chart-bar-track" style="position:relative">
+          <div class="chart-bar-fill" style="width:${(d.total/maxTotal*100).toFixed(1)}%;background:var(--accent)"></div>
+        </div>
+        <div class="chart-bar-val">${d.total} runs</div>
+      </div>`).join('')}
+    </div>`
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -659,15 +726,21 @@ async function doSearch() {
   if (!q) return;
   const res = await api('/search/', { method: 'POST', body: JSON.stringify({ query: q, tenant_id: state.tenant }) });
   const el = document.getElementById('searchResults');
-  if (!res.ok) { el.innerHTML = `<div class="empty"><div class="empty-desc">Search failed</div></div>`; return; }
+  if (!res.ok) { window.setSafeHTML(el, `<div class="empty"><div class="empty-desc">Search failed</div></div>`); return; }
   const { results, total, took_ms } = res.data;
-  if (!results.length) { el.innerHTML = `<div class="empty"><div class="empty-desc">No results for "${esc(q)}"</div></div>`; return; }
-  el.innerHTML = `<div style="font-size:12px;color:var(--text3);margin-bottom:10px">${total} results (${took_ms}ms)</div>
-    ${results.map(r => `<div class="search-result" onclick="navigateToResult('${esc(r.type)}','${esc(r.id)}')">
-      <div class="search-result-type">${esc(r.type)}</div>
-      <div class="search-result-title">${esc(r.title)}</div>
-      ${r.snippet ? `<div class="search-result-snippet">${esc(r.snippet)}</div>` : ''}
-    </div>`).join('')}`;
+  if (!results.length) { window.setSafeHTML(
+    el,
+    `<div class="empty"><div class="empty-desc">No results for "${esc(q)}"</div></div>`
+  ); return; }
+  window.setSafeHTML(
+    el,
+    `<div style="font-size:12px;color:var(--text3);margin-bottom:10px">${total} results (${took_ms}ms)</div>
+      ${results.map(r => `<div class="search-result" onclick="navigateToResult('${esc(r.type)}','${esc(r.id)}')">
+        <div class="search-result-type">${esc(r.type)}</div>
+        <div class="search-result-title">${esc(r.title)}</div>
+        ${r.snippet ? `<div class="search-result-snippet">${esc(r.snippet)}</div>` : ''}
+      </div>`).join('')}`
+  );
 }
 
 function navigateToResult(type, id) {
@@ -727,7 +800,7 @@ function renderBuilder() {
 }
 
 function renderPalette() {
-  document.getElementById('nodePalette').innerHTML = NODE_PALETTE.map(cat =>
+  window.setSafeHTML(document.getElementById('nodePalette'), NODE_PALETTE.map(cat =>
     `<div class="node-category">${cat.category}</div>` +
     cat.nodes.map(n =>
       `<div class="node-item" draggable="true" data-node-type="${n.type}"
@@ -735,14 +808,14 @@ function renderPalette() {
         <div class="node-dot" style="background:${n.color}"></div>${n.icon} ${n.label}
       </div>`
     ).join('')
-  ).join('');
+  ).join(''));
 }
 
 function onNodeDragStart(e, type) { e.dataTransfer.setData('node_type', type); }
 
 function renderCanvas() {
   const canvas = document.getElementById('flowCanvas');
-  canvas.innerHTML = state.builder.nodes.map(n => renderNode(n)).join('');
+  window.setSafeHTML(canvas, state.builder.nodes.map(n => renderNode(n)).join(''));
   renderConnections();
   canvas.querySelectorAll('.flow-node').forEach(el => initNodeDrag(el));
 
@@ -779,7 +852,7 @@ function renderNode(node) {
 
 function renderConnections() {
   const svg = document.getElementById('connectionsSvg');
-  svg.innerHTML = state.builder.connections.map(conn => {
+  window.setSafeHTML(svg, state.builder.connections.map(conn => {
     const src = document.getElementById(`node-${conn.source_id}`);
     const tgt = document.getElementById(`node-${conn.target_id}`);
     if (!src || !tgt) return '';
@@ -787,7 +860,7 @@ function renderConnections() {
     const t = { x: tgt.offsetLeft, y: tgt.offsetTop + tgt.offsetHeight / 2 };
     const cx = (s.x + t.x) / 2;
     return `<path class="connection-path" d="M${s.x},${s.y} C${cx},${s.y} ${cx},${t.y} ${t.x},${t.y}"/>`;
-  }).join('');
+  }).join(''));
 }
 
 function selectNode(id) {
@@ -800,7 +873,7 @@ function renderNodeProps(id) {
   const node = state.builder.nodes.find(n => n.id === id);
   if (!node) return;
   const icon = NODE_ICONS[node.type] || '⬡';
-  document.getElementById('propsContent').innerHTML = `
+  window.setSafeHTML(document.getElementById('propsContent'), `
     <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
       <span style="font-size:20px">${icon}</span>
       <div><div style="font-weight:600">${esc(node.label)}</div><div style="font-size:11px;color:var(--text3)">${esc(node.type)}</div></div>
@@ -816,7 +889,7 @@ function renderNodeProps(id) {
         onchange="updateNodeConfig('${id}',this.value)">${esc(JSON.stringify(node.config||{},null,2))}</textarea>
     </div>
     <button class="btn btn-danger btn-sm" style="width:100%" onclick="removeNode('${id}')">🗑 Remove Node</button>
-  `;
+  `);
 }
 
 function updateNodeLabel(id, label) {

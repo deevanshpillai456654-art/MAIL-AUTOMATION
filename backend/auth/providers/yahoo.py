@@ -12,9 +12,12 @@ class YahooOAuthProvider(BaseOAuthProvider):
     PROVIDER = "yahoo"
 
     def __init__(self, db=None, redirect_uri: str = None,
-                 client_id: str = None, client_secret: str = None):
+                 client_id: str = None, client_secret: str = None,
+                 email_address: str = None):
         from backend.auth.provider_config import ProviderConfigManager
-        _cfg = ProviderConfigManager().get_oauth_config("yahoo", runtime_redirect_uri=redirect_uri)
+        _cfg = ProviderConfigManager().get_oauth_config("yahoo", runtime_redirect_uri=redirect_uri, email_address=email_address)
+        self.oauth_config_provider = _cfg.get("oauth_config_provider") or "yahoo"
+        self.oauth_config_email = _cfg.get("oauth_config_email")
         super().__init__(
             db=db,
             redirect_uri=redirect_uri or _cfg.get("redirect_uri") or config.YAHOO_REDIRECT_URI,

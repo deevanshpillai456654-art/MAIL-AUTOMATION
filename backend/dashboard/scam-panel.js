@@ -1,5 +1,29 @@
 'use strict';
 
+window.setSafeHTML = function(el, html) {
+  if (!el) return;
+  if (typeof html !== 'string') {
+    el.textContent = String(html);
+    return;
+  }
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const badTags = doc.querySelectorAll('script, iframe, object, embed, form, base, applet, meta, link');
+  badTags.forEach(n => n.remove());
+  const all = doc.querySelectorAll('*');
+  for (let i = 0; i < all.length; i++) {
+    const node = all[i];
+    for (let j = node.attributes.length - 1; j >= 0; j--) {
+      const attr = node.attributes[j];
+      if (attr.name.toLowerCase().startsWith('on') || attr.name.toLowerCase() === 'javascript:') {
+        node.removeAttribute(attr.name);
+      }
+    }
+  }
+  el.replaceChildren(...doc.body.childNodes);
+};
+
+
 // ── API base ─────────────────────────────────────────────
 const API = '/api/v1/threat';
 const WS_URL = `ws://${location.host}/api/v1/ws/alerts`;
@@ -109,7 +133,7 @@ async function loadDashboard() {
   try {
     const data = await api('/stats');
     const s = data.stats;
-    document.getElementById('statsGrid').innerHTML = `
+    window.setSafeHTML(document.getElementById('statsGrid'), `
       <div class="stat-card critical">
         <div class="stat-label">Scam Blocked</div>
         <div class="stat-value">${esc(s.scam_blocked)}</div>
@@ -140,7 +164,7 @@ async function loadDashboard() {
         <div class="stat-value">${esc(s.total_emails)}</div>
         <div class="stat-sub">Processed</div>
       </div>
-    `;
+    `);
 
     // Update badges
     setNavBadge('feedBadge', s.lookalike_alerts_active);
@@ -148,23 +172,26 @@ async function loadDashboard() {
 
     // Brands table
     const brands = s.top_impersonated_brands || [];
-    document.getElementById('brandsBody').innerHTML = brands.length
+    window.setSafeHTML(document.getElementById('brandsBody'), brands.length
       ? brands.map(b => `<tr>
           <td><b>${esc(b.brand)}</b></td>
           <td>${Number(b.count) || 0}</td>
           <td>${severityBadge(b.count > 5 ? 'critical' : b.count > 2 ? 'high' : 'medium')}</td>
         </tr>`).join('')
-      : '<tr><td colspan="3" class="empty-state"><p>No data</p></td></tr>';
+      : '<tr><td colspan="3" class="empty-state"><p>No data</p></td></tr>');
 
     // Types table
     const types = s.threat_type_breakdown || {};
     const typeRows = Object.entries(types);
-    document.getElementById('typesBody').innerHTML = typeRows.length
+    window.setSafeHTML(document.getElementById('typesBody'), typeRows.length
       ? typeRows.map(([t, c]) => `<tr><td>${threatTypeBadge(t)}</td><td>${Number(c) || 0}</td></tr>`).join('')
-      : '<tr><td colspan="2" class="empty-state"><p>No data</p></td></tr>';
+      : '<tr><td colspan="2" class="empty-state"><p>No data</p></td></tr>');
 
   } catch (e) {
-    document.getElementById('statsGrid').innerHTML = `<div class="stat-card"><div class="stat-label">Error</div><div class="stat-value error-value">${esc(e.message)}</div></div>`;
+    window.setSafeHTML(
+      document.getElementById('statsGrid'),
+      `<div class="stat-card"><div class="stat-label">Error</div><div class="stat-value error-value">${esc(e.message)}</div></div>`
+    );
   }
 }
 
@@ -182,7 +209,7 @@ async function loadFeed() {
     const data = await api(url);
     const items = data.feed || [];
     const feedBody = document.getElementById('feedBody');
-    feedBody.innerHTML = items.length
+    window.setSafeHTML(feedBody, items.length
       ? items.map(f => `<tr data-alert-id="${esc(f.id)}">
           <td><b class="text-primary">${esc(f.detected_domain) || '—'}</b></td>
           <td>${f.impersonated_brand ? `<b>${esc(f.impersonated_brand)}</b><br><small class="text-muted">${esc(f.impersonated_domain || '')}</small>` : '—'}</td>
@@ -193,7 +220,7 @@ async function loadFeed() {
           <td>${severityBadge(f.status === 'confirmed' ? 'critical' : f.status === 'active' ? 'high' : 'low')}</td>
           <td><button class="btn btn-ghost btn-sm dismiss-btn" type="button">Dismiss</button></td>
         </tr>`).join('')
-      : '<tr><td colspan="8" class="empty-state"><p>No threats detected</p></td></tr>';
+      : '<tr><td colspan="8" class="empty-state"><p>No threats detected</p></td></tr>');
 
     // Attach direct listeners — no event delegation, guaranteed to fire
     feedBody.querySelectorAll('.dismiss-btn').forEach(btn => {
@@ -203,13 +230,16 @@ async function loadFeed() {
       btn.addEventListener('click', () => dismissAlert(alertId, btn, row));
     });
 
-    document.getElementById('feedPagination').innerHTML = `
+    window.setSafeHTML(document.getElementById('feedPagination'), `
       <span class="page-info">Showing ${feedOffset+1}–${Math.min(feedOffset+FEED_LIMIT, Number(data.total))} of ${esc(data.total)}</span>
       ${feedOffset > 0 ? `<button class="btn btn-ghost btn-sm" data-action="feed-page" data-dir="-1" type="button">← Prev</button>` : ''}
       ${feedOffset + FEED_LIMIT < data.total ? `<button class="btn btn-ghost btn-sm" data-action="feed-page" data-dir="1" type="button">Next →</button>` : ''}
-    `;
+    `);
   } catch (e) {
-    document.getElementById('feedBody').innerHTML = `<tr><td colspan="8" class="table-error">${esc(e.message)}</td></tr>`;
+    window.setSafeHTML(
+      document.getElementById('feedBody'),
+      `<tr><td colspan="8" class="table-error">${esc(e.message)}</td></tr>`
+    );
   }
 }
 
@@ -239,7 +269,7 @@ async function loadScamEmails() {
   try {
     const data = await api(`/emails/scam?category=${encodeURIComponent(cat)}&limit=100`);
     const emails = data.emails || [];
-    document.getElementById('scamEmailsBody').innerHTML = emails.length
+    window.setSafeHTML(document.getElementById('scamEmailsBody'), emails.length
       ? emails.map(e => `<tr>
           <td class="subject-cell" title="${esc(e.subject)}">${esc(e.subject || '(no subject)')}</td>
           <td class="text-xs">${esc(e.sender || '')} <br><span class="text-muted">${esc(e.sender_email || '')}</span></td>
@@ -252,9 +282,12 @@ async function loadScamEmails() {
             <button class="btn btn-danger btn-sm" data-action="confirm-scam" data-id="${esc(e.id)}" type="button">Confirm</button>
           </td>
         </tr>`).join('')
-      : '<tr><td colspan="7" class="empty-state"><p>No emails in this category</p></td></tr>';
+      : '<tr><td colspan="7" class="empty-state"><p>No emails in this category</p></td></tr>');
   } catch (err) {
-    document.getElementById('scamEmailsBody').innerHTML = `<tr><td colspan="7" class="table-error">${esc(err.message)}</td></tr>`;
+    window.setSafeHTML(
+      document.getElementById('scamEmailsBody'),
+      `<tr><td colspan="7" class="table-error">${esc(err.message)}</td></tr>`
+    );
   }
 }
 
@@ -284,22 +317,25 @@ async function loadLookalike() {
 
     document.getElementById('lookalikeCount').textContent = `${alerts.length} Active`;
 
-    document.getElementById('brandGrid').innerHTML = brands.length
+    window.setSafeHTML(document.getElementById('brandGrid'), brands.length
       ? brands.map(b => `<button class="brand-card" data-action="filter-lookalike-brand" data-brand="${esc(b.brand)}" type="button">
           <div class="brand-name">${esc(b.brand)}</div>
           <div class="brand-detections">${esc(b.detections)} detection${b.detections !== 1 ? 's' : ''}</div>
           <div class="brand-score">${esc(b.max_score)}</div>
         </button>`).join('')
-      : '<p class="empty-muted">No active brand alerts</p>';
+      : '<p class="empty-muted">No active brand alerts</p>');
 
     renderLookalikeTable(alerts);
   } catch (e) {
-    document.getElementById('lookalikeBody').innerHTML = `<tr><td colspan="6" class="table-error">${esc(e.message)}</td></tr>`;
+    window.setSafeHTML(
+      document.getElementById('lookalikeBody'),
+      `<tr><td colspan="6" class="table-error">${esc(e.message)}</td></tr>`
+    );
   }
 }
 
 function renderLookalikeTable(alerts) {
-  document.getElementById('lookalikeBody').innerHTML = alerts.length
+  window.setSafeHTML(document.getElementById('lookalikeBody'), alerts.length
     ? alerts.map(a => `<tr>
         <td><b class="severity-text-critical">${esc(a.detected_domain)}</b></td>
         <td>${a.impersonated_brand ? `<b>${esc(a.impersonated_brand)}</b>` : '—'}</td>
@@ -308,7 +344,7 @@ function renderLookalikeTable(alerts) {
         <td>${reasonTags(a.reasons)}</td>
         <td class="text-xs">${fmtDate(a.created_at)}</td>
       </tr>`).join('')
-    : '<tr><td colspan="6" class="empty-state"><p>No lookalike alerts</p></td></tr>';
+    : '<tr><td colspan="6" class="empty-state"><p>No lookalike alerts</p></td></tr>');
 }
 
 function filterLookalikeByBrand(brand) {
@@ -323,14 +359,14 @@ async function analyseDomain() {
   if (!input) return;
   const result = document.getElementById('analyserResult');
   result.classList.add('visible');
-  result.innerHTML = '<p class="text-muted">Analysing…</p>';
+  window.setSafeHTML(result, '<p class="text-muted">Analysing…</p>');
   try {
     let domain = input;
     if (input.includes('@')) domain = input.split('@')[1];
     const data = await api(`/domain/${encodeURIComponent(domain)}`);
     const r = data.result;
     const sev = scoreToSeverity(r.confidence_score);
-    result.innerHTML = `
+    window.setSafeHTML(result, `
       ${r.is_lookalike ? `<div class="impersonation-banner">
         <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 2l8 14H2L10 2Z"/><path d="M10 8v4M10 14h.01"/></svg>
         <div>
@@ -349,9 +385,9 @@ async function analyseDomain() {
         <button class="btn btn-danger btn-sm" data-action="quick-block" data-entry-type="domain" data-value="${esc(r.domain)}" type="button">Block Domain</button>
         <button class="btn btn-success btn-sm" data-action="quick-trust" data-entry-type="domain" data-value="${esc(r.domain)}" type="button">Trust Domain</button>
       </div>
-    `;
+    `);
   } catch (e) {
-    result.innerHTML = `<p class="severity-text-critical">${esc(e.message)}</p>`;
+    window.setSafeHTML(result, `<p class="severity-text-critical">${esc(e.message)}</p>`);
   }
 }
 
@@ -405,7 +441,7 @@ async function quickTrust(type, value) {
 async function loadBlacklist() {
   try {
     const data = await api('/blacklist?limit=200');
-    document.getElementById('blacklistBody').innerHTML = (data.items || []).length
+    window.setSafeHTML(document.getElementById('blacklistBody'), (data.items || []).length
       ? data.items.map(i => `<tr>
           <td>${i.entry_type === 'sender' ? '<span class="dot-blue">●</span> Sender' : '<span class="dot-blue">●</span> Domain'}</td>
           <td class="mono-red">${esc(i.value)}</td>
@@ -414,8 +450,8 @@ async function loadBlacklist() {
           <td class="text-xs">${fmtDate(i.created_at)}</td>
           <td><button class="btn btn-ghost btn-sm" data-action="remove-blacklist" data-id="${esc(i.id)}" type="button">Remove</button></td>
         </tr>`).join('')
-      : '<tr><td colspan="6" class="empty-state"><p>No blacklisted entries</p></td></tr>';
-  } catch (e) { console.error(e); }
+      : '<tr><td colspan="6" class="empty-state"><p>No blacklisted entries</p></td></tr>');
+  } catch (e) {}
 }
 
 function showAddBlacklist() {
@@ -454,7 +490,7 @@ async function removeBlacklist(id) {
 async function loadWhitelist() {
   try {
     const data = await api('/whitelist?limit=200');
-    document.getElementById('whitelistBody').innerHTML = (data.items || []).length
+    window.setSafeHTML(document.getElementById('whitelistBody'), (data.items || []).length
       ? data.items.map(i => `<tr>
           <td>${i.entry_type === 'sender' ? 'Sender' : 'Domain'}</td>
           <td class="mono-green">${esc(i.value)}</td>
@@ -462,8 +498,8 @@ async function loadWhitelist() {
           <td class="text-xs">${fmtDate(i.created_at)}</td>
           <td><button class="btn btn-ghost btn-sm" data-action="remove-whitelist" data-id="${esc(i.id)}" type="button">Remove</button></td>
         </tr>`).join('')
-      : '<tr><td colspan="5" class="empty-state"><p>No trusted entries</p></td></tr>';
-  } catch (e) { console.error(e); }
+      : '<tr><td colspan="5" class="empty-state"><p>No trusted entries</p></td></tr>');
+  } catch (e) {}
 }
 
 function showAddWhitelist() {
@@ -502,7 +538,7 @@ async function removeWhitelist(id) {
 async function loadAudit() {
   try {
     const data = await api('/audit?limit=200');
-    document.getElementById('auditBody').innerHTML = (data.items || []).length
+    window.setSafeHTML(document.getElementById('auditBody'), (data.items || []).length
       ? data.items.map(i => `<tr>
           <td class="text-primary font-bold">${esc(i.action)}</td>
           <td class="text-xs">${esc(i.target_type || '—')}</td>
@@ -511,8 +547,8 @@ async function loadAudit() {
           <td class="text-xs">${esc(i.performed_by || 'system')}</td>
           <td class="text-xs">${fmtDate(i.created_at)}</td>
         </tr>`).join('')
-      : '<tr><td colspan="6" class="empty-state"><p>No audit events recorded</p></td></tr>';
-  } catch (e) { console.error(e); }
+      : '<tr><td colspan="6" class="empty-state"><p>No audit events recorded</p></td></tr>');
+  } catch (e) {}
 }
 
 // ── Toast notifications ───────────────────────────────────
@@ -520,11 +556,11 @@ function showToast(message, sub, severity = 'medium', duration = 5000) {
   const stream = document.getElementById('alertStream');
   const toast = document.createElement('div');
   toast.className = `alert-toast ${severity}`;
-  toast.innerHTML = `
+  window.setSafeHTML(toast, `
     <div class="toast-type">${esc(severity).toUpperCase()}</div>
     <div class="toast-msg">${esc(message)}</div>
     ${sub ? `<div class="toast-sub">${esc(sub)}</div>` : ''}
-  `;
+  `);
   stream.appendChild(toast);
   toast.addEventListener('click', () => removeToast(toast));
   setTimeout(() => removeToast(toast), duration);

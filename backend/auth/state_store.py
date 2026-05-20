@@ -12,8 +12,20 @@ class OAuthStateStore:
         self._db = db
 
     def create(self, provider: str, state: str, code_verifier: str,
-               redirect_uri: str, expires_at: str) -> None:
-        self._db.create_oauth_state(provider, state, code_verifier, redirect_uri, expires_at)
+               redirect_uri: str, expires_at: str, requested_email: str = None,
+               oauth_config_provider: str = None, oauth_config_email: str = None,
+               redirect_after_callback: str = None) -> None:
+        self._db.create_oauth_state(
+            provider,
+            state,
+            code_verifier,
+            redirect_uri,
+            expires_at,
+            requested_email,
+            oauth_config_provider=oauth_config_provider,
+            oauth_config_email=oauth_config_email,
+            redirect_after_callback=redirect_after_callback,
+        )
 
     def consume(self, provider: str, state: str) -> Optional[Dict]:
         row = self._db.consume_oauth_state(provider, state)

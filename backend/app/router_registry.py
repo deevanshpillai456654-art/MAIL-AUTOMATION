@@ -24,6 +24,7 @@ from backend.api.ocr import router as ocr_router
 from backend.api.operational_intelligence import router as intelligence_router
 from backend.api.platform_telemetry import router as telemetry_router
 from backend.api.reconciler import router as reconciler_router
+from backend.api.runtime_control import router as runtime_control_router
 from backend.api.workflow_scheduler import router as workflow_scheduler_router
 from backend.api.workflows import router as workflows_router
 from backend.api.frontend_runtime import router as frontend_runtime_router
@@ -54,7 +55,22 @@ from backend.api.maintenance import router as maintenance_router
 from backend.api.api_keys import router as api_keys_router
 from backend.api.oncall import router as oncall_router
 from backend.api.runbooks import router as runbooks_router
+from backend.api.change_management import router as change_management_router
+from backend.api.problem_management import router as problem_management_router
+from backend.api.service_catalog import router as service_catalog_router
+from backend.api.deployments import router as deployments_router
+from backend.api.asset_management import router as asset_management_router
+from backend.api.knowledge_base import router as knowledge_base_router
+from backend.api.capacity_planning import router as capacity_planning_router
+from backend.api.vendor_management import router as vendor_management_router
+from backend.api.feature_flags import router as feature_flags_router
+from backend.api.budget_tracking import router as budget_tracking_router
+from backend.api.license_management import router as license_management_router
+from backend.api.config_management import router as config_management_router
+from backend.api.certificate_management import router as certificate_management_router
+from backend.api.risk_register import router as risk_register_router
 from backend.auth.routes import router as oauth_router
+from backend.core.runtime_control import RuntimeControl, get_runtime_control
 from backend.utils.discovery import router as discovery_router
 
 
@@ -68,6 +84,7 @@ class RouterSpec:
 API_ROUTER_SPECS: tuple[RouterSpec, ...] = (
     RouterSpec("core", core_router),
     RouterSpec("oauth", oauth_router),
+    RouterSpec("runtime_control", runtime_control_router),
     RouterSpec("integrations", integrations_router),
     RouterSpec("enterprise_refinement", enterprise_refinement_router),
     RouterSpec("enterprise_governance", enterprise_governance_router),
@@ -117,11 +134,29 @@ API_ROUTER_SPECS: tuple[RouterSpec, ...] = (
     RouterSpec("api_keys", api_keys_router),
     RouterSpec("oncall", oncall_router),
     RouterSpec("runbooks", runbooks_router),
+    RouterSpec("change_management", change_management_router),
+    RouterSpec("problem_management", problem_management_router),
+    RouterSpec("service_catalog", service_catalog_router),
+    RouterSpec("deployments", deployments_router),
+    RouterSpec("asset_management", asset_management_router),
+    RouterSpec("knowledge_base", knowledge_base_router),
+    RouterSpec("capacity_planning", capacity_planning_router),
+    RouterSpec("vendor_management", vendor_management_router),
+    RouterSpec("feature_flags", feature_flags_router),
+    RouterSpec("budget_tracking", budget_tracking_router),
+    RouterSpec("license_management", license_management_router),
+    RouterSpec("config_management", config_management_router),
+    RouterSpec("certificate_management", certificate_management_router),
+    RouterSpec("risk_register", risk_register_router),
 )
 
 
-def register_api_routers(app: FastAPI, specs: Iterable[RouterSpec] = API_ROUTER_SPECS) -> None:
+def register_api_routers(app: FastAPI, specs: Iterable[RouterSpec] = API_ROUTER_SPECS,
+                         runtime: RuntimeControl | None = None) -> None:
+    runtime = runtime or get_runtime_control()
     for spec in specs:
+        if not runtime.is_router_enabled(spec.name):
+            continue
         app.include_router(spec.router, prefix=spec.prefix)
 
 

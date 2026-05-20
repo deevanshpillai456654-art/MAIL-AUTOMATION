@@ -19,6 +19,7 @@ import json
 import logging
 import socket
 import subprocess
+from urllib.parse import quote
 
 from backend.auth.provider_config import ProviderConfigManager, oauth_group_for, normalize_provider
 from backend.auth.validation import ProviderAuthValidator
@@ -232,7 +233,7 @@ class UniversalEmailAuthEngine:
         }.get(group)
         if not path:
             return None
-        return f"{path}?email={email}" if email else path
+        return f"{path}?email={quote(email)}" if email else path
 
     def strategy_for(self, email: str, provider: str = None, requested_method: str = "auto", base_url: str = None) -> AuthStrategy:
         detection = self.detect(email)
@@ -248,7 +249,7 @@ class UniversalEmailAuthEngine:
             requested = "imap"
 
         if requested == "oauth" and oauth_provider and cap.supports_oauth:
-            oauth_status = self.config_manager.status(oauth_provider, base_url)
+            oauth_status = self.config_manager.status(oauth_provider, base_url, email_address=email)
             configured = bool(oauth_status.get("configured"))
             message = (
                 f"Continue with {cap.display_name}. Mailbox passwords and app passwords are never requested in OAuth mode."

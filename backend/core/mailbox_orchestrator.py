@@ -18,6 +18,7 @@ from backend.core.mailbox_connection_manager import MailboxConnectionManager
 from backend.core.mailbox_health_engine import MailboxHealthEngine
 from backend.core.mailbox_recovery_engine import MailboxRecoveryEngine
 from backend.core.mailbox_quarantine_engine import MailboxQuarantineEngine
+from backend.core.mailbox_taxonomy import ProviderMailboxTaxonomy
 from backend.auth.provider_token_manager import ProviderTokenManager
 from backend.auth.imap_auth import IMAPAccountManager
 from backend.sync.gmail_sync import sync_gmail_account, GmailSync
@@ -210,7 +211,11 @@ class MailboxOrchestrator:
                 return {"ok": False, "status": "duplicate_sync_blocked", "lease": lease}
             adapter = self.adapter_for_account(account)
             try:
+                structure = ProviderMailboxTaxonomy(self.db).sync_mailbox_structure(account_id)
                 result = adapter.sync(account_id, max_results=max_results, sync_id=sync_id)
+                detail = result.detail if isinstance(result.detail, dict) else {"detail": result.detail}
+                detail["structure_sync"] = structure
+                result.detail = detail
                 self.db.add_provider_diagnostic(account_id, provider, result.status, result.as_dict())
                 return result.as_dict()
             except Exception as exc:
@@ -224,7 +229,13 @@ class MailboxOrchestrator:
     def connect(self, provider: str, **kwargs) -> Dict:
         adapter = self.adapter_for(provider)
         result = adapter.connect(**kwargs)
-        return result.as_dict()
+        payload = result.as_dict()
+        if result.ok and result.account_id:
+            try:
+                payload["structure_sync"] = ProviderMailboxTaxonomy(self.db).sync_mailbox_structure(result.account_id)
+            except Exception as exc:
+                payload["structure_sync"] = {"ok": False, "message": str(exc)}
+        return payload
 
     def reconnect(self, account_id: int, **kwargs) -> Dict:
         account = self.db.get_account_by_id(account_id)

@@ -92,7 +92,7 @@ async def apply_gmail_label(label_input: GmailLabelInput):
     if not account or account["provider"] != "gmail":
         raise HTTPException(status_code=404, detail="Connected Gmail account not found")
 
-    token = GmailOAuth(db=db).get_valid_token(account["id"])
+    token = GmailOAuth(db=db, email_address=account.get("email")).get_valid_token(account["id"])
     if not token:
         raise HTTPException(status_code=401, detail="Gmail account needs reconnect")
 
@@ -131,7 +131,7 @@ async def get_gmail_labels(email: str):
     account = db.get_account_by_email(email)
     if not account or account["provider"] != "gmail":
         raise HTTPException(status_code=404, detail="Connected Gmail account not found")
-    token = GmailOAuth(db=db).get_valid_token(account["id"])
+    token = GmailOAuth(db=db, email_address=account.get("email")).get_valid_token(account["id"])
     if not token:
         raise HTTPException(status_code=401, detail="Gmail account needs reconnect")
     response = requests.get(
@@ -150,7 +150,7 @@ async def move_to_outlook_folder(folder_input: OutlookFolderInput):
     if not account or account["provider"] != "outlook":
         raise HTTPException(status_code=404, detail="Connected Outlook account not found")
 
-    token = OutlookOAuth(db=db).get_valid_token(account["id"])
+    token = OutlookOAuth(db=db, email_address=account.get("email")).get_valid_token(account["id"])
     if not token:
         raise HTTPException(status_code=401, detail="Outlook account needs reconnect")
 
@@ -189,7 +189,7 @@ async def get_outlook_folders(email: str):
     account = db.get_account_by_email(email)
     if not account or account["provider"] != "outlook":
         raise HTTPException(status_code=404, detail="Connected Outlook account not found")
-    token = OutlookOAuth(db=db).get_valid_token(account["id"])
+    token = OutlookOAuth(db=db, email_address=account.get("email")).get_valid_token(account["id"])
     if not token:
         raise HTTPException(status_code=401, detail="Outlook account needs reconnect")
     response = requests.get(

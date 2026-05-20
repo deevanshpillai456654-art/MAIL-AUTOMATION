@@ -1,6 +1,30 @@
 // AI34 premium frontend runtime: theme, command shortcuts, skeletons, AI assistant, accessible micro-interactions.
 (() => {
   'use strict';
+
+window.setSafeHTML = function(el, html) {
+  if (!el) return;
+  if (typeof html !== 'string') {
+    el.textContent = String(html);
+    return;
+  }
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const badTags = doc.querySelectorAll('script, iframe, object, embed, form, base, applet, meta, link');
+  badTags.forEach(n => n.remove());
+  const all = doc.querySelectorAll('*');
+  for (let i = 0; i < all.length; i++) {
+    const node = all[i];
+    for (let j = node.attributes.length - 1; j >= 0; j--) {
+      const attr = node.attributes[j];
+      if (attr.name.toLowerCase().startsWith('on') || attr.name.toLowerCase() === 'javascript:') {
+        node.removeAttribute(attr.name);
+      }
+    }
+  }
+  el.replaceChildren(...doc.body.childNodes);
+};
+
   const $ = (id) => document.getElementById(id);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   const storageKey = 'ai34-theme';
@@ -33,7 +57,10 @@
     if (!dashboard || dashboard.querySelector('.ai34-hero')) return;
     const hero = document.createElement('section');
     hero.className = 'ai34-hero';
-    hero.innerHTML = `<div><span class="ai34-pill">✦ AI-native command center</span><h2>Operate every inbox from one premium workspace.</h2><p>Universal OAuth, app-password onboarding, AI sorting, automation, analytics, and sync diagnostics now share one calm desktop-class interface.</p><div class="ai34-hero-actions"><button class="btn primary" type="button" data-open-view="accounts">Connect provider</button><button class="btn" type="button" id="ai34OpenAssistant">Ask AI assistant</button><button class="btn" type="button" id="ai34OpenPalette">Open command palette</button></div><div class="ai34-trust-row"><span class="ai34-pill">OAuth-first</span><span class="ai34-pill">No password conflict</span><span class="ai34-pill">Offline-ready</span><span class="ai34-pill">WCAG focus states</span></div></div><aside class="ai34-pulse-card" aria-label="Live production pulse"><b>Workspace pulse</b><div class="ai34-orbit"><span><strong>Auth health</strong><em>Protected</em></span><span><strong>Sync recovery</strong><em>Online</em></span><span><strong>AI routing</strong><em>Ready</em></span><span><strong>Token vault</strong><em>Encrypted</em></span></div></aside>`;
+    window.setSafeHTML(
+      hero,
+      `<div><span class="ai34-pill">✦ AI-native command center</span><h2>Operate every inbox from one premium workspace.</h2><p>Universal OAuth, app-password onboarding, AI sorting, automation, analytics, and sync diagnostics now share one calm desktop-class interface.</p><div class="ai34-hero-actions"><button class="btn primary" type="button" data-open-view="accounts">Connect provider</button><button class="btn" type="button" id="ai34OpenAssistant">Ask AI assistant</button><button class="btn" type="button" id="ai34OpenPalette">Open command palette</button></div><div class="ai34-trust-row"><span class="ai34-pill">OAuth-first</span><span class="ai34-pill">No password conflict</span><span class="ai34-pill">Offline-ready</span><span class="ai34-pill">WCAG focus states</span></div></div><aside class="ai34-pulse-card" aria-label="Live production pulse"><b>Workspace pulse</b><div class="ai34-orbit"><span><strong>Auth health</strong><em>Protected</em></span><span><strong>Sync recovery</strong><em>Online</em></span><span><strong>AI routing</strong><em>Ready</em></span><span><strong>Token vault</strong><em>Encrypted</em></span></div></aside>`
+    );
     dashboard.insertBefore(hero, dashboard.firstElementChild);
   }
   function addOnboardingProgress() {
@@ -41,7 +68,10 @@
     if (!form || form.querySelector('.ai34-onboarding-progress')) return;
     const progress = document.createElement('div');
     progress.className = 'ai34-onboarding-progress';
-    progress.innerHTML = `<div class="ai34-progress-track" aria-label="Onboarding progress"><span id="ai34ProgressFill"></span></div><div class="ai34-step-grid"><div class="ai34-step active" data-step="email">1. Detect provider</div><div class="ai34-step" data-step="auth">2. Choose OAuth or app password</div><div class="ai34-step" data-step="validate">3. Validate securely</div><div class="ai34-step" data-step="sync">4. Start sync + AI</div></div>`;
+    window.setSafeHTML(
+      progress,
+      `<div class="ai34-progress-track" aria-label="Onboarding progress"><span id="ai34ProgressFill"></span></div><div class="ai34-step-grid"><div class="ai34-step active" data-step="email">1. Detect provider</div><div class="ai34-step" data-step="auth">2. Choose OAuth or app password</div><div class="ai34-step" data-step="validate">3. Validate securely</div><div class="ai34-step" data-step="sync">4. Start sync + AI</div></div>`
+    );
     form.insertBefore(progress, form.firstElementChild);
     const update = () => {
       const email = form.email?.value || '';
@@ -58,7 +88,7 @@
   function addEmptyStates() {
     [['accountList','Connected mailboxes appear here after OAuth/app-password onboarding.'],['activityList','Workflow activity appears after sync, AI routing, or rule execution.'],['notificationList','Provider and sync alerts will appear here when action is needed.']].forEach(([id,msg]) => {
       const el = $(id);
-      if (el && !el.children.length) el.innerHTML = `<div class="ai34-empty-state"><b>Nothing yet</b>${msg}</div>`;
+      if (el && !el.children.length) window.setSafeHTML(el, `<div class="ai34-empty-state"><b>Nothing yet</b>${msg}</div>`);
     });
   }
   function addAssistant() {

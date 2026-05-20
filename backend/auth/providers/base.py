@@ -38,7 +38,10 @@ class BaseOAuthProvider:
                     and not self.client_secret.startswith(("YOUR_", "your_")))
 
     def create_authorization_request(self, redirect_uri: str = None,
-                                     login_hint: str = None) -> Dict:
+                                     login_hint: str = None,
+                                     oauth_config_provider: str = None,
+                                     oauth_config_email: str = None,
+                                     redirect_after_callback: str = None) -> Dict:
         if not self.is_configured():
             return {
                 "configured": False,
@@ -50,8 +53,18 @@ class BaseOAuthProvider:
         state = generate_state()
         pkce = generate_pkce_pair()
         callback = redirect_uri or self.redirect_uri
-        expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
-        self._state_store.create(self.PROVIDER, state, pkce["verifier"], callback, expires_at)
+        expires_at = (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat()
+        self._state_store.create(
+            self.PROVIDER,
+            state,
+            pkce["verifier"],
+            callback,
+            expires_at,
+            login_hint,
+            oauth_config_provider=oauth_config_provider or self.PROVIDER,
+            oauth_config_email=oauth_config_email,
+            redirect_after_callback=redirect_after_callback,
+        )
         return {
             "configured": True,
             "provider": self.PROVIDER,

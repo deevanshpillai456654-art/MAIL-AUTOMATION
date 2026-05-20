@@ -265,7 +265,7 @@ class UniversalEmailForwarder:
     def _send_gmail(self, account: Dict, msg: EmailMessage) -> ForwardProviderResult:
         import requests
 
-        token = GmailOAuth(db=self.db).get_valid_token(account["id"])
+        token = GmailOAuth(db=self.db, email_address=account.get("email")).get_valid_token(account["id"])
         if not token:
             return ForwardProviderResult.skipped("Gmail send token unavailable; reconnect account with Gmail send scope")
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode("ascii")
@@ -282,7 +282,7 @@ class UniversalEmailForwarder:
     def _send_outlook(self, account: Dict, msg: EmailMessage, payload: Dict[str, Any]) -> ForwardProviderResult:
         import requests
 
-        token = OutlookOAuth(db=self.db).get_valid_token(account["id"])
+        token = OutlookOAuth(db=self.db, email_address=account.get("email")).get_valid_token(account["id"])
         if not token:
             return ForwardProviderResult.skipped("Microsoft Graph send token unavailable; reconnect account with Mail.Send scope")
         body = msg.get_content()

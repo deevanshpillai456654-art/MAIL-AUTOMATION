@@ -26,11 +26,13 @@ class GmailOAuth:
     USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
     def __init__(self, db: Database = None, client_id: str = None, client_secret: str = None,
-                 redirect_uri: str = None, cipher: TokenCipher = None):
-        saved = ProviderConfigManager().get_oauth_config("gmail", runtime_redirect_uri=redirect_uri)
+                 redirect_uri: str = None, cipher: TokenCipher = None, email_address: str = None):
+        saved = ProviderConfigManager().get_oauth_config("gmail", runtime_redirect_uri=redirect_uri, email_address=email_address)
         self.client_id = client_id if client_id is not None else saved.get("client_id") or config.GMAIL_CLIENT_ID
         self.client_secret = client_secret if client_secret is not None else saved.get("client_secret") or config.GMAIL_CLIENT_SECRET
         self.redirect_uri = redirect_uri or saved.get("redirect_uri") or config.GMAIL_REDIRECT_URI
+        self.oauth_config_provider = saved.get("oauth_config_provider") or "gmail"
+        self.oauth_config_email = saved.get("oauth_config_email")
         self.scopes = [
             "openid",
             "email",
@@ -66,7 +68,10 @@ class GmailOAuth:
             "provider": "gmail",
         }
 
-    def create_authorization_request(self, redirect_uri: str = None, login_hint: str = None) -> Dict:
+    def create_authorization_request(self, redirect_uri: str = None, login_hint: str = None,
+                                     oauth_config_provider: str = None,
+                                     oauth_config_email: str = None,
+                                     redirect_after_callback: str = None) -> Dict:
         config_status = self.validate_configuration()
         if not config_status["configured"]:
             return {
@@ -79,8 +84,18 @@ class GmailOAuth:
         state = self.generate_state()
         pkce = self.generate_pkce_pair()
         callback = redirect_uri or self.redirect_uri
-        expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
-        self.db.create_oauth_state("gmail", state, pkce["verifier"], callback, expires_at)
+        expires_at = (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat()
+        self.db.create_oauth_state(
+            "gmail",
+            state,
+            pkce["verifier"],
+            callback,
+            expires_at,
+            login_hint,
+            oauth_config_provider=oauth_config_provider or self.oauth_config_provider,
+            oauth_config_email=oauth_config_email if oauth_config_email is not None else self.oauth_config_email,
+            redirect_after_callback=redirect_after_callback,
+        )
 
         return {
             "configured": True,
@@ -102,14 +117,14 @@ class GmailOAuth:
             "response_type": "code",
             "scope": " ".join(self.scopes),
             "access_type": "offline",
-            "prompt": "consent",
+            "prompt": "consent select_account",
+            "include_granted_scopes": "false",
+            "max_age": "0",
             "state": state,
         }
         if code_challenge:
             params["code_challenge"] = code_challenge
             params["code_challenge_method"] = "S256"
-        if login_hint:
-            params["login_hint"] = login_hint
         return f"{self.AUTH_URL}?{urlencode(params)}"
 
     def exchange_code_for_tokens(self, code: str, redirect_uri: str = None,

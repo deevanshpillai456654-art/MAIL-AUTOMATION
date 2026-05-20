@@ -14,17 +14,17 @@ class OAuthLifecycleManager:
         self.tokens = ProviderTokenManager(db)
         self.registry = ProviderCapabilityRegistry()
 
-    def client_for(self, provider: str, redirect_uri: str = None):
+    def client_for(self, provider: str, redirect_uri: str = None, email_address: str = None):
         provider = ProviderCapabilityRegistry.normalize(provider)
         if provider == "gmail":
-            return GmailOAuth(db=self.db, redirect_uri=redirect_uri)
+            return GmailOAuth(db=self.db, redirect_uri=redirect_uri, email_address=email_address)
         if provider in ("outlook", "microsoft365", "exchange"):
-            return OutlookOAuth(db=self.db, redirect_uri=redirect_uri)
+            return OutlookOAuth(db=self.db, redirect_uri=redirect_uri, email_address=email_address)
         raise ValueError(f"Provider {provider} does not support OAuth in this runtime")
 
-    def start(self, provider: str, redirect_uri: str) -> Dict:
-        client = self.client_for(provider, redirect_uri)
-        result = client.create_authorization_request(redirect_uri=redirect_uri)
+    def start(self, provider: str, redirect_uri: str, email_address: str = None) -> Dict:
+        client = self.client_for(provider, redirect_uri, email_address=email_address)
+        result = client.create_authorization_request(redirect_uri=redirect_uri, login_hint=email_address)
         result["auth_lifecycle"] = "started" if result.get("configured") else "configuration_required"
         return result
 

@@ -25,14 +25,14 @@ export async function loadExtensions() {
 
     const resp = await fetch(MANIFEST_URL, { headers });
     if (resp.status === 304) return;  // nothing changed
-    if (!resp.ok) { console.warn('[ExtensionLoader] manifest fetch failed', resp.status); return; }
+    if (!resp.ok) {
+      return;
+    }
 
     _lastEtag = resp.headers.get('etag') || null;
     const manifest = await resp.json();
     applyManifest(manifest);
-  } catch (err) {
-    console.error('[ExtensionLoader] loadExtensions error:', err);
-  }
+  } catch (err) {}
 }
 
 /** Apply a manifest object into the client registry (idempotent). */

@@ -1,5 +1,6 @@
 import logging
 import os
+import inspect
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -8,6 +9,24 @@ from fastapi import FastAPI
 from backend import config
 from backend.api.ws_alerts import alert_manager
 from backend.core.enterprise_system import EnterpriseSystem
+from backend.core.runtime_control import get_runtime_control
+
+
+async def start_optional_service(app_logger: logging.Logger, service_id: str, label: str, starter):
+    """Start a service only when the runtime profile allows it."""
+    runtime = get_runtime_control()
+    if not runtime.should_autostart_service(service_id):
+        app_logger.info("Skipping %s: disabled by runtime profile '%s'", label, runtime.profile)
+        return {"service": service_id, "status": "skipped", "profile": runtime.profile}
+    try:
+        result = starter()
+        if inspect.isawaitable(result):
+            result = await result
+        app_logger.info("%s started", label)
+        return {"service": service_id, "status": "started", "result": result}
+    except Exception as e:
+        app_logger.warning("%s startup failed: %s", label, e)
+        return {"service": service_id, "status": "failed", "error": str(e)}
 
 
 def create_lifespan(project_root: Path, logger: logging.Logger | None = None):
@@ -36,12 +55,29 @@ def create_lifespan(project_root: Path, logger: logging.Logger | None = None):
         except Exception as e:
             app_logger.warning("Offline first-run bootstrap failed: %s", e)
 
-        try:
-            app.state.enterprise_system = EnterpriseSystem()
-            app.state.enterprise_system.start()
-            app_logger.info("Enterprise system initialized")
-        except Exception as e:
-            app_logger.warning("Enterprise system initialization failed: %s", e)
+        runtime = get_runtime_control()
+        app.state.runtime_control = runtime.snapshot()
+        app.state.service_startup = []
+        app_logger.info(
+            "Runtime profile=%s ai_mode=%s low_resource=%s max_workers=%s",
+            runtime.profile,
+            runtime.ai_mode,
+            runtime.low_resource,
+            runtime.limits.get("max_workers"),
+        )
+
+        async def _record(service_id: str, label: str, starter):
+            result = await start_optional_service(app_logger, service_id, label, starter)
+            app.state.service_startup.append(result)
+            return result
+
+        result = await _record(
+            "enterprise_system",
+            "Enterprise system",
+            lambda: (setattr(app.state, "enterprise_system", EnterpriseSystem()) or app.state.enterprise_system.start()),
+        )
+        if result.get("status") != "started" and not hasattr(app.state, "enterprise_system"):
+            app.state.enterprise_system = None
 
         try:
             await alert_manager.start()
@@ -49,110 +85,21 @@ def create_lifespan(project_root: Path, logger: logging.Logger | None = None):
         except Exception as e:
             app_logger.warning("Alert manager startup failed: %s", e)
 
-        try:
-            from backend.api.event_bus import get_event_bus
-            await get_event_bus().start()
-            app_logger.info("Operational event bus started")
-        except Exception as e:
-            app_logger.warning("Event bus startup failed: %s", e)
-
-        try:
-            from backend.api.agents import ensure_agents_running
-            await ensure_agents_running()
-            app_logger.info("Autonomous operational agents started")
-        except Exception as e:
-            app_logger.warning("Agent supervisor startup failed: %s", e)
-
-        try:
-            from backend.api.reconciler import ensure_reconciler_running
-            await ensure_reconciler_running()
-            app_logger.info("Operational reconciler started")
-        except Exception as e:
-            app_logger.warning("Reconciler startup failed: %s", e)
-
-        try:
-            from backend.api.workflow_scheduler import ensure_scheduler_running
-            await ensure_scheduler_running()
-            app_logger.info("Workflow scheduler started")
-        except Exception as e:
-            app_logger.warning("Workflow scheduler startup failed: %s", e)
-
-        try:
-            from backend.api.webhooks import ensure_webhook_dispatcher
-            ensure_webhook_dispatcher()
-            app_logger.info("Outbound webhook dispatcher started")
-        except Exception as e:
-            app_logger.warning("Webhook dispatcher startup failed: %s", e)
-
-        try:
-            from backend.api.alert_rules import ensure_alert_rules_running
-            await ensure_alert_rules_running()
-            app_logger.info("Alert rules engine started")
-        except Exception as e:
-            app_logger.warning("Alert rules engine startup failed: %s", e)
-
-        try:
-            from backend.api.notifications import ensure_notification_center
-            ensure_notification_center()
-            app_logger.info("Notification center started")
-        except Exception as e:
-            app_logger.warning("Notification center startup failed: %s", e)
-
-        try:
-            from backend.api.metric_snapshots import ensure_metric_recorder_running
-            await ensure_metric_recorder_running()
-            app_logger.info("Metric snapshot recorder started")
-        except Exception as e:
-            app_logger.warning("Metric snapshot recorder startup failed: %s", e)
-
-        try:
-            from backend.api.audit_log import ensure_audit_log_running
-            ensure_audit_log_running()
-            app_logger.info("Audit log started")
-        except Exception as e:
-            app_logger.warning("Audit log startup failed: %s", e)
-
-        try:
-            from backend.api.incidents import ensure_incident_manager_running
-            ensure_incident_manager_running()
-            app_logger.info("Incident manager started")
-        except Exception as e:
-            app_logger.warning("Incident manager startup failed: %s", e)
-
-        try:
-            from backend.api.scheduled_reports import ensure_report_scheduler_running
-            await ensure_report_scheduler_running()
-            app_logger.info("Report scheduler started")
-        except Exception as e:
-            app_logger.warning("Report scheduler startup failed: %s", e)
-
-        try:
-            from backend.api.playbooks import ensure_playbooks_running
-            ensure_playbooks_running()
-            app_logger.info("Playbooks engine started")
-        except Exception as e:
-            app_logger.warning("Playbooks engine startup failed: %s", e)
-
-        try:
-            from backend.api.sla import ensure_sla_running
-            await ensure_sla_running()
-            app_logger.info("SLA checker started")
-        except Exception as e:
-            app_logger.warning("SLA checker startup failed: %s", e)
-
-        try:
-            from backend.api.maintenance import ensure_maintenance_running
-            await ensure_maintenance_running()
-            app_logger.info("Maintenance checker started")
-        except Exception as e:
-            app_logger.warning("Maintenance checker startup failed: %s", e)
-
-        try:
-            from backend.api.oncall import ensure_oncall_running
-            await ensure_oncall_running()
-            app_logger.info("On-call escalation engine started")
-        except Exception as e:
-            app_logger.warning("On-call engine startup failed: %s", e)
+        await _record("event_bus", "Operational event bus", lambda: __import__("backend.api.event_bus", fromlist=["get_event_bus"]).get_event_bus().start())
+        await _record("agents", "Autonomous operational agents", lambda: __import__("backend.api.agents", fromlist=["ensure_agents_running"]).ensure_agents_running())
+        await _record("reconciler", "Operational reconciler", lambda: __import__("backend.api.reconciler", fromlist=["ensure_reconciler_running"]).ensure_reconciler_running())
+        await _record("workflow_scheduler", "Workflow scheduler", lambda: __import__("backend.api.workflow_scheduler", fromlist=["ensure_scheduler_running"]).ensure_scheduler_running())
+        await _record("webhooks", "Outbound webhook dispatcher", lambda: __import__("backend.api.webhooks", fromlist=["ensure_webhook_dispatcher"]).ensure_webhook_dispatcher())
+        await _record("alert_rules", "Alert rules engine", lambda: __import__("backend.api.alert_rules", fromlist=["ensure_alert_rules_running"]).ensure_alert_rules_running())
+        await _record("notifications", "Notification center", lambda: __import__("backend.api.notifications", fromlist=["ensure_notification_center"]).ensure_notification_center())
+        await _record("metric_snapshots", "Metric snapshot recorder", lambda: __import__("backend.api.metric_snapshots", fromlist=["ensure_metric_recorder_running"]).ensure_metric_recorder_running())
+        await _record("audit_log", "Audit log", lambda: __import__("backend.api.audit_log", fromlist=["ensure_audit_log_running"]).ensure_audit_log_running())
+        await _record("incidents", "Incident manager", lambda: __import__("backend.api.incidents", fromlist=["ensure_incident_manager_running"]).ensure_incident_manager_running())
+        await _record("scheduled_reports", "Report scheduler", lambda: __import__("backend.api.scheduled_reports", fromlist=["ensure_report_scheduler_running"]).ensure_report_scheduler_running())
+        await _record("playbooks", "Playbooks engine", lambda: __import__("backend.api.playbooks", fromlist=["ensure_playbooks_running"]).ensure_playbooks_running())
+        await _record("sla", "SLA checker", lambda: __import__("backend.api.sla", fromlist=["ensure_sla_running"]).ensure_sla_running())
+        await _record("maintenance", "Maintenance checker", lambda: __import__("backend.api.maintenance", fromlist=["ensure_maintenance_running"]).ensure_maintenance_running())
+        await _record("oncall", "On-call escalation engine", lambda: __import__("backend.api.oncall", fromlist=["ensure_oncall_running"]).ensure_oncall_running())
 
         try:
             from backend.api.event_bus import get_event_bus
@@ -181,24 +128,26 @@ def create_lifespan(project_root: Path, logger: logging.Logger | None = None):
         except Exception as e:
             app_logger.warning("Event-driven workflow activation setup failed: %s", e)
 
-        try:
+        async def _start_system_scheduler():
             from backend.scheduler.tasks import scheduler
             scheduler.set_enterprise_system(app.state.enterprise_system)
             scheduler.start()
-            app_logger.info("Scheduler started")
-        except Exception as e:
-            app_logger.warning("Scheduler not started: %s", e)
 
-        try:
+        await _record("system_scheduler", "Scheduler", _start_system_scheduler)
+
+        async def _start_job_runner():
             from backend.core.persistent_job_queue import PersistentJobQueue
             from backend.core.job_runner import init_job_runner
             job_queue = PersistentJobQueue(Path(config.DATA_DIR) / "job_queue.db")
-            job_runner = init_job_runner(job_queue, concurrency=4, poll_interval=2.0)
+            job_runner = init_job_runner(
+                job_queue,
+                concurrency=runtime.limits.get("job_concurrency", 1),
+                poll_interval=float(runtime.limits.get("poll_interval_seconds", 5)),
+            )
             await job_runner.start()
             app.state.job_runner = job_runner
-            app_logger.info("Async job runner started")
-        except Exception as e:
-            app_logger.warning("Job runner not started: %s", e)
+
+        await _record("job_runner", "Async job runner", _start_job_runner)
 
         yield
 

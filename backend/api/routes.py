@@ -34,6 +34,7 @@ from backend.core.provider_capability_registry import ProviderCapabilityRegistry
 from backend.core.account_persistence import detect_mail_settings, account_metadata
 from backend.core.mailbox_orchestrator import MailboxOrchestrator
 from backend.core.mailbox_health_monitor import MailboxHealthMonitor
+from backend.core.mailbox_taxonomy import ProviderMailboxTaxonomy
 from backend.core.attachment_storage import attachment_storage
 from backend.core.scam_filter import FEEDBACK_CATEGORIES, normalize_feedback_category
 from backend.ai.onnx_control_plane import get_onnx_control_plane
@@ -161,6 +162,8 @@ def public_account(account: dict) -> dict:
         "id": account["id"],
         "user_id": account["user_id"],
         "email": account["email"],
+        "email_address": account.get("email_address") or account["email"],
+        "display_name": account.get("display_name") or account["email"],
         "provider": account["provider"],
         "status": account.get("status") or "connected",
         "reconnect_state": account.get("reconnect_state") or "ok",
@@ -172,6 +175,7 @@ def public_account(account: dict) -> dict:
         "token_scopes": safe_json(account.get("token_scopes")) if isinstance(account.get("token_scopes"), str) else account.get("token_scopes"),
         "sync_status": account.get("sync_status"),
         "webhook_enabled": bool(account.get("webhook_enabled")) if account.get("webhook_enabled") is not None else None,
+        "sync_enabled": bool(account.get("sync_enabled")) if account.get("sync_enabled") is not None else True,
         "created_at": account.get("created_at"),
         "updated_at": account.get("updated_at"),
         "metadata": safe_json(account.get("metadata")),
@@ -266,13 +270,11 @@ def oauth_setup_page(provider: str, status: dict, base_url: str, email: str = ""
 <script>
 const provider={json.dumps(group)}; const email={json.dumps(email or '')}; const redirect_uri={json.dumps(redirect)};
 document.getElementById('saveBtn').addEventListener('click', async () => {{
-  const payload={{provider,client_id:document.getElementById('clientId').value.trim(),client_secret:document.getElementById('clientSecret').value,tenant_id:document.getElementById('tenantId').value||'common',redirect_uri}};
+  const payload={{provider,email_address:email,client_id:document.getElementById('clientId').value.trim(),client_secret:document.getElementById('clientSecret').value,tenant_id:document.getElementById('tenantId').value||'common',redirect_uri,provider_options:{{}}}};
   if(!payload.client_id||!payload.client_secret){{document.getElementById('msg').textContent='Client ID and Client Secret are required.';return;}}
-  const res=await fetch('/api/v1/provider-config/oauth',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload)}});
+  const res=await fetch('/api/v1/oauth/config',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload)}});
   if(!res.ok){{document.getElementById('msg').textContent='Save failed. Check credentials and try again.';return;}}
-  document.getElementById('msg').textContent='Saved. Opening provider sign-in...';
-  const start={{gmail:'/api/v1/oauth/google/start',microsoft:'/api/v1/oauth/microsoft/start',yahoo:'/api/v1/oauth/yahoo/start',zoho:'/api/v1/oauth/zoho/start'}}[provider];
-  window.location.href=start+(email?'?email='+encodeURIComponent(email):'');
+  document.getElementById('msg').textContent='Saved for '+(email||provider)+'. Return to Accounts and continue OAuth for that mailbox.';
 }});
 </script></body></html>"""
     return HTMLResponse(html, status_code=200)
@@ -384,10 +386,24 @@ class ProviderDetectRequest(BaseModel):
 
 class ProviderOAuthConfigRequest(BaseModel):
     provider: str = Field(..., max_length=40)
+    email_address: Optional[str] = Field(default=None, max_length=300)
     client_id: str = Field(..., max_length=500)
     client_secret: str = Field(..., max_length=1000)
     tenant_id: Optional[str] = Field(default="common", max_length=200)
     redirect_uri: Optional[str] = Field(default=None, max_length=500)
+    provider_options: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("email_address")
+    @classmethod
+    def normalize_config_email(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        email = value.strip().lower()
+        if not email:
+            return None
+        if "@" not in email:
+            raise ValueError("Valid email is required")
+        return email
 
 class AccountAddRequest(BaseModel):
     provider: str = Field(..., max_length=30)
@@ -451,6 +467,18 @@ class SyncStartRequest(BaseModel):
     account_id: Optional[int] = Field(default=None, ge=1)
     provider: Optional[str] = Field(default=None, max_length=30)
     max_results: int = Field(default=50, ge=1, le=500)
+
+
+class MailboxBucketCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        name = (value or "").strip()
+        if not name:
+            raise ValueError("Name is required")
+        return name
 
 
 class CategoryUpdateInput(BaseModel):
@@ -973,7 +1001,7 @@ def _resolve_account_connection(request_data: "AccountAddRequest") -> Dict[str, 
 def _oauth_status_detail(provider: str, group: str, request: Request = None, email: str = "") -> Dict[str, Any]:
     base_url = request_base_url(request) if request else None
     config_key = _oauth_config_key(group)
-    status = ProviderConfigManager().status(config_key, base_url)
+    status = ProviderConfigManager().status(config_key, base_url, email_address=email)
     configured = bool(status.get("configured"))
     return {
         "ok": configured,
@@ -988,7 +1016,7 @@ def _oauth_status_detail(provider: str, group: str, request: Request = None, ema
         "password_required": False,
         "app_password_required": False,
         "configuration": status,
-        "client_message": "OAuth is ready. Continue with the official provider sign-in page." if configured else "OAuth setup is required before this provider can connect. Save Client ID and Client Secret here, then continue.",
+        "client_message": "OAuth is ready. Continue with the official provider sign-in page." if configured else "No OAuth configuration found for this provider/email. Please configure OAuth app details first.",
     }
 
 
@@ -1063,6 +1091,8 @@ async def save_provider_oauth_config(request: Request, payload: ProviderOAuthCon
             client_secret=payload.client_secret,
             tenant_id=payload.tenant_id,
             redirect_uri=payload.redirect_uri,
+            email_address=payload.email_address,
+            provider_options=payload.provider_options,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail={"status": "invalid_provider_config", "message": str(exc)})
@@ -1228,6 +1258,13 @@ async def add_account(request_data: AccountAddRequest):
         "metadata": metadata,
         "manual_removal_only": True,
     })
+    structure = None
+    if connected:
+        try:
+            structure = ProviderMailboxTaxonomy(db).sync_mailbox_structure(account_id)
+        except Exception as exc:
+            logger.debug("Folder/label discovery did not complete for account %s: %s", account_id, exc)
+            structure = {"ok": False, "message": str(exc)}
     sync_id = db.add_sync_status(account_id, "pending" if connected else "blocked")
     if not connected:
         db.update_sync_status(sync_id, "failed", error=diagnostics.get("message") or diagnostics.get("status"))
@@ -1238,6 +1275,7 @@ async def add_account(request_data: AccountAddRequest):
         "message": message,
         "account": public_account(db.get_account_by_id(account_id)),
         "connection_test": diagnostics,
+        "structure_sync": structure,
         "sync": {"status": "pending" if connected else "blocked", "interval": resolved["sync_interval"], "sync_id": sync_id},
         "next_step": "sync" if connected else "repair_credentials",
     }
@@ -1275,6 +1313,368 @@ async def get_accounts(user_id: int = None):
     db = get_db()
     accounts = db.get_accounts_by_user(user_id) if user_id else db.get_all_accounts()
     return {"accounts": [public_account(account) for account in accounts]}
+
+
+def _mailbox_source(account: dict) -> dict:
+    public = public_account(account)
+    public["mailbox_id"] = public["id"]
+    return public
+
+
+@router.get("/mailboxes")
+async def get_mailboxes(user_id: int = None):
+    db = get_db()
+    accounts = db.get_accounts_by_user(user_id) if user_id else db.get_all_accounts()
+    mailboxes = [_mailbox_source(account) for account in accounts]
+    return {"mailboxes": mailboxes, "accounts": mailboxes, "count": len(mailboxes)}
+
+
+def _parse_email_labels(raw: Any) -> List[str]:
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return [str(item).strip() for item in raw if str(item).strip()]
+    text = str(raw).strip()
+    if not text:
+        return []
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, list):
+            return [str(item).strip() for item in parsed if str(item).strip()]
+    except (TypeError, json.JSONDecodeError):
+        pass
+    return [part.strip() for part in text.split(",") if part.strip()]
+
+
+def _public_email_row(row: dict) -> dict:
+    row = dict(row or {})
+    mailbox_id = row.get("mailbox_id") or row.get("account_id")
+    provider = row.get("account_provider") or row.get("provider")
+    email_address = row.get("account_email") or row.get("email_address")
+    labels = _parse_email_labels(row.get("labels"))
+    row.update({
+        "mailbox_id": mailbox_id,
+        "account_id": row.get("account_id") or mailbox_id,
+        "provider": provider,
+        "email_address": email_address,
+        "account_email": email_address,
+        "account_display_name": row.get("account_display_name") or email_address,
+        "provider_message_id": row.get("provider_message_id") or row.get("message_id"),
+        "snippet": row.get("snippet") or (row.get("body_text") or "")[:240],
+        "labels": labels,
+        "label_names": labels,
+        "source": {
+            "mailbox_id": mailbox_id,
+            "provider": provider,
+            "email_address": email_address,
+            "display_name": row.get("account_display_name") or email_address,
+        },
+    })
+    return row
+
+
+def _query_inbox_rows(
+    db: Database,
+    limit: int = 50,
+    mailbox_id: int = None,
+    provider: str = None,
+    folder_id: int = None,
+    label_id: int = None,
+    unread: bool = None,
+    category: str = None,
+    folder: str = None,
+    label: str = None,
+    cursor: int = None,
+    page: int = None,
+) -> List[dict]:
+    limit = min(max(int(limit or 50), 1), 1000)
+    where = ["COALESCE(e.delete_state, 'active') != 'deleted'"]
+    params: List[Any] = []
+    if mailbox_id:
+        where.append("e.account_id = ?")
+        params.append(int(mailbox_id))
+    if provider:
+        where.append("LOWER(COALESCE(a.provider, e.provider, '')) = ?")
+        params.append(ProviderCapabilityRegistry.normalize(provider))
+    if category:
+        where.append("e.category = ?")
+        params.append(category)
+    if unread is not None:
+        where.append("COALESCE(e.is_read, 0) = ?")
+        params.append(0 if unread else 1)
+    if folder_id:
+        folder_row = db.fetch_one("SELECT * FROM mail_folders WHERE id = ?", (int(folder_id),))
+        if not folder_row:
+            return []
+        where.append("e.account_id = ? AND e.folder = ?")
+        params.extend([folder_row.get("account_id") or folder_row.get("mailbox_id"), folder_row.get("name")])
+    elif folder:
+        where.append("e.folder = ?")
+        params.append(folder)
+    if label_id:
+        label_row = db.fetch_one("SELECT * FROM mail_labels WHERE id = ?", (int(label_id),))
+        if not label_row:
+            return []
+        where.append("""e.account_id = ? AND EXISTS (
+            SELECT 1 FROM email_labels el
+            WHERE el.email_id = e.id AND el.account_id = e.account_id AND el.label = ?
+        )""")
+        params.extend([label_row.get("account_id") or label_row.get("mailbox_id"), label_row.get("name")])
+    elif label:
+        where.append("""EXISTS (
+            SELECT 1 FROM email_labels el
+            WHERE el.email_id = e.id AND el.account_id = e.account_id AND el.label = ?
+        )""")
+        params.append(label)
+    if cursor:
+        where.append("e.id < ?")
+        params.append(int(cursor))
+        offset = 0
+    else:
+        offset = (max(int(page or 1), 1) - 1) * limit
+    query = f"""
+        SELECT e.*,
+               a.id AS source_mailbox_id,
+               a.provider AS account_provider,
+               a.email AS account_email,
+               COALESCE(a.display_name, a.email) AS account_display_name,
+               a.status AS account_status
+        FROM emails e
+        JOIN accounts a ON a.id = e.account_id
+        WHERE {' AND '.join(where)}
+        ORDER BY COALESCE(e.date, e.created_at) DESC, e.id DESC
+        LIMIT ? OFFSET ?
+    """
+    params.extend([limit, offset])
+    return [_public_email_row(row) for row in db.fetch_all(query, tuple(params))]
+
+
+@router.get("/inbox")
+async def get_inbox(
+    mailbox_id: int = None,
+    provider: str = None,
+    folder_id: int = None,
+    label_id: int = None,
+    unread: Optional[bool] = None,
+    limit: int = 50,
+    cursor: int = None,
+    page: int = None,
+):
+    db = get_db()
+    emails = _with_email_attachments(_query_inbox_rows(
+        db,
+        limit=limit,
+        mailbox_id=mailbox_id,
+        provider=provider,
+        folder_id=folder_id,
+        label_id=label_id,
+        unread=unread,
+        cursor=cursor,
+        page=page,
+    ))
+    return {"emails": emails, "count": len(emails), "mailbox_id": mailbox_id, "scope": "mailbox" if mailbox_id else "all"}
+
+
+def _require_mailbox(db: Database, mailbox_id: int) -> dict:
+    account = db.get_account_by_id(mailbox_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Mailbox not found")
+    if account.get("status") in {"paused", "disconnected"}:
+        raise HTTPException(status_code=409, detail="Mailbox is not connected")
+    return account
+
+
+def _bucket_public(row: dict, mailbox: dict) -> dict:
+    row = dict(row or {})
+    row["mailbox_id"] = row.get("mailbox_id") or row.get("account_id") or mailbox.get("id")
+    row["provider"] = row.get("provider") or mailbox.get("provider")
+    row["email_address"] = row.get("email_address") or mailbox.get("email")
+    row["synced_to_provider"] = bool(row.get("synced_to_provider"))
+    row["created_locally"] = bool(row.get("created_locally"))
+    return row
+
+
+@router.get("/mailboxes/{mailbox_id}/folders")
+async def get_mailbox_folders(mailbox_id: int):
+    db = get_db()
+    mailbox = _require_mailbox(db, mailbox_id)
+    existing = db.get_all_folders(mailbox_id, include_shared=False)
+    if not existing and mailbox.get("structure_sync_status") not in {"failed", "synced"}:
+        try:
+            ProviderMailboxTaxonomy(db).sync_mailbox_structure(mailbox_id)
+        except Exception:
+            logger.debug("Auto folder discovery failed for mailbox %s", mailbox_id, exc_info=True)
+    folders = [_bucket_public(row, mailbox) for row in db.get_all_folders(mailbox_id, include_shared=False)]
+    mailbox = db.get_account_by_id(mailbox_id) or mailbox
+    return {"folders": folders, "count": len(folders), "mailbox": _mailbox_source(mailbox), "structure_status": mailbox.get("structure_sync_status")}
+
+
+@router.post("/mailboxes/{mailbox_id}/folders")
+async def create_mailbox_folder(mailbox_id: int, body: MailboxBucketCreateRequest):
+    from backend.rules.action_executor import normalize_bucket_name
+
+    db = get_db()
+    mailbox = _require_mailbox(db, mailbox_id)
+    name = normalize_bucket_name(body.name, "INBOX")
+    remote = ProviderMailboxTaxonomy(db).create_remote_folder(mailbox, name)
+    if "ok" not in remote and ("remote" in remote or "provider_id" in remote):
+        remote["ok"] = True
+    if not remote.get("ok") and not remote.get("unsupported"):
+        raise HTTPException(status_code=502, detail=f"Could not create folder in provider account. Reason: {remote.get('message') or 'Provider error'}")
+    folder_id = db.ensure_mail_folder(
+        mailbox_id,
+        name,
+        {"source": "app_create", "provider_response": remote},
+        provider_folder_id=remote.get("provider_id"),
+        created_locally=True,
+        synced_to_provider=bool(remote.get("remote")),
+    )
+    folder = db.fetch_one("SELECT * FROM mail_folders WHERE id = ?", (folder_id,))
+    return {
+        "status": "created",
+        "message": f"Folder created in {mailbox['email']}" if remote.get("remote") else (remote.get("message") or f"Folder saved locally for {mailbox['email']}"),
+        "folder": _bucket_public(folder, mailbox),
+        "remote": remote,
+    }
+
+
+@router.get("/mailboxes/{mailbox_id}/labels")
+async def get_mailbox_labels(mailbox_id: int):
+    db = get_db()
+    mailbox = _require_mailbox(db, mailbox_id)
+    existing = db.get_all_labels(mailbox_id, include_shared=False)
+    if not existing and mailbox.get("structure_sync_status") not in {"failed", "synced"}:
+        try:
+            ProviderMailboxTaxonomy(db).sync_mailbox_structure(mailbox_id)
+        except Exception:
+            logger.debug("Auto label discovery failed for mailbox %s", mailbox_id, exc_info=True)
+    labels = [_bucket_public(row, mailbox) for row in db.get_all_labels(mailbox_id, include_shared=False)]
+    mailbox = db.get_account_by_id(mailbox_id) or mailbox
+    return {"labels": labels, "count": len(labels), "mailbox": _mailbox_source(mailbox), "structure_status": mailbox.get("structure_sync_status")}
+
+
+@router.post("/mailboxes/{mailbox_id}/labels")
+async def create_mailbox_label(mailbox_id: int, body: MailboxBucketCreateRequest):
+    from backend.rules.action_executor import normalize_bucket_name
+
+    db = get_db()
+    mailbox = _require_mailbox(db, mailbox_id)
+    name = normalize_bucket_name(body.name)
+    remote = ProviderMailboxTaxonomy(db).create_remote_label(mailbox, name)
+    if "ok" not in remote and ("remote" in remote or "provider_id" in remote):
+        remote["ok"] = True
+    if not remote.get("ok") and not remote.get("unsupported"):
+        raise HTTPException(status_code=502, detail=f"Could not create label in provider account. Reason: {remote.get('message') or 'Provider error'}")
+    label_id = db.ensure_mail_label(
+        mailbox_id,
+        name,
+        provider_label_id=remote.get("provider_id"),
+        created_locally=True,
+        synced_to_provider=bool(remote.get("remote")),
+    )
+    if remote.get("folder_backed"):
+        db.ensure_mail_folder(
+            mailbox_id,
+            remote.get("folder_name") or name,
+            {"source": "app_label_create", "provider_response": remote},
+            provider_folder_id=remote.get("provider_folder_id") or remote.get("provider_id"),
+            created_locally=True,
+            synced_to_provider=bool(remote.get("remote")),
+            folder_path=remote.get("folder_name") or name,
+        )
+    label = db.fetch_one("SELECT * FROM mail_labels WHERE id = ?", (label_id,))
+    return {
+        "status": "created",
+        "message": f"Label created in {mailbox['email']}" if remote.get("remote") else (remote.get("message") or "Label saved in the app; this provider did not expose a remote label endpoint."),
+        "label": _bucket_public(label, mailbox),
+        "remote": remote,
+    }
+
+
+@router.post("/mailboxes/{mailbox_id}/sync-structure")
+async def sync_mailbox_structure(mailbox_id: int):
+    db = get_db()
+    mailbox = _require_mailbox(db, mailbox_id)
+    result = ProviderMailboxTaxonomy(db).sync_mailbox_structure(mailbox_id)
+    if not result.get("ok"):
+        return {
+            "status": "failed",
+            "mailbox_id": mailbox_id,
+            "provider": mailbox.get("provider"),
+            "email_address": mailbox.get("email"),
+            "message": result.get("message") or "Could not sync folders/labels for this mailbox. Retry.",
+            "result": result,
+        }
+    return {
+        "status": "synced",
+        "mailbox_id": mailbox_id,
+        "provider": mailbox.get("provider"),
+        "email_address": mailbox.get("email"),
+        "message": "Folders and labels synced.",
+        **result,
+    }
+
+
+@router.post("/mailboxes/{mailbox_id}/sync")
+async def sync_mailbox(mailbox_id: int, max_results: int = 50):
+    db = get_db()
+    mailbox = _require_mailbox(db, mailbox_id)
+    sync_id = db.add_sync_status(mailbox_id, "pending")
+    result = MailboxOrchestrator(db).sync_account(mailbox_id, max_results=max_results, sync_id=sync_id)
+    status = "completed" if result.get("ok") else "failed"
+    if not result.get("ok"):
+        db.update_sync_status(sync_id, "failed", error=result.get("message") or result.get("status"))
+    return {
+        "status": status,
+        "account_id": mailbox_id,
+        "mailbox_id": mailbox_id,
+        "provider": mailbox.get("provider"),
+        "email_address": mailbox.get("email"),
+        "sync_id": sync_id,
+        "result": result,
+    }
+
+
+@router.post("/sync/all")
+async def sync_all_mailboxes(max_results: int = 50):
+    db = get_db()
+    accounts = db.fetch_all("""
+        SELECT * FROM accounts
+        WHERE COALESCE(sync_enabled, 1) = 1
+          AND COALESCE(status, 'connected') NOT IN ('paused', 'disconnected')
+        ORDER BY id
+    """)
+    orchestrator = MailboxOrchestrator(db)
+    jobs = []
+    for account in accounts:
+        sync_id = db.add_sync_status(account["id"], "pending")
+        try:
+            result = orchestrator.sync_account(account["id"], max_results=max_results, sync_id=sync_id)
+            ok = bool(result.get("ok"))
+            if not ok:
+                db.update_sync_status(sync_id, "failed", error=result.get("message") or result.get("status"))
+            jobs.append({
+                "sync_id": sync_id,
+                "account_id": account["id"],
+                "mailbox_id": account["id"],
+                "provider": account["provider"],
+                "email_address": account["email"],
+                "status": "completed" if ok else "failed",
+                "result": result,
+            })
+        except Exception as exc:
+            logger.exception("Mailbox sync failed for account %s during sync/all", account["id"])
+            db.update_sync_status(sync_id, "failed", error=str(exc))
+            jobs.append({
+                "sync_id": sync_id,
+                "account_id": account["id"],
+                "mailbox_id": account["id"],
+                "provider": account["provider"],
+                "email_address": account["email"],
+                "status": "failed",
+                "result": {"ok": False, "status": "sync_failed", "message": str(exc)},
+            })
+    return {"status": "completed", "jobs": jobs, "count": len(jobs)}
 
 
 @router.post("/accounts/remove")
@@ -1515,23 +1915,30 @@ async def get_sync_status(account_id: int = None):
 
 # Email Endpoints
 @router.get("/emails")
-async def get_emails(limit: int = 50, category: str = None, folder: str = None, label: str = None):
+async def get_emails(
+    limit: int = 50,
+    category: str = None,
+    folder: str = None,
+    label: str = None,
+    mailbox_id: int = None,
+    provider: str = None,
+    folder_id: int = None,
+    label_id: int = None,
+    unread: Optional[bool] = None,
+):
     db = get_db()
-    limit = min(max(int(limit or 50), 1), 1000)
-    if label:
-        emails = db.fetch_all(
-            """SELECT e.* FROM emails e
-               JOIN email_labels el ON e.id = el.email_id
-               WHERE el.label = ? AND COALESCE(e.delete_state, 'active') != 'deleted' ORDER BY e.created_at DESC LIMIT ?""",
-            (label, limit)
-        )
-    elif folder:
-        emails = db.fetch_all("SELECT * FROM emails WHERE folder = ? AND COALESCE(delete_state, 'active') != 'deleted' ORDER BY created_at DESC LIMIT ?", (folder, limit))
-    elif category:
-        emails = db.fetch_all("SELECT * FROM emails WHERE category = ? AND COALESCE(delete_state, 'active') != 'deleted' ORDER BY created_at DESC LIMIT ?", (category, limit))
-    else:
-        emails = db.fetch_all("SELECT * FROM emails WHERE COALESCE(delete_state, 'active') != 'deleted' ORDER BY created_at DESC LIMIT ?", (limit,))
-    emails = _with_email_attachments(emails)
+    emails = _with_email_attachments(_query_inbox_rows(
+        db,
+        limit=limit,
+        mailbox_id=mailbox_id,
+        provider=provider,
+        folder_id=folder_id,
+        label_id=label_id,
+        unread=unread,
+        category=category,
+        folder=folder,
+        label=label,
+    ))
     return {"emails": emails, "count": len(emails)}
 
 

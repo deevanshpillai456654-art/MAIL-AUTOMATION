@@ -44,7 +44,7 @@ async def enterprise_detect_account(payload: Dict[str, Any] = Body(default_facto
     provider = ProviderCapabilityRegistry.normalize(str(payload.get("provider") or detected.get("provider") or "custom"))
     capability = ProviderCapabilityRegistry().get(provider)
     group = oauth_group_for(provider)
-    oauth_status = ProviderConfigManager().status(group) if group else None
+    oauth_status = ProviderConfigManager().status(group, email_address=email) if group else None
     return {
         **detected,
         "capabilities": capability.as_dict(),
@@ -68,13 +68,13 @@ async def enterprise_save_account(payload: EnterpriseAccountPayload):
     if method in OAUTH_METHODS or oauth_group:
         group = oauth_group or ProviderCapabilityRegistry.normalize(payload.oauth_provider or provider)
         if not payload.access_token:
-            status = ProviderConfigManager().status(group)
+            status = ProviderConfigManager().status(group, email_address=payload.email)
             raise HTTPException(status_code=428, detail={
                 "status": "oauth_required",
                 "message": "Use the provider OAuth redirect/callback flow. OAuth account save never accepts or requires mailbox passwords.",
                 "provider": provider,
                 "oauth_provider": group,
-                "oauth_start_url": {"gmail":"/api/v1/oauth/google/start","microsoft":"/api/v1/oauth/microsoft/start","yahoo":"/api/v1/oauth/yahoo/start","zoho":"/api/v1/oauth/zoho/start"}.get(group, "/api/v1/accounts/detect"),
+                "oauth_start_url": {"gmail":"/api/v1/oauth/google/start","microsoft":"/api/v1/oauth/microsoft/start","yahoo":"/api/v1/oauth/yahoo/start","zoho":"/api/v1/oauth/zoho/start","yandex":"/api/v1/oauth/yandex/start"}.get(group, "/api/v1/accounts/detect"),
                 "password_required": False,
                 "app_password_required": False,
                 "configuration": status,

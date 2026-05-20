@@ -44,7 +44,7 @@ def ensure_local_user_id(user_id: int = 1) -> int:
 
 def reload_rule_engine() -> RuleEngine:
     global rule_engine
-    rule_engine = build_rule_engine(db, include_defaults=True)
+    rule_engine = build_rule_engine(db, include_defaults=False)
     return rule_engine
 
 
@@ -59,6 +59,13 @@ class RuleInput(BaseModel):
     enabled: bool = True
     apply_existing: bool = True
     provider_write: bool = False
+    mailbox_scope: str = "all"
+    mailbox_id: Optional[int] = None
+    scan_scope: str = "entire_email_with_attachments"
+    match_mode: str = "any"
+    priority: str = "Medium"
+    stop_processing: bool = False
+    is_sample: bool = False
 
 
 class RuleUpdate(BaseModel):
@@ -69,6 +76,12 @@ class RuleUpdate(BaseModel):
     enabled: Optional[bool] = None
     apply_existing: Optional[bool] = False
     provider_write: Optional[bool] = False
+    mailbox_scope: Optional[str] = None
+    mailbox_id: Optional[int] = None
+    scan_scope: Optional[str] = None
+    match_mode: Optional[str] = None
+    priority: Optional[str] = None
+    stop_processing: Optional[bool] = None
 
 
 class EmailInput(BaseModel):
@@ -85,7 +98,17 @@ class EmailInput(BaseModel):
 
 class ApplyRulesInput(BaseModel):
     email_id: Optional[int] = None
+    mailbox_id: Optional[int] = None
+    message_ids: Optional[List[int]] = None
     limit: int = 1000
+    category: Optional[str] = None
+    provider_write: bool = False
+
+
+class RuleRunInput(BaseModel):
+    mailbox_id: Optional[int] = None
+    message_ids: Optional[List[int]] = None
+    limit: int = 100
     category: Optional[str] = None
     provider_write: bool = False
 
@@ -142,12 +165,25 @@ async def create_automation_rule(rule_input: RuleInput):
             name=rule_input.name,
             condition=json.dumps(rule_input.condition, sort_keys=True),
             action=json.dumps(actions, sort_keys=True),
+            description=rule_input.description or "",
+            status="active" if rule_input.enabled else "paused",
+            mailbox_scope=rule_input.mailbox_scope or "all",
+            mailbox_id=rule_input.mailbox_id,
+            scan_scope=rule_input.scan_scope or "entire_email_with_attachments",
+            match_mode=rule_input.match_mode or "any",
+            priority=rule_input.priority or "Medium",
+            stop_processing=bool(rule_input.stop_processing),
+            is_sample=bool(rule_input.is_sample),
+            created_by=1,
         )
         reload_rule_engine()
 
         apply_summary = None
         if rule_input.apply_existing:
-            apply_summary = RuleActionExecutor(db, enable_provider_write=rule_input.provider_write).apply_rules_to_existing_emails(limit=1000)
+            apply_summary = RuleActionExecutor(db, enable_provider_write=rule_input.provider_write).apply_rules_to_existing_emails(
+                limit=1000,
+                mailbox_id=rule_input.mailbox_id if rule_input.mailbox_scope == "selected" else None,
+            )
 
         return {
             "status": "success",
@@ -169,7 +205,12 @@ async def apply_rules(payload: ApplyRulesInput = Body(default={})):
         if payload.email_id:
             result = executor.apply_rules_to_email_id(payload.email_id)
         else:
-            result = executor.apply_rules_to_existing_emails(limit=payload.limit, category=payload.category)
+            result = executor.apply_rules_to_existing_emails(
+                limit=payload.limit,
+                category=payload.category,
+                mailbox_id=payload.mailbox_id,
+                message_ids=payload.message_ids,
+            )
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -235,6 +276,85 @@ async def create_folder(body: BucketCreateRequest):
 async def get_rule_audit(limit: int = 100):
     rows = db.fetch_all("SELECT * FROM rule_action_audit ORDER BY created_at DESC, id DESC LIMIT ?", (min(limit, 1000),))
     return {"actions": rows, "count": len(rows)}
+
+
+@router.post("/rules/{rule_id:int}/simulate")
+async def simulate_rule_by_id(rule_id: int, payload: RuleRunInput = Body(default={})):
+    result = RuleActionExecutor(db, enable_provider_write=False).simulate_rule(
+        rule_id,
+        limit=payload.limit,
+        mailbox_id=payload.mailbox_id,
+        category=payload.category,
+        message_ids=payload.message_ids,
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("message") or "Rule not found")
+    return result
+
+
+@router.post("/rules/{rule_id:int}/apply")
+async def apply_rule_by_id(rule_id: int, payload: RuleRunInput = Body(default={})):
+    result = RuleActionExecutor(db, enable_provider_write=payload.provider_write).apply_rule(
+        rule_id,
+        limit=payload.limit,
+        mailbox_id=payload.mailbox_id,
+        category=payload.category,
+        message_ids=payload.message_ids,
+        provider_write=payload.provider_write,
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("message") or "Rule not found")
+    return result
+
+
+@router.get("/rules/{rule_id:int}/logs")
+async def get_rule_logs_by_id(rule_id: int, limit: int = 100):
+    rows = db.fetch_all(
+        "SELECT * FROM rule_execution_logs WHERE rule_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
+        (rule_id, min(max(int(limit or 100), 1), 1000)),
+    )
+    return {"logs": rows, "count": len(rows), "rule_id": rule_id}
+
+
+@router.put("/rules/{rule_id:int}")
+async def update_rule_by_id(rule_id: int, rule_update: RuleUpdate):
+    existing = db.fetch_one("SELECT * FROM rules WHERE id = ?", (rule_id,))
+    if not existing:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    condition_payload = rule_update.condition if rule_update.condition is not None else json.loads(existing["condition"] or "{}")
+    action_payload = normalize_actions(rule_update.actions if rule_update.actions is not None else existing["action"])
+    db.execute(
+        """UPDATE rules
+           SET name = ?, condition = ?, action = ?, description = ?, is_active = ?, status = ?,
+               mailbox_scope = ?, mailbox_id = ?, scan_scope = ?, match_mode = ?, priority = ?,
+               stop_processing = ?, updated_at = ?
+           WHERE id = ?""",
+        (
+            rule_update.name if rule_update.name is not None else existing["name"],
+            json.dumps(condition_payload, sort_keys=True),
+            json.dumps(action_payload, sort_keys=True),
+            rule_update.description if rule_update.description is not None else existing.get("description"),
+            1 if (rule_update.enabled if rule_update.enabled is not None else existing.get("is_active")) else 0,
+            "active" if (rule_update.enabled if rule_update.enabled is not None else existing.get("is_active")) else "paused",
+            rule_update.mailbox_scope if rule_update.mailbox_scope is not None else existing.get("mailbox_scope"),
+            rule_update.mailbox_id if rule_update.mailbox_id is not None else existing.get("mailbox_id"),
+            rule_update.scan_scope if rule_update.scan_scope is not None else existing.get("scan_scope"),
+            rule_update.match_mode if rule_update.match_mode is not None else existing.get("match_mode"),
+            rule_update.priority if rule_update.priority is not None else existing.get("priority"),
+            1 if (rule_update.stop_processing if rule_update.stop_processing is not None else existing.get("stop_processing")) else 0,
+            datetime.now().isoformat(),
+            rule_id,
+        ),
+    )
+    reload_rule_engine()
+    return {"status": "success", "rule_id": rule_id}
+
+
+@router.delete("/rules/{rule_id:int}")
+async def delete_rule_by_id(rule_id: int):
+    db.execute("UPDATE rules SET is_active = 0, status = 'archived', updated_at = ? WHERE id = ?", (datetime.now().isoformat(), rule_id))
+    reload_rule_engine()
+    return {"status": "success", "rule_id": rule_id}
 
 
 @router.post("/rules/forwarding")
@@ -531,13 +651,23 @@ async def evaluate_rules(email: EmailInput):
 
 @router.post("/rules/defaults")
 async def load_default_rules():
+    user_id = ensure_local_user_id(1)
     count = 0
     for rule_dict in DEFAULT_RULES:
-        if not rule_engine.get_rule(rule_dict["name"]):
-            rule = create_rule_from_dict(rule_dict)
-            rule_engine.add_rule(rule)
-            count += 1
-    return {"status": "success", "message": f"Loaded {count} default rules"}
+        if db.fetch_one("SELECT id FROM rules WHERE name = ? AND COALESCE(is_sample, 0) = 0", (rule_dict["name"],)):
+            continue
+        actions = normalize_actions(rule_dict.get("actions", []))
+        db.add_rule(
+            user_id=user_id,
+            name=rule_dict["name"],
+            condition=json.dumps(rule_dict.get("condition", {}), sort_keys=True),
+            action=json.dumps(actions, sort_keys=True),
+            description=rule_dict.get("description", ""),
+            is_sample=False,
+        )
+        count += 1
+    reload_rule_engine()
+    return {"status": "success", "message": f"Loaded {count} sample rule(s)", "loaded_count": count}
 
 
 def parse_condition(condition_data: dict):

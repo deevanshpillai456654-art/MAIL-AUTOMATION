@@ -4,6 +4,7 @@ import unittest
 
 from backend.db.database import Database
 from backend.auth.gmail_auth import GmailOAuth
+from backend.auth.token_store import TokenStore
 
 
 class TestAccountOAuthSync(unittest.TestCase):
@@ -41,6 +42,20 @@ class TestAccountOAuthSync(unittest.TestCase):
         self.assertEqual(first["code_verifier"], "verifier-123")
         self.assertIsNone(second)
 
+    def test_oauth_state_preserves_requested_email_hint(self):
+        self.db.create_oauth_state(
+            provider="gmail",
+            state="state-456",
+            code_verifier="verifier-456",
+            redirect_uri="http://127.0.0.1:4597/api/v1/oauth/google/callback",
+            expires_at="2999-01-01T00:00:00",
+            requested_email="second@gmail.com",
+        )
+
+        consumed = self.db.consume_oauth_state("gmail", "state-456")
+
+        self.assertEqual(consumed["requested_email"], "second@gmail.com")
+
     def test_upsert_account_preserves_single_account_per_provider_email(self):
         first = self.db.upsert_account(
             provider="imap",
@@ -61,6 +76,34 @@ class TestAccountOAuthSync(unittest.TestCase):
         self.assertEqual(len(accounts), 1)
         self.assertEqual(accounts[0]["status"], "needs_reconnect")
         self.assertIn("imap2.example.com", accounts[0]["metadata"])
+
+    def test_same_oauth_provider_supports_multiple_email_accounts(self):
+        first = self.db.upsert_account(
+            provider="gmail",
+            email="first@gmail.com",
+            status="connected",
+            auth_type="oauth",
+            oauth_provider="gmail",
+        )
+        second = self.db.upsert_account(
+            provider="gmail",
+            email="second@gmail.com",
+            status="connected",
+            auth_type="oauth",
+            oauth_provider="gmail",
+        )
+        store = TokenStore(self.db)
+        store.save(first, "first-access-token", "first-refresh-token", 3600)
+        store.save(second, "second-access-token", "second-refresh-token", 3600)
+
+        accounts = self.db.fetch_all("SELECT * FROM accounts WHERE provider = ? ORDER BY email", ("gmail",))
+
+        self.assertNotEqual(first, second)
+        self.assertEqual([row["email"] for row in accounts], ["first@gmail.com", "second@gmail.com"])
+        self.assertEqual(store.get_access_token(first), "first-access-token")
+        self.assertEqual(store.get_refresh_token(first), "first-refresh-token")
+        self.assertEqual(store.get_access_token(second), "second-access-token")
+        self.assertEqual(store.get_refresh_token(second), "second-refresh-token")
 
     def test_sync_progress_does_not_set_completion_time_until_terminal_status(self):
         account_id = self.db.upsert_account(provider="imap", email="user@example.com", status="connected")

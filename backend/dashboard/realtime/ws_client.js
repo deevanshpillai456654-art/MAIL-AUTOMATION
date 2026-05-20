@@ -217,7 +217,6 @@
                 this.ws.onmessage = (msg) => this._handleMessage(msg);
 
             } catch (err) {
-                console.error('WebSocket connection failed:', err);
                 this._setState(ConnectionState.FAILED);
                 this._scheduleReconnect();
             }
@@ -278,7 +277,6 @@
         }
 
         _handleOpen() {
-            console.log('WebSocket connected');
             this.reconnectAttempts = 0;
             this.reconnectDelay = this.config.reconnectBaseDelay;
             this._setState(ConnectionState.CONNECTED);
@@ -294,15 +292,12 @@
         }
 
         _handleClose() {
-            console.log('WebSocket closed');
             this._stopHeartbeat();
             this._setState(ConnectionState.RECONNECTING);
             this._scheduleReconnect();
         }
 
-        _handleError(err) {
-            console.error('WebSocket error:', err);
-        }
+        _handleError(err) {}
 
         async _handleMessage(event) {
             try {
@@ -337,14 +332,10 @@
                         await this._handleConflict(message);
                         break;
                     case 'error':
-                        console.error('Server error:', message.error);
                         break;
                     default:
-                        console.warn('Unknown message type:', message.type);
                 }
-            } catch (err) {
-                console.error('Error handling message:', err);
-            }
+            } catch (err) {}
         }
 
         _handleSessionCreated(message) {
@@ -365,8 +356,6 @@
                     this.lastSequence[topic] = sequence;
                 }
             }
-
-            console.log('Session resumed');
 
             for (const topic of this.subscriptions.keys()) {
                 const lastSeq = this.lastSequence[topic] || 0;
@@ -406,9 +395,7 @@
                         } else {
                             callback(event.payload);
                         }
-                    } catch (err) {
-                        console.error('Callback error:', err);
-                    }
+                    } catch (err) {}
                 }
             }
         }
@@ -444,17 +431,13 @@
                     for (const callback of callbacks) {
                         try {
                             callback(event.payload);
-                        } catch (err) {
-                            console.error('Callback error:', err);
-                        }
+                        } catch (err) {}
                     }
                 }
             }
         }
 
         async _handleRecoveryEvents(message) {
-            console.log('Recovered events:', message.events.length);
-            
             for (const event of message.events) {
                 await this._handleEvent({
                     type: 'event',
@@ -473,7 +456,6 @@
 
         async _handleConflict(message) {
             const conflict = message.conflict;
-            console.warn('Conflict detected:', conflict);
 
             if (this.onConflictDetected) {
                 await this.onConflictDetected(conflict);
@@ -563,8 +545,6 @@
         async _flushOfflineQueue() {
             if (this.offlineQueue.length === 0) return;
 
-            console.log('Flushing offline queue:', this.offlineQueue.length);
-
             for (const action of this.offlineQueue) {
                 this._send(action);
             }
@@ -593,7 +573,6 @@
 
         _scheduleReconnect() {
             if (this.reconnectAttempts >= this.config.maxReconnectAttempts) {
-                console.error('Max reconnect attempts reached');
                 this._setState(ConnectionState.FAILED);
                 return;
             }
@@ -609,8 +588,6 @@
             const jitter = rawDelay * this.config.reconnectJitter * Math.random();
             const delay = Math.round(rawDelay + jitter);
 
-            console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1})`);
-
             this._reconnectTimer = setTimeout(() => {
                 this.reconnectAttempts++;
                 this.connect();
@@ -618,13 +595,11 @@
         }
 
         _handleOnline() {
-            console.log('Back online');
             this.isOnline = true;
             this.connect();
         }
 
         _handleOffline() {
-            console.log('Went offline');
             this.isOnline = false;
         }
 
@@ -695,9 +670,7 @@
                 for (const callback of callbacks) {
                     try {
                         callback(optimisticPayload);
-                    } catch (err) {
-                        console.error('Optimistic update error:', err);
-                    }
+                    } catch (err) {}
                 }
             }
 
@@ -734,9 +707,7 @@
                                 _optimistic_id: updateId,
                                 _original_payload: update.payload
                             });
-                        } catch (err) {
-                            console.error('Rollback error:', err);
-                        }
+                        } catch (err) {}
                     }
                 }
             }

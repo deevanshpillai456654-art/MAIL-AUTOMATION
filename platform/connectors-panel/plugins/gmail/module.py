@@ -87,7 +87,8 @@ class GmailConnector(OAuthPlugin):
             "response_type": "code",
             "scope": scopes,
             "access_type": "offline",
-            "prompt": "consent",
+            "prompt": "consent select_account",
+            "max_age": "0",
             "state": tenant_id,
         }
         return f"{self.AUTH_URL}?{urlencode(params)}"

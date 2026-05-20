@@ -36,7 +36,7 @@ MANIFEST = ConnectorManifest(
                 "https://www.googleapis.com/auth/gmail.modify",
                 "openid", "email", "profile"],
         supports_refresh=True,
-        extra_params={"access_type": "offline", "prompt": "consent"},
+        extra_params={"access_type": "offline", "prompt": "consent select_account", "max_age": "0"},
     ),
     webhook=WebhookConfig(
         events=["email.received", "email.sent", "email.bounced"],
@@ -105,7 +105,8 @@ class GmailConnector(ConnectorBase):
             "response_type": "code",
             "scope": " ".join(MANIFEST.oauth.scopes),
             "access_type": "offline",
-            "prompt": "consent",
+            "prompt": "consent select_account",
+            "max_age": "0",
             "state": state,
         })
         return f"https://accounts.google.com/o/oauth2/v2/auth?{params}"

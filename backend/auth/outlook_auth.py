@@ -26,12 +26,15 @@ class OutlookOAuth:
     PROFILE_URL = "https://graph.microsoft.com/v1.0/me"
 
     def __init__(self, tenant_id: str = None, db: Database = None, client_id: str = None,
-                 client_secret: str = None, redirect_uri: str = None, cipher: TokenCipher = None):
-        saved = ProviderConfigManager().get_oauth_config("microsoft", runtime_redirect_uri=redirect_uri)
+                 client_secret: str = None, redirect_uri: str = None, cipher: TokenCipher = None,
+                 email_address: str = None):
+        saved = ProviderConfigManager().get_oauth_config("microsoft", runtime_redirect_uri=redirect_uri, email_address=email_address)
         self.client_id = client_id if client_id is not None else saved.get("client_id") or config.OUTLOOK_CLIENT_ID
         self.client_secret = client_secret if client_secret is not None else saved.get("client_secret") or config.OUTLOOK_CLIENT_SECRET
         self.tenant_id = tenant_id or saved.get("tenant_id") or config.OUTLOOK_TENANT_ID
         self.redirect_uri = redirect_uri or saved.get("redirect_uri") or config.OUTLOOK_REDIRECT_URI
+        self.oauth_config_provider = saved.get("oauth_config_provider") or "microsoft"
+        self.oauth_config_email = saved.get("oauth_config_email")
         self.scopes = [
             "offline_access",
             "User.Read",
@@ -66,7 +69,10 @@ class OutlookOAuth:
             "provider": "outlook",
         }
 
-    def create_authorization_request(self, redirect_uri: str = None, login_hint: str = None) -> Dict:
+    def create_authorization_request(self, redirect_uri: str = None, login_hint: str = None,
+                                     oauth_config_provider: str = None,
+                                     oauth_config_email: str = None,
+                                     redirect_after_callback: str = None) -> Dict:
         config_status = self.validate_configuration()
         if not config_status["configured"]:
             return {
@@ -79,8 +85,18 @@ class OutlookOAuth:
         state = self.generate_state()
         pkce = self.generate_pkce_pair()
         callback = redirect_uri or self.redirect_uri
-        expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
-        self.db.create_oauth_state("outlook", state, pkce["verifier"], callback, expires_at)
+        expires_at = (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat()
+        self.db.create_oauth_state(
+            "outlook",
+            state,
+            pkce["verifier"],
+            callback,
+            expires_at,
+            login_hint,
+            oauth_config_provider=oauth_config_provider or self.oauth_config_provider,
+            oauth_config_email=oauth_config_email if oauth_config_email is not None else self.oauth_config_email,
+            redirect_after_callback=redirect_after_callback,
+        )
 
         return {
             "configured": True,
@@ -103,12 +119,11 @@ class OutlookOAuth:
             "response_mode": "query",
             "scope": " ".join(self.scopes),
             "state": state,
+            "prompt": "select_account",
         }
         if code_challenge:
             params["code_challenge"] = code_challenge
             params["code_challenge_method"] = "S256"
-        if login_hint:
-            params["login_hint"] = login_hint
         return f"{self.AUTH_URL.format(tenant=self.tenant_id)}?{urlencode(params)}"
 
     def exchange_code_for_tokens(self, code: str, redirect_uri: str = None,
