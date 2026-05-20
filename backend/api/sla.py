@@ -40,6 +40,7 @@ from pydantic import BaseModel
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
+from backend.core.runtime_control import get_runtime_control
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sla", tags=["sla"])
@@ -275,6 +276,9 @@ class SlaChecker:
 async def ensure_sla_running() -> None:
     global _running, _checker
     if _running:
+        return
+    if not get_runtime_control().is_service_enabled("sla"):
+        logger.info("SLA checker disabled by runtime policy")
         return
     _init_db()
     _running = True

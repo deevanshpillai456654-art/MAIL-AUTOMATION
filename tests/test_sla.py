@@ -480,3 +480,15 @@ def test_ensure_sla_running_idempotent(tmp_path, monkeypatch):
         await first.stop()
 
     _run(run())
+
+
+def test_ensure_sla_running_honors_runtime_service_toggle(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_SLA", "false")
+    _setup(tmp_path, monkeypatch)
+
+    async def run():
+        await sla.ensure_sla_running()
+        assert sla.get_checker() is None
+        assert sla._running is False
+
+    _run(run())
