@@ -136,6 +136,8 @@ def _init_db() -> None:
             ON oncall_escalations (schedule_id, level);
         CREATE INDEX IF NOT EXISTS idx_notif_incident
             ON oncall_notifications (incident_id, schedule_id);
+        CREATE INDEX IF NOT EXISTS idx_sch_enabled
+            ON oncall_schedules (enabled);
     """)
     con.commit()
     con.close()

@@ -93,6 +93,9 @@ def _init_db() -> None:
             breach_count INTEGER DEFAULT 0,
             last_value   REAL
         );
+        CREATE INDEX IF NOT EXISTS idx_ar_active   ON alert_rules (is_active);
+        CREATE INDEX IF NOT EXISTS idx_ar_severity ON alert_rules (severity);
+        CREATE INDEX IF NOT EXISTS idx_ar_metric   ON alert_rules (metric);
     """)
     con.close()
 
