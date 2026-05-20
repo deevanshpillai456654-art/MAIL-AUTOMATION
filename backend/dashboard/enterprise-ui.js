@@ -5985,8 +5985,8 @@ ${section('Model Health', modelHealth)}
     try {
       const s=await _api('/slos/stats');
       const strip=_q('#sloStatsStrip');
-      strip.innerHTML=[['Total',s.total],['Active',s.active],['Breaching',s.breaching],['Avg Target',s.avg_target!=null?s.avg_target.toFixed(2)+'%':'—']].map(([l,v])=>
-        `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>${l}</span><strong ${l==='Breaching'&&v>0?'style="color:var(--danger);"':''}>${v||0}</strong></div>`).join('');
+      strip.innerHTML=`<div class="ops-stats-strip">${[['Total',s.total],['Active',s.active],['Breaching',s.breaching],['Avg Target',s.avg_target!=null?s.avg_target.toFixed(2)+'%':'—']].map(([l,v])=>
+        `<div class="ops-stat-card${l==='Breaching'&&v>0?' ops-tone-danger':''}"><span class="ops-stat-value">${v||0}</span><span class="ops-stat-label">${l}</span></div>`).join('')}</div>`;
     } catch(_) {}
   }
 
@@ -5995,28 +5995,28 @@ ${section('Model Health', modelHealth)}
     const params=new URLSearchParams({limit:_SLO_LIMIT,offset:_sloOffset});
     if(q) params.set('q',q); if(status) params.set('status',status); if(tw) params.set('time_window',tw);
     const tbody=_q('#sloListTbody');
-    tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    tbody.innerHTML='<tr><td colspan="8" class="ops-table-state">Loading...</td></tr>';
     try {
       const data=await _api(`/slos?${params}`); const rows=data.slos||[];
       _q('#sloListCount').textContent=`${data.total} total`;
-      if(!rows.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">No SLOs found.</td></tr>';return;}
+      if(!rows.length){tbody.innerHTML='<tr><td colspan="8" class="ops-table-state">No SLOs found.</td></tr>';return;}
       tbody.innerHTML=rows.map(r=>{
-        const breachBadge=r.is_breaching===true?'<span class="badge bad">Breaching</span>':r.is_breaching===false?'<span class="badge ok">Healthy</span>':'<span style="color:var(--text-muted);">—</span>';
+        const breachBadge=r.is_breaching===true?'<span class="badge bad">Breaching</span>':r.is_breaching===false?'<span class="badge ok">Healthy</span>':'<span class="ops-tone-warn">—</span>';
         const consumedPct=r.error_budget_consumed_pct!=null?r.error_budget_consumed_pct.toFixed(1)+'%':'—';
-        return `<tr style="cursor:pointer;" onclick="_sloOpenDetail('${r.id}')">
+        return `<tr class="ops-row-link" onclick="_sloOpenDetail('${r.id}')">
           <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.service||'')}</td>
           <td>${r.target_pct}%</td><td>${r.latest_actual_pct!=null?r.latest_actual_pct+'%':'—'}</td>
           <td>${consumedPct}</td><td>${breachBadge}</td>
-          <td style="font-size:11px;">${_esc(r.time_window||'')}</td>
+          <td class="ops-date">${_esc(r.time_window||'')}</td>
           <td><button class="btn xs" onclick="event.stopPropagation();_openSloModal('${r.id}')">Edit</button>
               <button class="btn xs danger" onclick="event.stopPropagation();_deleteSlo('${r.id}','${_esc(r.name||'').replace(/'/g,"\\'")}')">Del</button></td>
         </tr>`;
       }).join('');
       const pages=Math.ceil(data.total/_SLO_LIMIT)||1; const page=Math.floor(_sloOffset/_SLO_LIMIT)+1;
       _q('#sloPagination').innerHTML=`<button class="btn xs" ${_sloOffset===0?'disabled':''} onclick="_sloOffset=Math.max(0,_sloOffset-${_SLO_LIMIT});_loadSlos()">Prev</button>
-        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <span class="ops-pagination-label">Page ${page}/${pages}</span>
         <button class="btn xs" ${_sloOffset+_SLO_LIMIT>=data.total?'disabled':''} onclick="_sloOffset+=_SLO_LIMIT;_loadSlos()">Next</button>`;
-    } catch(err){tbody.innerHTML=`<tr><td colspan="8" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`;}
+    } catch(err){tbody.innerHTML=`<tr><td colspan="8" class="ops-table-state ops-table-state-danger">${_esc(err.message||'Error')}</td></tr>`;}
   }
 
   async function _sloOpenDetail(id) {
