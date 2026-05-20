@@ -439,3 +439,15 @@ def test_ensure_oncall_running_idempotent(tmp_path, monkeypatch):
         assert oc.get_checker() is first
         await first.stop()
     _run(run())
+
+
+def test_ensure_oncall_running_honors_runtime_service_toggle(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_ONCALL", "false")
+    _setup(tmp_path, monkeypatch)
+
+    async def run():
+        await oc.ensure_oncall_running()
+        assert oc.get_checker() is None
+        assert oc._running is False
+
+    _run(run())
