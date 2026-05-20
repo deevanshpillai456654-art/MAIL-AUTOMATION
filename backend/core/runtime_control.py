@@ -390,7 +390,22 @@ class RuntimeControl:
         }
 
 
+# In-process runtime overrides — survive only for the lifetime of the process.
+# Keys match environment variable names (e.g. "AIO_LOW_RESOURCE_MODE").
+_runtime_overrides: Dict[str, str] = {}
+
+
+def apply_runtime_override(key: str, value: str) -> None:
+    _runtime_overrides[key] = value
+
+
+def clear_runtime_override(key: str) -> None:
+    _runtime_overrides.pop(key, None)
+
+
 def get_runtime_control() -> RuntimeControl:
+    if _runtime_overrides:
+        return RuntimeControl(environ={**os.environ, **_runtime_overrides})
     return RuntimeControl()
 
 
@@ -401,4 +416,6 @@ __all__ = [
     "SERVICE_POLICIES",
     "AGENT_POLICIES",
     "get_runtime_control",
+    "apply_runtime_override",
+    "clear_runtime_override",
 ]

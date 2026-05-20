@@ -2,9 +2,14 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 from backend.auth.local_auth import require_local_auth
-from backend.core.runtime_control import get_runtime_control
+from backend.core.runtime_control import (
+    get_runtime_control,
+    apply_runtime_override,
+    clear_runtime_override,
+)
 
 router = APIRouter(prefix="/runtime", tags=["runtime-control"])
 
@@ -51,4 +56,29 @@ async def get_frontend_runtime(_auth=Depends(require_local_auth)):
         "ai_mode": runtime.ai_mode,
         "limits": runtime.limits,
         "frontend": runtime.frontend_flags(),
+    }
+
+
+class LowResourceToggle(BaseModel):
+    enabled: bool
+
+
+@router.get("/low-resource-mode")
+async def get_low_resource_mode(_auth=Depends(require_local_auth)):
+    runtime = get_runtime_control()
+    return {"enabled": runtime.low_resource, "profile": runtime.profile}
+
+
+@router.post("/low-resource-mode")
+async def set_low_resource_mode(body: LowResourceToggle, _auth=Depends(require_local_auth)):
+    if body.enabled:
+        apply_runtime_override("AIO_LOW_RESOURCE_MODE", "true")
+    else:
+        clear_runtime_override("AIO_LOW_RESOURCE_MODE")
+        clear_runtime_override("AIO_RUNTIME_PROFILE")
+    runtime = get_runtime_control()
+    return {
+        "enabled": runtime.low_resource,
+        "profile": runtime.profile,
+        "snapshot": runtime.snapshot(),
     }

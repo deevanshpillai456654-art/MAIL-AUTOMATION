@@ -880,6 +880,15 @@ html[data-theme="dark"] {
   transform: translateY(-1px);
 }
 
+.low-res-toggle.active {
+  background: linear-gradient(180deg, #FFF7ED 0%, #FFEDD5 100%);
+  border-color: #F97316;
+  color: #C2410C;
+}
+.low-res-toggle.active:hover {
+  background: linear-gradient(180deg, #FFEDD5 0%, #FED7AA 100%);
+}
+
 .sync-pill {
   display: flex;
   align-items: center;

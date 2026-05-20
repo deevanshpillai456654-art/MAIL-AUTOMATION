@@ -188,7 +188,32 @@
     document.documentElement.dataset.aiMode = state.runtime.ai_mode || 'cloud';
     document.documentElement.classList.toggle('low-resource-mode', !!flags.low_resource);
     document.documentElement.classList.toggle('minimal-animations', !!flags.minimal_animations);
+    _syncLowResBtn(!!flags.low_resource);
     return state.runtime;
+  }
+
+  function _syncLowResBtn(isActive) {
+    const btn = _q('#lowResToggleBtn');
+    if (!btn) return;
+    btn.classList.toggle('active', isActive);
+    btn.title = isActive ? 'Low Resource Mode ON — click to disable' : 'Low Resource Mode OFF — click to enable';
+    const lbl = _q('#lowResLabel');
+    if (lbl) lbl.textContent = isActive ? 'Low Res: ON' : 'Low Resource';
+  }
+
+  async function _toggleLowResourceMode() {
+    const isActive = _q('#lowResToggleBtn').classList.contains('active');
+    const newState = !isActive;
+    try {
+      await _api('/runtime/low-resource-mode', 'POST', {enabled: newState});
+      _syncLowResBtn(newState);
+      document.documentElement.classList.toggle('low-resource-mode', newState);
+      document.documentElement.classList.toggle('minimal-animations', newState);
+      if (newState) document.documentElement.dataset.runtimeProfile = 'low_resource';
+      await loadRuntimeProfile();
+    } catch(err) {
+      console.error('Failed to toggle low resource mode:', err);
+    }
   }
 
   function connectorNavIcon(category) {
@@ -2742,6 +2767,7 @@ ${section('Model Health', modelHealth)}
 
     if (target.id === 'viewCertificationBtn') showView('settings', 'advanced');
     if (target.id === 'commandPaletteBtn')    openCommandPalette();
+    if (target.id === 'lowResToggleBtn')      _toggleLowResourceMode();
     if (target.id === 'closeCommandPalette')  closeCommandPalette();
     if (target.dataset.command)               runCommand(target.dataset.command);
     if (target.id === 'navModeToggle') {
