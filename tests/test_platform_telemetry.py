@@ -333,6 +333,24 @@ def test_telemetry_full_has_reconciler_and_scheduler(tmp_path, monkeypatch):
     assert "scheduler" in data
 
 
+def test_telemetry_full_includes_human_approval_metrics(tmp_path, monkeypatch):
+    from backend.ai.human_review_queue import HumanReviewQueue
+    from backend.api import human_approval as approval_mod
+
+    queue = HumanReviewQueue()
+    queue.enqueue("tenant-a", "review", {"action": "send"})
+    queue.enqueue("tenant-b", "review", {"action": "archive"})
+    monkeypatch.setattr(approval_mod, "_queue", queue)
+
+    client = _client(tmp_path, monkeypatch)
+    resp = client.get("/api/v1/telemetry")
+
+    assert resp.status_code == 200
+    approvals = resp.json()["human_approvals"]
+    assert approvals["pending"] == 2
+    assert approvals["tenants_with_pending"] == 2
+
+
 def test_telemetry_summary_endpoint(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch, emails=5, active_threats=0)
     resp = client.get("/api/v1/telemetry/summary")

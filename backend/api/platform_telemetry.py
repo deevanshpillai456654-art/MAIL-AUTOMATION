@@ -194,6 +194,24 @@ def _scheduler_metrics() -> Dict[str, Any]:
         return {"running": False, "scheduled_workflows": 0}
 
 
+def _human_approval_metrics() -> Dict[str, Any]:
+    try:
+        from backend.api.human_approval import get_human_approval_queue
+
+        queue = get_human_approval_queue()
+        pending = [
+            item for item in queue._items.values()
+            if getattr(item, "status", "") == "pending"
+        ]
+        tenants = {item.tenant_id for item in pending}
+        return {
+            "pending": len(pending),
+            "tenants_with_pending": len(tenants),
+        }
+    except Exception:
+        return {"pending": 0, "tenants_with_pending": 0}
+
+
 def _compute_overall_health(
     emails: Dict, security: Dict, workflows: Dict, agents: Dict
 ) -> Dict[str, Any]:
@@ -232,6 +250,7 @@ async def platform_telemetry(_auth=Depends(require_local_auth)):
     agents      = _agent_metrics()
     reconciler  = _reconciler_metrics()
     scheduler   = _scheduler_metrics()
+    approvals   = _human_approval_metrics()
     health      = _compute_overall_health(emails, security, workflows, agents)
 
     return {
@@ -242,6 +261,7 @@ async def platform_telemetry(_auth=Depends(require_local_auth)):
         "workflows":   workflows,
         "event_bus":   events,
         "agents":      agents,
+        "human_approvals": approvals,
         "reconciler":  reconciler,
         "scheduler":   scheduler,
     }
