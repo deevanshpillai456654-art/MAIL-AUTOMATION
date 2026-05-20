@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from backend.scheduler.tasks import scheduler, TaskFrequency
+from backend.core.runtime_control import get_runtime_control
 
 router = APIRouter()
 
@@ -27,6 +28,8 @@ async def get_scheduler_status():
 
 @router.post("/scheduler/start")
 async def start_scheduler():
+    if not get_runtime_control().is_service_enabled("system_scheduler"):
+        return {"status": "disabled", "message": "Scheduler disabled by runtime policy"}
     if not scheduler.running:
         scheduler.start()
         return {"status": "success", "message": "Scheduler started"}
