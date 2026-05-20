@@ -6073,7 +6073,7 @@ ${section('Model Health', modelHealth)}
       const strip = _q('#crStatsStrip');
       const items = [['Total', s.total], ['Open', s.by_status?.find(x=>x.status==='draft')?.count||0],
         ['In Progress', s.by_status?.find(x=>x.status==='in_progress')?.count||0], ['Completed', s.by_status?.find(x=>x.status==='completed')?.count||0]];
-      strip.innerHTML = items.map(([l,v]) => `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>${l}</span><strong>${v||0}</strong></div>`).join('');
+      strip.innerHTML = `<div class="ops-stats-strip">${items.map(([l,v]) => `<div class="ops-stat-card"><span class="ops-stat-value">${v||0}</span><span class="ops-stat-label">${l}</span></div>`).join('')}</div>`;
     } catch(_) {}
   }
 
@@ -6086,29 +6086,29 @@ ${section('Model Health', modelHealth)}
     if (q) params.set('q', q); if (status) params.set('status', status);
     if (risk) params.set('risk_level', risk); if (type) params.set('change_type', type);
     const tbody = _q('#crListTbody');
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="ops-table-state">Loading...</td></tr>';
     try {
       const data = await _api(`/changes?${params}`);
       const rows = data.changes || [];
       _q('#crListCount').textContent = `${data.total} total`;
-      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">No changes found.</td></tr>'; }
-      else tbody.innerHTML = rows.map(r => `<tr style="cursor:pointer;" onclick="_crOpenDetail('${r.id}')">
+      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="ops-table-state">No changes found.</td></tr>'; }
+      else tbody.innerHTML = rows.map(r => `<tr class="ops-row-link" onclick="_openCrDetail('${r.id}')">
         <td><strong>${_esc(r.title)}</strong></td><td>${_esc(r.change_type||'')}</td>
         <td><span class="badge ${r.risk_level==='critical'?'bad':r.risk_level==='high'?'warn':'ok'}">${_esc(r.risk_level||'')}</span></td>
         <td><span class="badge">${_esc(r.status||'')}</span></td><td>${_esc(r.owner||'')}</td>
-        <td style="font-size:11px;">${(r.planned_start||'').slice(0,10)||'—'}</td>
+        <td class="ops-date">${(r.planned_start||'').slice(0,10)||'—'}</td>
         <td><button class="btn xs" onclick="event.stopPropagation();_openCrModal('${r.id}')">Edit</button>
             <button class="btn xs danger" onclick="event.stopPropagation();_deleteCr('${r.id}','${_esc(r.title).replace(/'/g,"\\'")}')">Del</button></td>
       </tr>`).join('');
       const pages = Math.ceil(data.total / _CR_LIMIT) || 1;
       const page = Math.floor(_crOffset / _CR_LIMIT) + 1;
       _q('#crPagination').innerHTML = `<button class="btn xs" ${_crOffset===0?'disabled':''} onclick="_crOffset=Math.max(0,_crOffset-${_CR_LIMIT});_loadChanges()">Prev</button>
-        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <span class="ops-pagination-label">Page ${page}/${pages}</span>
         <button class="btn xs" ${_crOffset+_CR_LIMIT>=data.total?'disabled':''} onclick="_crOffset+=_crOffset+${_CR_LIMIT};_loadChanges()">Next</button>`;
-    } catch(err) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--danger);padding:24px;">${_esc(err.message||'Error')}</td></tr>`; }
+    } catch(err) { tbody.innerHTML = `<tr><td colspan="7" class="ops-table-state ops-table-state-danger">${_esc(err.message||'Error')}</td></tr>`; }
   }
 
-  async function _crOpenDetail(id) {
+  async function _openCrDetail(id) {
     _crCurrentId = id;
     _q('#crDetailModal').hidden = false;
     _q('#crDetailModalBody').innerHTML = 'Loading...';
@@ -6183,14 +6183,14 @@ ${section('Model Health', modelHealth)}
     if (!status) return;
     try {
       await _api(`/changes/${_crCurrentId}/transition`, 'POST', { status, approved_by: _q('#crTransitionApprovedBy').value, notes: _q('#crTransitionNote').value });
-      _q('#crTransitionModal').hidden = true; _crOpenDetail(_crCurrentId); _loadCrStats(); _loadChanges();
+      _q('#crTransitionModal').hidden = true; _openCrDetail(_crCurrentId); _loadCrStats(); _loadChanges();
     } catch(err) { alert('Transition failed: ' + (err.message||err)); }
   }
 
   async function _addCrApprover() {
     try {
       await _api(`/changes/${_crCurrentId}/approvals`, 'POST', { name: _q('#crApproverName').value, notes: _q('#crApproverNote').value });
-      _q('#crApproverModal').hidden = true; _crOpenDetail(_crCurrentId);
+      _q('#crApproverModal').hidden = true; _openCrDetail(_crCurrentId);
     } catch(err) { alert('Failed: ' + (err.message||err)); }
   }
 
@@ -7617,8 +7617,8 @@ ${section('Model Health', modelHealth)}
     try {
       const s=await _api('/problems/stats');
       const strip=_q('#prStatsStrip');
-      strip.innerHTML=[['Total',s.total],['Open',s.open||0],['In Analysis',s.in_analysis||0],['Resolved',s.resolved||0]].map(([l,v])=>
-        `<div class="report-card" style="padding:8px 12px;min-width:90px;"><span>${l}</span><strong>${v||0}</strong></div>`).join('');
+      strip.innerHTML=`<div class="ops-stats-strip">${[['Total',s.total],['Open',s.open||0],['In Analysis',s.in_analysis||0],['Resolved',s.resolved||0]].map(([l,v])=>
+        `<div class="ops-stat-card"><span class="ops-stat-value">${v||0}</span><span class="ops-stat-label">${l}</span></div>`).join('')}</div>`;
     } catch(_) {}
   }
 
@@ -7627,12 +7627,12 @@ ${section('Model Health', modelHealth)}
     const params=new URLSearchParams({limit:_PR_LIMIT,offset:_prOffset});
     if(q) params.set('q',q); if(status) params.set('status',status); if(priority) params.set('priority',priority);
     const tbody=_q('#prListTbody');
-    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    tbody.innerHTML='<tr><td colspan="6" class="ops-table-state">Loading...</td></tr>';
     try {
       const data=await _api(`/problems?${params}`); const rows=data.problems||[];
       _q('#prListCount').textContent=`${data.total} total`;
-      if(!rows.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No problems found.</td></tr>';return;}
-      tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_prOpenDetail('${r.id}')">
+      if(!rows.length){tbody.innerHTML='<tr><td colspan="6" class="ops-table-state">No problems found.</td></tr>';return;}
+      tbody.innerHTML=rows.map(r=>`<tr class="ops-row-link" onclick="_openPrDetail('${r.id}')">
         <td><strong>${_esc(r.title||'')}</strong></td><td>${_esc(r.category||'')}</td>
         <td><span class="badge ${r.priority==='critical'?'bad':r.priority==='high'?'warn':'ok'}">${_esc(r.priority||'')}</span></td>
         <td><span class="badge">${_esc(r.status||'')}</span></td><td>${_esc(r.owner||'')}</td>
@@ -7640,12 +7640,12 @@ ${section('Model Health', modelHealth)}
       </tr>`).join('');
       const pages=Math.ceil(data.total/_PR_LIMIT)||1; const page=Math.floor(_prOffset/_PR_LIMIT)+1;
       _q('#prPagination').innerHTML=`<button class="btn xs" ${_prOffset===0?'disabled':''} onclick="_prOffset=Math.max(0,_prOffset-${_PR_LIMIT});_loadProblems()">Prev</button>
-        <span style="color:var(--text-muted);">Page ${page}/${pages}</span>
+        <span class="ops-pagination-label">Page ${page}/${pages}</span>
         <button class="btn xs" ${_prOffset+_PR_LIMIT>=data.total?'disabled':''} onclick="_prOffset+=_PR_LIMIT;_loadProblems()">Next</button>`;
-    } catch(err){tbody.innerHTML=`<tr><td colspan="6" style="color:var(--danger);text-align:center;padding:24px;">${_esc(err.message||'Error')}</td></tr>`;}
+    } catch(err){tbody.innerHTML=`<tr><td colspan="6" class="ops-table-state ops-table-state-danger">${_esc(err.message||'Error')}</td></tr>`;}
   }
 
-  async function _prOpenDetail(id) {
+  async function _openPrDetail(id) {
     _prCurrentId=id; _q('#prDetailModal').hidden=false; _q('#prDetailModalBody').innerHTML='Loading...';
     try {
       const p=await _api(`/problems/${id}`);
@@ -7687,19 +7687,19 @@ ${section('Model Health', modelHealth)}
 
   async function _doPrTransition() {
     const status=_q('#prTransitionStatus').value; const note=_q('#prTransitionNote').value; if(!status) return;
-    try{await _api(`/problems/${_prCurrentId}/transition`,'POST',{status,note});_q('#prTransitionModal').hidden=true;_prOpenDetail(_prCurrentId);_loadPrStats();_loadProblems();}
+    try{await _api(`/problems/${_prCurrentId}/transition`,'POST',{status,note});_q('#prTransitionModal').hidden=true;_openPrDetail(_prCurrentId);_loadPrStats();_loadProblems();}
     catch(err){alert('Transition failed: '+(err.message||err));}
   }
 
   async function _linkPrIncident() {
     const incident_id=_q('#prLinkIncidentId').value.trim(); if(!incident_id) return;
-    try{await _api(`/problems/${_prCurrentId}/incidents`,'POST',{incident_id});_q('#prLinkIncidentModal').hidden=true;_prOpenDetail(_prCurrentId);}
+    try{await _api(`/problems/${_prCurrentId}/incidents`,'POST',{incident_id});_q('#prLinkIncidentModal').hidden=true;_openPrDetail(_prCurrentId);}
     catch(err){alert('Failed: '+(err.message||err));}
   }
 
   async function _addPrTimeline() {
     const body={event_type:_q('#prTimelineEventType').value,note:_q('#prTimelineNote').value,author:_q('#prTimelineAuthor').value};
-    try{await _api(`/problems/${_prCurrentId}/timeline`,'POST',body);_q('#prTimelineModal').hidden=true;_prOpenDetail(_prCurrentId);}
+    try{await _api(`/problems/${_prCurrentId}/timeline`,'POST',body);_q('#prTimelineModal').hidden=true;_openPrDetail(_prCurrentId);}
     catch(err){alert('Failed: '+(err.message||err));}
   }
 
