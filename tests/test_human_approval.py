@@ -42,6 +42,46 @@ def test_human_review_queue_resolve_reports_missing_items():
     assert queue.resolve("missing", "approved") is False
 
 
+def test_human_review_queue_rejects_when_full_without_dropping_existing_items():
+    from backend.ai.human_review_queue import HumanReviewQueue, HumanReviewQueueFull
+
+    queue = HumanReviewQueue(max_items=1)
+    first = queue.enqueue("tenant-a", "review", {"message": "first"})
+
+    try:
+        queue.enqueue("tenant-a", "review", {"message": "second"})
+    except HumanReviewQueueFull as exc:
+        assert "approval queue is full" in str(exc)
+    else:
+        raise AssertionError("expected queue full rejection")
+
+    pending = queue.pending_for_tenant("tenant-a")
+    assert [item.item_id for item in pending] == [first]
+
+
+def test_human_approval_api_returns_429_when_queue_full(monkeypatch):
+    import backend.api.human_approval as approval_mod
+    from backend.ai.human_review_queue import HumanReviewQueue
+    from backend.auth.local_auth import require_local_auth
+
+    queue = HumanReviewQueue(max_items=1)
+    queue.enqueue("tenant-a", "review", {})
+    monkeypatch.setattr(approval_mod, "_queue", queue)
+    app = FastAPI()
+    app.dependency_overrides[require_local_auth] = lambda: True
+    app.include_router(approval_mod.router, prefix="/api/v1")
+    client = TestClient(app)
+
+    resp = client.post("/api/v1/approvals", json={
+        "tenant_id": "tenant-a",
+        "reason": "human_approval_required",
+        "payload": {"action": "send_email"},
+    })
+
+    assert resp.status_code == 429
+    assert resp.json()["detail"] == "Human approval queue is full. Retry later."
+
+
 def test_human_approval_api_enqueue_list_and_decide(monkeypatch):
     import backend.api.human_approval as approval_mod
     from backend.ai.human_review_queue import HumanReviewQueue

@@ -14,6 +14,10 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger("human_review")
 
 
+class HumanReviewQueueFull(RuntimeError):
+    """Raised when approval queue backpressure rejects new work."""
+
+
 @dataclass
 class ReviewItem:
     item_id: str
@@ -36,8 +40,7 @@ class HumanReviewQueue:
         item = ReviewItem(item_id=item_id, tenant_id=tenant_id, reason=reason, payload=payload)
         with self._lock:
             if len(self._order) >= self._max:
-                oldest = self._order.pop(0)
-                self._items.pop(oldest, None)
+                raise HumanReviewQueueFull("approval queue is full")
             self._items[item_id] = item
             self._order.append(item_id)
         logger.info("Human review enqueued %s tenant=%s reason=%s", item_id, tenant_id, reason)
@@ -67,4 +70,4 @@ class HumanReviewQueue:
             return False
 
 
-__all__ = ["ReviewItem", "HumanReviewQueue"]
+__all__ = ["ReviewItem", "HumanReviewQueue", "HumanReviewQueueFull"]

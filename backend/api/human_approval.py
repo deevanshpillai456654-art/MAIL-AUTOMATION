@@ -6,7 +6,7 @@ from typing import Any, Dict, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from backend.ai.human_review_queue import HumanReviewQueue, ReviewItem
+from backend.ai.human_review_queue import HumanReviewQueue, HumanReviewQueueFull, ReviewItem
 from backend.auth.local_auth import require_local_auth
 
 router = APIRouter(prefix="/approvals", tags=["human-approval"])
@@ -36,7 +36,10 @@ def _item_to_dict(item: ReviewItem) -> Dict[str, Any]:
 
 @router.post("", status_code=201)
 async def create_approval(body: ApprovalCreate, _auth=Depends(require_local_auth)):
-    item_id = _queue.enqueue(body.tenant_id, body.reason, body.payload)
+    try:
+        item_id = _queue.enqueue(body.tenant_id, body.reason, body.payload)
+    except HumanReviewQueueFull:
+        raise HTTPException(429, "Human approval queue is full. Retry later.")
     return {"id": item_id, "status": "pending"}
 
 
