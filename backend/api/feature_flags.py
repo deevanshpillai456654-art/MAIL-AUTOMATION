@@ -46,7 +46,7 @@ import uuid
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, field_validator
@@ -272,6 +272,12 @@ class EventCreate(BaseModel):
     author:     str = ""
 
 
+class EvaluateBatchBody(BaseModel):
+    keys: List[str]
+    environment: str = "production"
+    tenant_id: str = ""
+
+
 # ── List / create ─────────────────────────────────────────────────────────────
 
 @router.get("", summary="List feature flags")
@@ -370,6 +376,32 @@ async def flag_stats(_auth=Depends(require_local_auth)):
 
 
 # ── Single flag ───────────────────────────────────────────────────────────────
+
+@router.post("/evaluate", summary="Evaluate multiple feature flags")
+async def evaluate_flags(body: EvaluateBatchBody, _auth=Depends(require_local_auth)):
+    decisions = {}
+    for raw_key in body.keys[:100]:
+        key = _slugify(raw_key)
+        try:
+            decisions[key] = evaluate_feature_flag(key, body.environment, body.tenant_id)
+        except HTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            decisions[key] = {
+                "key": key,
+                "environment": body.environment,
+                "tenant_id": body.tenant_id,
+                "enabled": False,
+                "rollout_pct": 0.0,
+                "bucket": _rollout_bucket(key, body.environment, body.tenant_id),
+                "reason": "not_found",
+            }
+    return {
+        "environment": body.environment,
+        "tenant_id": body.tenant_id,
+        "flags": decisions,
+    }
+
 
 @router.get("/evaluate/{flag_key}", summary="Evaluate a feature flag for an environment and tenant")
 async def evaluate_flag(

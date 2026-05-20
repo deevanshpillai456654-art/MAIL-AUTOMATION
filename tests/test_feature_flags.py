@@ -331,6 +331,29 @@ def test_evaluate_rollout_is_deterministic_for_tenant(tmp_path, monkeypatch):
     assert 1 <= first["bucket"] <= 100
 
 
+def test_batch_evaluate_flags_returns_decisions_by_key(tmp_path, monkeypatch):
+    c = _client(tmp_path, monkeypatch)
+    active = _create(c, name="Compact Inbox")
+    draft = _create(c, name="Draft Assistant")
+    _transition(c, active["id"], "active")
+    _set_env(c, active["id"], "production", enabled=True, rollout_pct=100.0)
+    _set_env(c, draft["id"], "production", enabled=True, rollout_pct=100.0)
+
+    r = c.post("/api/v1/flags/evaluate", json={
+        "keys": ["compact_inbox", "draft_assistant", "missing_flag"],
+        "environment": "production",
+        "tenant_id": "tenant-a",
+    })
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["environment"] == "production"
+    assert body["flags"]["compact_inbox"]["enabled"] is True
+    assert body["flags"]["draft_assistant"]["reason"] == "flag_not_active"
+    assert body["flags"]["missing_flag"]["enabled"] is False
+    assert body["flags"]["missing_flag"]["reason"] == "not_found"
+
+
 # ── Events ────────────────────────────────────────────────────────────────────
 
 def test_event_seeded_on_create(tmp_path, monkeypatch):
