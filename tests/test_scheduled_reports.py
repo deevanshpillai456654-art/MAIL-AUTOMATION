@@ -233,6 +233,26 @@ def test_scheduler_status():
     assert status["interval_s"] == 300
 
 
+def test_ensure_report_scheduler_running_honors_runtime_service_toggle(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_SCHEDULED_REPORTS", "false")
+    from backend.api import scheduled_reports as sr
+    _setup(tmp_path, monkeypatch)
+
+    class FakeScheduler:
+        def __init__(self):
+            self.started = False
+
+        async def start(self):
+            self.started = True
+
+    fake = FakeScheduler()
+    monkeypatch.setattr(sr, "_scheduler", fake)
+
+    _run(sr.ensure_report_scheduler_running())
+
+    assert fake.started is False
+
+
 def test_scheduler_check_runs_due_configs(tmp_path, monkeypatch):
     from backend.api import scheduled_reports as sr
     db_path = _setup(tmp_path, monkeypatch)
