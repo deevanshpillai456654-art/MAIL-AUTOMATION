@@ -8,9 +8,17 @@ from pydantic import BaseModel, Field
 
 from backend.ai.human_review_queue import HumanReviewQueue, HumanReviewQueueFull, ReviewItem
 from backend.auth.local_auth import require_local_auth
+from backend.core.runtime_control import get_runtime_control
 
 router = APIRouter(prefix="/approvals", tags=["human-approval"])
-_queue = HumanReviewQueue()
+
+
+def _default_queue() -> HumanReviewQueue:
+    limits = get_runtime_control().service_limits("human_approval")
+    return HumanReviewQueue(max_items=limits["queue_limit"])
+
+
+_queue = _default_queue()
 
 
 class ApprovalCreate(BaseModel):

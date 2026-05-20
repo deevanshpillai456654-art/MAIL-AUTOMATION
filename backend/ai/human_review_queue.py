@@ -35,6 +35,10 @@ class HumanReviewQueue:
         self._max = max_items
         self._lock = threading.RLock()
 
+    @property
+    def capacity(self) -> int:
+        return self._max
+
     def enqueue(self, tenant_id: str, reason: str, payload: Dict[str, Any]) -> str:
         item_id = f"hr_{uuid.uuid4().hex[:12]}"
         item = ReviewItem(item_id=item_id, tenant_id=tenant_id, reason=reason, payload=payload)

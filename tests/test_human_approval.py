@@ -118,3 +118,14 @@ def test_human_approval_router_registered():
     from backend.app.router_registry import API_ROUTER_SPECS
 
     assert "human_approval" in {spec.name for spec in API_ROUTER_SPECS}
+
+
+def test_default_human_approval_queue_uses_runtime_service_budget(monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_HUMAN_APPROVAL_QUEUE_LIMIT", "7")
+
+    import importlib
+    import backend.api.human_approval as approval_mod
+
+    approval_mod = importlib.reload(approval_mod)
+
+    assert approval_mod.get_human_approval_queue().capacity == 7
