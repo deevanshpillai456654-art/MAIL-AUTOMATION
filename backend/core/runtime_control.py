@@ -300,6 +300,27 @@ class RuntimeControl:
                 return self.is_service_enabled(service_id)
         return True
 
+    def router_status(self, router_names) -> Dict[str, Dict[str, object]]:
+        modules: Dict[str, Dict[str, object]] = {}
+        for router_name in router_names:
+            name = str(router_name or "").strip()
+            enabled = self.is_router_enabled(name)
+            service_id = None
+            service_name = None
+            for candidate_id, policy in SERVICE_POLICIES.items():
+                if policy.router_name == name:
+                    service_id = candidate_id
+                    service_name = policy.name
+                    break
+            modules[name] = {
+                "name": name,
+                "enabled": enabled,
+                "service_id": service_id,
+                "service_name": service_name,
+                "reason": None if enabled else "disabled_by_runtime_policy",
+            }
+        return modules
+
     def service_status(self) -> Dict[str, Dict[str, object]]:
         return {
             service_id: {

@@ -147,3 +147,23 @@ def test_runtime_api_exposes_profile_services_agents_and_frontend_flags(monkeypa
     assert services.json()["services"]["agents"]["enabled"] is False
     assert agents.status_code == 200
     assert agents.json()["agents"]["inbox_triage"]["enabled"] is False
+
+
+def test_runtime_api_exposes_module_status(monkeypatch):
+    monkeypatch.setenv("AIO_RUNTIME_PROFILE", "low_resource")
+    from backend.api.runtime_control import router as runtime_router
+    from backend.api.session import router as session_router
+
+    app = FastAPI()
+    app.include_router(session_router, prefix="/api/v1")
+    app.include_router(runtime_router, prefix="/api/v1")
+    client = TestClient(app)
+    client.post("/api/v1/session/bootstrap")
+
+    resp = client.get("/api/v1/runtime/modules")
+
+    assert resp.status_code == 200
+    modules = resp.json()["modules"]
+    assert modules["ai_gateway"]["enabled"] is True
+    assert modules["ai_enterprise"]["enabled"] is False
+    assert modules["ai_enterprise"]["reason"] == "disabled_by_runtime_policy"

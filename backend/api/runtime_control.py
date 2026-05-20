@@ -32,6 +32,17 @@ async def get_runtime_agents(_auth=Depends(require_local_auth)):
     }
 
 
+@router.get("/modules")
+async def get_runtime_modules(_auth=Depends(require_local_auth)):
+    from backend.app.router_registry import API_ROUTER_SPECS
+
+    runtime = get_runtime_control()
+    return {
+        **runtime.snapshot(),
+        "modules": runtime.router_status(spec.name for spec in API_ROUTER_SPECS),
+    }
+
+
 @router.get("/frontend")
 async def get_frontend_runtime(_auth=Depends(require_local_auth)):
     runtime = get_runtime_control()
