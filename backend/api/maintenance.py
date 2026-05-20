@@ -48,6 +48,7 @@ from pydantic import BaseModel
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
+from backend.core.runtime_control import get_runtime_control
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/maintenance", tags=["maintenance"])
@@ -278,6 +279,9 @@ class MaintenanceChecker:
 async def ensure_maintenance_running() -> None:
     global _running, _checker
     if _running:
+        return
+    if not get_runtime_control().is_service_enabled("maintenance"):
+        logger.info("Maintenance checker disabled by runtime policy")
         return
     _init_db()
     _running = True

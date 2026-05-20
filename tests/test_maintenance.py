@@ -498,3 +498,15 @@ def test_ensure_maintenance_running_idempotent(tmp_path, monkeypatch):
         await first.stop()
 
     _run(run())
+
+
+def test_ensure_maintenance_running_honors_runtime_service_toggle(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_MAINTENANCE", "false")
+    _setup(tmp_path, monkeypatch)
+
+    async def run():
+        await maint.ensure_maintenance_running()
+        assert maint.get_checker() is None
+        assert maint._running is False
+
+    _run(run())
