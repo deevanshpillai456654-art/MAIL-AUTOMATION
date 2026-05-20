@@ -50,6 +50,9 @@ class ServicePolicy:
     auto_start: bool = True
     router_name: Optional[str] = None
     heavy: bool = False
+    worker_limit: int = 2
+    queue_limit: int = 500
+    poll_interval_seconds: int = 5
 
 
 @dataclass(frozen=True)
@@ -223,6 +226,26 @@ class RuntimeControl:
             return _truthy(raw)
         return bool(policy.auto_start if policy else True)
 
+    def service_limits(self, service_id: str) -> Dict[str, int]:
+        service_id = str(service_id or "").strip()
+        policy = SERVICE_POLICIES.get(service_id) or ServicePolicy(service_id, service_id.replace("_", " ").title(), "custom")
+        limits = {
+            "worker_limit": policy.worker_limit,
+            "queue_limit": policy.queue_limit,
+            "poll_interval_seconds": policy.poll_interval_seconds,
+        }
+        if self.low_resource:
+            limits.update({
+                "worker_limit": 1,
+                "queue_limit": min(limits["queue_limit"], self.limits["queue_limit"]),
+                "poll_interval_seconds": max(limits["poll_interval_seconds"], self.limits["poll_interval_seconds"]),
+            })
+        return {
+            "worker_limit": self._env_int(_key("AIO_SERVICE_", service_id, "_WORKER_LIMIT"), _key("SERVICE_", service_id, "_WORKER_LIMIT"), default=limits["worker_limit"], minimum=1),
+            "queue_limit": self._env_int(_key("AIO_SERVICE_", service_id, "_QUEUE_LIMIT"), _key("SERVICE_", service_id, "_QUEUE_LIMIT"), default=limits["queue_limit"], minimum=1),
+            "poll_interval_seconds": self._env_int(_key("AIO_SERVICE_", service_id, "_POLL_INTERVAL_SECONDS"), _key("SERVICE_", service_id, "_POLL_INTERVAL_SECONDS"), default=limits["poll_interval_seconds"], minimum=1),
+        }
+
     def is_agent_enabled(self, agent_id: str) -> bool:
         agent_id = str(agent_id or "").strip()
         policy = AGENT_POLICIES.get(agent_id)
@@ -285,6 +308,7 @@ class RuntimeControl:
                 "enabled": self.is_service_enabled(service_id),
                 "auto_start": self.should_autostart_service(service_id),
                 "heavy": policy.heavy,
+                "limits": self.service_limits(service_id),
             }
             for service_id, policy in SERVICE_POLICIES.items()
         }

@@ -65,6 +65,33 @@ def test_runtime_agent_budget_overrides_are_per_agent():
     assert limits["retry_limit"] == 5
 
 
+def test_runtime_service_status_exposes_low_resource_limits():
+    from backend.core.runtime_control import RuntimeControl
+
+    runtime = RuntimeControl(environ={"AIO_RUNTIME_PROFILE": "low_resource"})
+    limits = runtime.service_status()["notifications"]["limits"]
+
+    assert limits["worker_limit"] == 1
+    assert limits["queue_limit"] <= runtime.limits["queue_limit"]
+    assert limits["poll_interval_seconds"] >= runtime.limits["poll_interval_seconds"]
+
+
+def test_runtime_service_limit_overrides_are_per_service():
+    from backend.core.runtime_control import RuntimeControl
+
+    runtime = RuntimeControl(environ={
+        "AIO_RUNTIME_PROFILE": "enterprise",
+        "AIO_SERVICE_NOTIFICATIONS_WORKER_LIMIT": "3",
+        "AIO_SERVICE_NOTIFICATIONS_QUEUE_LIMIT": "42",
+        "AIO_SERVICE_NOTIFICATIONS_POLL_INTERVAL_SECONDS": "17",
+    })
+    limits = runtime.service_status()["notifications"]["limits"]
+
+    assert limits["worker_limit"] == 3
+    assert limits["queue_limit"] == 42
+    assert limits["poll_interval_seconds"] == 17
+
+
 def test_router_registry_skips_disabled_optional_routers_in_low_resource():
     from backend.app.router_registry import RouterSpec, register_api_routers
     from backend.core.runtime_control import RuntimeControl
