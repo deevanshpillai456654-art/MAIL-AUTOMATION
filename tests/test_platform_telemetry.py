@@ -264,6 +264,43 @@ def test_compute_overall_health_critical():
     assert 0 <= h["overall"] <= 100
 
 
+def test_compute_overall_health_uses_enabled_agents_not_total_registered():
+    from backend.api.platform_telemetry import _compute_overall_health
+
+    emails    = {"unread": 0, "last_24h": 10, "last_1h": 1, "scam_last_24h": 0}
+    security  = {"posture": "good", "active_threats": 0, "threats_last_24h": 0}
+    workflows = {"success_rate_24h": 100.0, "sla_ok": True}
+    agents    = {"running_agents": 1, "enabled_agents": 1, "disabled_agents": 5, "total_agents": 6}
+
+    h = _compute_overall_health(emails, security, workflows, agents)
+
+    assert h["components"]["agents"]["score"] == 100
+
+
+def test_summary_agent_metric_alert_uses_enabled_agents(tmp_path, monkeypatch):
+    from backend.api import platform_telemetry as pt
+
+    def fake_agent_metrics():
+        return {
+            "total_agents": 6,
+            "enabled_agents": 1,
+            "disabled_agents": 5,
+            "running_agents": 1,
+            "total_actions": 0,
+            "anomalies_24h": 0,
+            "insights_24h": 0,
+        }
+
+    monkeypatch.setattr(pt, "_agent_metrics", fake_agent_metrics)
+    client = _client(tmp_path, monkeypatch)
+    resp = client.get("/api/v1/telemetry/summary")
+
+    assert resp.status_code == 200
+    agent_m = next(m for m in resp.json()["metrics"] if m["id"] == "agents_running")
+    assert agent_m["unit"] == "/1 enabled"
+    assert agent_m["alert"] is False
+
+
 # ── REST endpoint tests ───────────────────────────────────────────────────────
 
 def _client(tmp_path, monkeypatch, **kw):

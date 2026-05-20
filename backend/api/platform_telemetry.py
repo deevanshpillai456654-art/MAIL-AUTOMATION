@@ -143,14 +143,18 @@ def _agent_metrics() -> Dict[str, Any]:
         health = supervisor.supervisor_health()
         running = health.get("running", 0)
         total   = health.get("total_agents", 0)
+        enabled = health.get("enabled", total)
+        disabled = health.get("disabled", max(0, total - enabled))
     except Exception:
-        running, total = 0, 0
+        running, total, enabled, disabled = 0, 0, 0, 0
 
     action_count = _q1(_ACTIONS_DB, "SELECT COUNT(*) FROM agent_actions", fallback=0)
     anomaly_count = _q1(_ACTIONS_DB, "SELECT COUNT(*) FROM agent_actions WHERE action_type='anomaly' AND created_at >= ?", (_since(24),), 0)
     insight_count = _q1(_ACTIONS_DB, "SELECT COUNT(*) FROM agent_actions WHERE action_type='insight' AND created_at >= ?", (_since(24),), 0)
     return {
         "total_agents":      total,
+        "enabled_agents":    enabled,
+        "disabled_agents":   disabled,
         "running_agents":    running,
         "total_actions":     action_count,
         "anomalies_24h":     anomaly_count,
@@ -197,7 +201,9 @@ def _compute_overall_health(
     email_score = min(100, max(0, 100 - emails["unread"] * 2))
     sec_score   = {"good": 100, "medium": 70, "high": 40, "critical": 10}.get(security["posture"], 50)
     wf_score    = min(100, max(0, int(workflows["success_rate_24h"])))
-    agent_score = 100 if agents["running_agents"] == agents["total_agents"] and agents["total_agents"] > 0 else 60
+    enabled_agents = int(agents.get("enabled_agents", agents.get("total_agents", 0)) or 0)
+    running_agents = int(agents.get("running_agents", 0) or 0)
+    agent_score = 100 if enabled_agents == 0 or running_agents == enabled_agents else 60
 
     weights = {"email": 0.2, "security": 0.35, "workflow": 0.3, "agents": 0.15}
     overall = int(
@@ -283,9 +289,9 @@ async def platform_summary(_auth=Depends(require_local_auth)):
                 "id":     "agents_running",
                 "label":  "Agents Running",
                 "value":  agents["running_agents"],
-                "unit":   f"/{agents['total_agents']}",
+                "unit":   f"/{agents.get('enabled_agents', agents['total_agents'])} enabled",
                 "trend":  "flat",
-                "alert":  agents["running_agents"] < agents["total_agents"],
+                "alert":  agents["running_agents"] < agents.get("enabled_agents", agents["total_agents"]),
             },
         ],
     }
