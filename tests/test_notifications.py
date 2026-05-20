@@ -284,6 +284,28 @@ def test_on_event_ignores_uncaptured_type(tmp_path, monkeypatch):
     assert count == 0
 
 
+def test_notification_center_does_not_subscribe_when_service_disabled(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_NOTIFICATIONS", "false")
+    from backend.api import event_bus
+    from backend.api import notifications as nc
+    _setup(tmp_path, monkeypatch)
+
+    class FakeBus:
+        def __init__(self):
+            self.subscribed = []
+
+        def subscribe(self, event_type, handler):
+            self.subscribed.append((event_type, handler))
+
+    fake_bus = FakeBus()
+    monkeypatch.setattr(event_bus, "get_event_bus", lambda: fake_bus)
+
+    nc.ensure_notification_center()
+
+    assert fake_bus.subscribed == []
+    assert nc._subscribed is False
+
+
 def test_trim_keeps_max_500(tmp_path, monkeypatch):
     from backend.api import notifications as nc
     db_path = _setup(tmp_path, monkeypatch)

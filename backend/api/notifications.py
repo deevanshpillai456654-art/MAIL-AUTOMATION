@@ -157,6 +157,9 @@ def ensure_notification_center() -> None:
     global _subscribed
     if _subscribed:
         return
+    if not get_runtime_control().is_service_enabled("notifications"):
+        logger.info("Notification center disabled by runtime policy")
+        return
     try:
         _init_db()
         from backend.api.event_bus import get_event_bus
