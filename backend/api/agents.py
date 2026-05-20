@@ -707,6 +707,7 @@ class AgentSupervisor:
             "enabled": enabled,
             "auto_start": auto_start,
             "priority": int(policy.get("priority", 999)),
+            "limits": policy.get("limits", {}),
             "start_blocked_reason": (
                 None
                 if enabled and auto_start

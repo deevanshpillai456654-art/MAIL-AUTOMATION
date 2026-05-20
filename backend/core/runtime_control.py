@@ -63,6 +63,11 @@ class AgentPolicy:
     enterprise_enabled: bool = True
     auto_start: bool = True
     priority: int = 50
+    cpu_limit_percent: int = 20
+    memory_limit_mb: int = 128
+    queue_limit: int = 500
+    api_daily_limit: int = 1000
+    retry_limit: int = 3
 
 
 SERVICE_POLICIES: Dict[str, ServicePolicy] = {
@@ -236,6 +241,32 @@ class RuntimeControl:
             return _truthy(raw)
         return bool(policy.auto_start if policy else True)
 
+    def agent_limits(self, agent_id: str) -> Dict[str, int]:
+        agent_id = str(agent_id or "").strip()
+        policy = AGENT_POLICIES.get(agent_id) or AgentPolicy(agent_id, agent_id.replace("_", " ").title())
+        limits = {
+            "cpu_limit_percent": policy.cpu_limit_percent,
+            "memory_limit_mb": policy.memory_limit_mb,
+            "queue_limit": policy.queue_limit,
+            "api_daily_limit": policy.api_daily_limit,
+            "retry_limit": policy.retry_limit,
+        }
+        if self.low_resource:
+            limits.update({
+                "cpu_limit_percent": min(limits["cpu_limit_percent"], 15),
+                "memory_limit_mb": min(limits["memory_limit_mb"], 96),
+                "queue_limit": min(limits["queue_limit"], self.limits["queue_limit"]),
+                "api_daily_limit": min(limits["api_daily_limit"], 250),
+                "retry_limit": min(limits["retry_limit"], 3),
+            })
+        return {
+            "cpu_limit_percent": self._env_int(_key("AIO_AGENT_", agent_id, "_CPU_LIMIT_PERCENT"), _key("AGENT_", agent_id, "_CPU_LIMIT_PERCENT"), default=limits["cpu_limit_percent"], minimum=1),
+            "memory_limit_mb": self._env_int(_key("AIO_AGENT_", agent_id, "_MEMORY_LIMIT_MB"), _key("AGENT_", agent_id, "_MEMORY_LIMIT_MB"), default=limits["memory_limit_mb"], minimum=16),
+            "queue_limit": self._env_int(_key("AIO_AGENT_", agent_id, "_QUEUE_LIMIT"), _key("AGENT_", agent_id, "_QUEUE_LIMIT"), default=limits["queue_limit"], minimum=1),
+            "api_daily_limit": self._env_int(_key("AIO_AGENT_", agent_id, "_API_DAILY_LIMIT"), _key("AGENT_", agent_id, "_API_DAILY_LIMIT"), default=limits["api_daily_limit"], minimum=0),
+            "retry_limit": self._env_int(_key("AIO_AGENT_", agent_id, "_RETRY_LIMIT"), _key("AGENT_", agent_id, "_RETRY_LIMIT"), default=limits["retry_limit"], minimum=0),
+        }
+
     def is_router_enabled(self, router_name: str) -> bool:
         router_name = str(router_name or "").strip()
         if router_name in ALWAYS_ON_ROUTERS:
@@ -267,6 +298,7 @@ class RuntimeControl:
                 "enabled": self.is_agent_enabled(agent_id),
                 "auto_start": self.should_autostart_agent(agent_id),
                 "priority": policy.priority,
+                "limits": self.agent_limits(agent_id),
             }
             for agent_id, policy in AGENT_POLICIES.items()
         }

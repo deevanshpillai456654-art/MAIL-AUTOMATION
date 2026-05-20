@@ -32,6 +32,39 @@ def test_runtime_service_and_agent_env_overrides_are_explicit():
     assert runtime.is_agent_enabled("inbox_triage") is False
 
 
+def test_runtime_agent_status_exposes_low_resource_budgets():
+    from backend.core.runtime_control import RuntimeControl
+
+    runtime = RuntimeControl(environ={"AIO_RUNTIME_PROFILE": "low_resource", "AIO_SERVICE_AGENTS": "true"})
+    limits = runtime.agent_status()["workflow_orchestrator"]["limits"]
+
+    assert limits["cpu_limit_percent"] <= 15
+    assert limits["memory_limit_mb"] <= 96
+    assert limits["queue_limit"] <= runtime.limits["queue_limit"]
+    assert limits["api_daily_limit"] <= 250
+    assert limits["retry_limit"] <= 3
+
+
+def test_runtime_agent_budget_overrides_are_per_agent():
+    from backend.core.runtime_control import RuntimeControl
+
+    runtime = RuntimeControl(environ={
+        "AIO_RUNTIME_PROFILE": "enterprise",
+        "AIO_AGENT_WORKFLOW_ORCHESTRATOR_QUEUE_LIMIT": "77",
+        "AIO_AGENT_WORKFLOW_ORCHESTRATOR_MEMORY_LIMIT_MB": "192",
+        "AIO_AGENT_WORKFLOW_ORCHESTRATOR_CPU_LIMIT_PERCENT": "11",
+        "AIO_AGENT_WORKFLOW_ORCHESTRATOR_API_DAILY_LIMIT": "333",
+        "AIO_AGENT_WORKFLOW_ORCHESTRATOR_RETRY_LIMIT": "5",
+    })
+    limits = runtime.agent_status()["workflow_orchestrator"]["limits"]
+
+    assert limits["queue_limit"] == 77
+    assert limits["memory_limit_mb"] == 192
+    assert limits["cpu_limit_percent"] == 11
+    assert limits["api_daily_limit"] == 333
+    assert limits["retry_limit"] == 5
+
+
 def test_router_registry_skips_disabled_optional_routers_in_low_resource():
     from backend.app.router_registry import RouterSpec, register_api_routers
     from backend.core.runtime_control import RuntimeControl

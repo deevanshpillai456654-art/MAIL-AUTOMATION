@@ -372,3 +372,4 @@ def test_supervisor_health_reports_policy_counts(monkeypatch):
     assert health["autostart_blocked"] == 1
     assert health["running"] == 1
     assert health["agents"][0]["id"] == "workflow_orchestrator"
+    assert health["agents"][0]["limits"]["queue_limit"] > 0
