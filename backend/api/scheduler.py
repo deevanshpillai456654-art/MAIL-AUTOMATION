@@ -3,14 +3,17 @@ Scheduler API endpoints
 """
 
 import uuid
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import Optional
 
+from backend.auth.local_auth import require_local_auth_or_localhost
 from backend.scheduler.tasks import scheduler, TaskFrequency
 from backend.core.runtime_control import get_runtime_control
 
 router = APIRouter()
+
+_auth = Depends(require_local_auth_or_localhost)
 
 
 class TaskInput(BaseModel):
@@ -21,12 +24,12 @@ class TaskInput(BaseModel):
     enabled: bool = True
 
 
-@router.get("/scheduler/status")
+@router.get("/scheduler/status", dependencies=[_auth])
 async def get_scheduler_status():
     return scheduler.get_status()
 
 
-@router.post("/scheduler/start")
+@router.post("/scheduler/start", dependencies=[_auth])
 async def start_scheduler():
     if not get_runtime_control().is_service_enabled("system_scheduler"):
         return {"status": "disabled", "message": "Scheduler disabled by runtime policy"}
@@ -36,7 +39,7 @@ async def start_scheduler():
     return {"status": "success", "message": "Scheduler already running"}
 
 
-@router.post("/scheduler/stop")
+@router.post("/scheduler/stop", dependencies=[_auth])
 async def stop_scheduler():
     if scheduler.running:
         scheduler.stop()
@@ -44,7 +47,7 @@ async def stop_scheduler():
     return {"status": "success", "message": "Scheduler not running"}
 
 
-@router.post("/scheduler/tasks")
+@router.post("/scheduler/tasks", dependencies=[_auth])
 async def create_task(task: TaskInput):
     from fastapi import HTTPException
     from backend.scheduler.tasks import Task
@@ -68,7 +71,7 @@ async def create_task(task: TaskInput):
     return {"status": "success", "message": f"Task {task.name} created"}
 
 
-@router.post("/scheduler/tasks/{task_id}/toggle")
+@router.post("/scheduler/tasks/{task_id}/toggle", dependencies=[_auth])
 async def toggle_task(task_id: str):
     task = scheduler.get_task(task_id)
     if task:
@@ -77,13 +80,13 @@ async def toggle_task(task_id: str):
     return {"status": "error", "message": "Task not found"}
 
 
-@router.delete("/scheduler/tasks/{task_id}")
+@router.delete("/scheduler/tasks/{task_id}", dependencies=[_auth])
 async def delete_task(task_id: str):
     scheduler.remove_task(task_id)
     return {"status": "success", "message": f"Task {task_id} deleted"}
 
 
-@router.get("/scheduler/tasks")
+@router.get("/scheduler/tasks", dependencies=[_auth])
 async def list_tasks():
     status = scheduler.get_status()
     return {"tasks": status.get("tasks", []), "total": status.get("total_tasks", 0)}

@@ -1,21 +1,24 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from backend.auth.local_auth import require_local_auth_or_localhost
 from backend.core.enterprise_governance import EnterpriseGovernanceEngine
 
 router = APIRouter()
+
+_auth = Depends(require_local_auth_or_localhost)
 
 
 def engine() -> EnterpriseGovernanceEngine:
     return EnterpriseGovernanceEngine()
 
 
-@router.get('/governance/overview')
+@router.get('/governance/overview', dependencies=[_auth])
 async def governance_overview():
     return engine().overview()
 
 
-@router.get('/governance/readiness')
+@router.get('/governance/readiness', dependencies=[_auth])
 async def governance_readiness():
     overview = engine().overview()
     return {
@@ -26,12 +29,12 @@ async def governance_readiness():
     }
 
 
-@router.get('/governance/queues')
+@router.get('/governance/queues', dependencies=[_auth])
 async def governance_queues():
     return {'queues': engine().queue_registry()}
 
 
-@router.get('/governance/audit')
+@router.get('/governance/audit', dependencies=[_auth])
 async def governance_audit():
     return engine().audit()
 

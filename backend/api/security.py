@@ -11,11 +11,14 @@ import platform
 from pathlib import Path
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from backend import config
+from backend.auth.local_auth import require_local_auth_or_localhost
 from backend.security.audit import recent_security_events
 from backend.security.request_signing import RequestSigner
+
+_auth = Depends(require_local_auth_or_localhost)
 
 router = APIRouter(prefix="/security", tags=["security"])
 
@@ -103,13 +106,13 @@ async def security_local_runtime() -> Dict[str, Any]:
     return local_runtime_hardening_status()
 
 
-@router.get("/audit/recent")
+@router.get("/audit/recent", dependencies=[_auth])
 async def recent_audit_events(limit: int = Query(default=50, ge=1, le=500)) -> Dict[str, Any]:
     events = recent_security_events(limit)
     return {"events": events, "count": len(events)}
 
 
-@router.get("/attack-surface")
+@router.get("/attack-surface", dependencies=[_auth])
 async def attack_surface() -> Dict[str, List[str]]:
     return {
         "backend": [
