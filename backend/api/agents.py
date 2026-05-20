@@ -775,17 +775,27 @@ class AgentSupervisor:
         return statuses
 
     def supervisor_health(self) -> Dict[str, Any]:
+        runtime = get_runtime_control()
         statuses = self.all_status()
         running  = sum(1 for s in statuses if s["running"] and not s["paused"])
         errored  = sum(1 for s in statuses if s["error_count"] > 0)
+        enabled  = sum(1 for s in statuses if s.get("enabled"))
+        disabled = sum(1 for s in statuses if not s.get("enabled"))
+        autostart_blocked = sum(1 for s in statuses if s.get("start_blocked_reason"))
         total    = len(statuses)
         return {
             "total_agents":   total,
+            "enabled":        enabled,
+            "disabled":       disabled,
+            "autostart_blocked": autostart_blocked,
             "running":        running,
             "paused":         sum(1 for s in statuses if s["paused"]),
             "errored":        errored,
-            "healthy":        total > 0 and running == total and errored == 0,
+            "healthy":        running == enabled and errored == 0,
             "supervisor_running": self._started,
+            "profile":        runtime.profile,
+            "low_resource":   runtime.low_resource,
+            "ai_mode":        runtime.ai_mode,
             "agents":         statuses,
         }
 

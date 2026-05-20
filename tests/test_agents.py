@@ -306,3 +306,69 @@ def test_disabled_agent_trigger_returns_policy_error(monkeypatch):
 
     with pytest.raises(PermissionError):
         asyncio.run(_go())
+
+
+def test_disabled_agents_do_not_make_supervisor_unhealthy(monkeypatch):
+    from backend.api.agents import AgentSupervisor, OperationalAgent
+
+    class ProbeAgent(OperationalAgent):
+        agent_id = "inbox_monitor"
+        name = "Inbox Monitor"
+
+        async def run_cycle(self):
+            return None
+
+    monkeypatch.setenv("AIO_RUNTIME_PROFILE", "low_resource")
+    supervisor = AgentSupervisor()
+    supervisor.register(ProbeAgent())
+
+    async def _go():
+        await supervisor.start_all()
+        return supervisor.supervisor_health()
+
+    health = asyncio.run(_go())
+
+    assert health["profile"] == "low_resource"
+    assert health["enabled"] == 0
+    assert health["disabled"] == 1
+    assert health["running"] == 0
+    assert health["healthy"] is True
+
+
+def test_supervisor_health_reports_policy_counts(monkeypatch):
+    from backend.api.agents import AgentSupervisor, OperationalAgent
+
+    class EnabledAgent(OperationalAgent):
+        agent_id = "workflow_orchestrator"
+        name = "Workflow Orchestrator"
+
+        async def run_cycle(self):
+            return None
+
+    class DisabledAgent(OperationalAgent):
+        agent_id = "security_posture"
+        name = "Security Posture"
+
+        async def run_cycle(self):
+            return None
+
+    monkeypatch.setenv("AIO_RUNTIME_PROFILE", "enterprise")
+    monkeypatch.setenv("AIO_AGENT_SECURITY_POSTURE", "false")
+    supervisor = AgentSupervisor()
+    supervisor.register(DisabledAgent())
+    supervisor.register(EnabledAgent())
+
+    async def _go():
+        await supervisor.start_all()
+        health = supervisor.supervisor_health()
+        await supervisor.stop_all()
+        return health
+
+    health = asyncio.run(_go())
+
+    assert health["profile"] == "enterprise"
+    assert health["enabled"] == 1
+    assert health["disabled"] == 1
+    assert health["autostart_blocked"] == 1
+    assert health["running"] == 1
+    assert health["agents"][0]["id"] == "workflow_orchestrator"
