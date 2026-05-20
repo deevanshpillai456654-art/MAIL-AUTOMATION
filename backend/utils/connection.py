@@ -4,6 +4,7 @@ Validates extension/add-in connections to local service
 """
 
 import hashlib
+import os
 import time
 import secrets
 from typing import Optional, Dict
@@ -76,7 +77,7 @@ class ConnectionValidator:
 
 
 class ExtensionHandshake:
-    SECRET_KEY = "ai_email_organizer_2024"
+    SECRET_KEY = os.environ.get("AIO_EXTENSION_SECRET", "ai_email_organizer_dev_only")
 
     @staticmethod
     def create_handshake(client_id: str, timestamp: int) -> str:
