@@ -226,6 +226,26 @@ def test_status_includes_rule_evaluation(tmp_path, monkeypatch):
 
 # ── Evaluator unit tests ──────────────────────────────────────────────────────
 
+def test_ensure_alert_rules_running_honors_runtime_service_toggle(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIO_SERVICE_ALERT_RULES", "false")
+    from backend.api import alert_rules as ar
+    _setup_dbs(tmp_path, monkeypatch)
+
+    class FakeEngine:
+        def __init__(self):
+            self.started = False
+
+        async def start(self):
+            self.started = True
+
+    fake = FakeEngine()
+    monkeypatch.setattr(ar, "_engine", fake)
+
+    _run(ar.ensure_alert_rules_running())
+
+    assert fake.started is False
+
+
 def test_tick_fires_breach(tmp_path, monkeypatch):
     from backend.api import alert_rules as ar
 

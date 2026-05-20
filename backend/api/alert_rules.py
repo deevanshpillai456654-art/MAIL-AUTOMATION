@@ -48,6 +48,7 @@ from pydantic import BaseModel, Field
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR, DB_PATH
+from backend.core.runtime_control import get_runtime_control
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/alert-rules", tags=["alert-rules"])
@@ -386,6 +387,9 @@ def get_alert_rules_engine() -> AlertRulesEngine:
 
 
 async def ensure_alert_rules_running() -> None:
+    if not get_runtime_control().is_service_enabled("alert_rules"):
+        logger.info("AlertRulesEngine disabled by runtime policy")
+        return
     _init_db()
     await _engine.start()
 
