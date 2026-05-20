@@ -219,6 +219,34 @@ def _ai_gateway_metrics() -> Dict[str, Any]:
         }
 
 
+def _notification_metrics() -> Dict[str, Any]:
+    try:
+        from backend.api.notifications import _DB_PATH as notif_db, _MAX_STORE
+        from backend.core.runtime_control import get_runtime_control
+
+        capacity = min(_MAX_STORE, get_runtime_control().service_limits("notifications")["queue_limit"])
+        total = _q1(notif_db, "SELECT COUNT(*) FROM notifications", fallback=0)
+        unread = _q1(notif_db, "SELECT COUNT(*) FROM notifications WHERE is_read=0", fallback=0)
+        pressure = round(total / capacity, 4) if capacity else 0.0
+        return {
+            "service": "notifications",
+            "healthy": pressure < 0.9,
+            "total": total,
+            "unread": unread,
+            "capacity": capacity,
+            "pressure": pressure,
+        }
+    except Exception:
+        return {
+            "service": "notifications",
+            "healthy": False,
+            "total": 0,
+            "unread": 0,
+            "capacity": 0,
+            "pressure": 0.0,
+        }
+
+
 def _compute_overall_health(
     emails: Dict, security: Dict, workflows: Dict, agents: Dict
 ) -> Dict[str, Any]:
@@ -259,6 +287,7 @@ async def platform_telemetry(_auth=Depends(require_local_auth)):
     scheduler   = _scheduler_metrics()
     approvals   = _human_approval_metrics()
     ai_gateway  = _ai_gateway_metrics()
+    notifications = _notification_metrics()
     health      = _compute_overall_health(emails, security, workflows, agents)
 
     return {
@@ -271,6 +300,7 @@ async def platform_telemetry(_auth=Depends(require_local_auth)):
         "agents":      agents,
         "human_approvals": approvals,
         "ai_gateway":  ai_gateway,
+        "notifications": notifications,
         "reconciler":  reconciler,
         "scheduler":   scheduler,
     }

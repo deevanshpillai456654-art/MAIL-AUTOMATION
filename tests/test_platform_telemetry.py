@@ -364,6 +364,28 @@ def test_telemetry_full_includes_ai_gateway_status(tmp_path, monkeypatch):
     assert ai["always_on_models"] is False
 
 
+def test_telemetry_full_includes_notification_queue_status(tmp_path, monkeypatch):
+    from backend.api import platform_telemetry as pt
+
+    monkeypatch.setattr(pt, "_notification_metrics", lambda: {
+        "service": "notifications",
+        "healthy": True,
+        "total": 3,
+        "unread": 2,
+        "capacity": 10,
+        "pressure": 0.3,
+    })
+    client = _client(tmp_path, monkeypatch)
+
+    resp = client.get("/api/v1/telemetry")
+
+    assert resp.status_code == 200
+    notifications = resp.json()["notifications"]
+    assert notifications["total"] == 3
+    assert notifications["unread"] == 2
+    assert notifications["pressure"] == pytest.approx(0.3)
+
+
 def test_telemetry_summary_endpoint(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch, emails=5, active_threats=0)
     resp = client.get("/api/v1/telemetry/summary")
