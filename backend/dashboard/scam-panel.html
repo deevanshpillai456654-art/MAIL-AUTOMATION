@@ -81,7 +81,7 @@
 
     <!-- Header -->
     <div class="threat-header">
-      <div aria-live="polite" aria-atomic="true">
+      <div class="threat-header-copy" aria-live="polite" aria-atomic="true">
         <div class="threat-header-title" id="viewTitle">Threat Dashboard</div>
         <div class="threat-header-sub" id="viewSub">Real-time security monitoring</div>
       </div>
@@ -97,6 +97,17 @@
       </div>
     </div>
 
+    <nav class="threat-mobile-nav" aria-label="Threat panel sections">
+      <button class="threat-nav-btn threat-mobile-nav-btn active" data-view="dashboard" type="button">Dashboard</button>
+      <button class="threat-nav-btn threat-mobile-nav-btn" data-view="feed" type="button">Live Feed</button>
+      <button class="threat-nav-btn threat-mobile-nav-btn" data-view="scam-emails" type="button">Scam Emails</button>
+      <button class="threat-nav-btn threat-mobile-nav-btn" data-view="lookalike" type="button">Lookalike</button>
+      <button class="threat-nav-btn threat-mobile-nav-btn" data-view="domain-analyser" type="button">Domain</button>
+      <button class="threat-nav-btn threat-mobile-nav-btn" data-view="blacklist" type="button">Blacklist</button>
+      <button class="threat-nav-btn threat-mobile-nav-btn" data-view="whitelist" type="button">Trusted</button>
+      <button class="threat-nav-btn threat-mobile-nav-btn" data-view="audit" type="button">Audit</button>
+    </nav>
+
     <!-- Content -->
     <div class="content-area" role="main">
 
@@ -106,29 +117,29 @@
           <div class="stat-card"><div class="stat-label">Loading…</div><div class="stat-value">—</div></div>
         </div>
 
-        <div class="two-col">
-          <div>
+        <div class="threat-dashboard-grid">
+          <section class="threat-panel">
             <div class="section-header">
               <div class="section-title">Top Impersonated Brands</div>
             </div>
-            <div class="data-table-wrap">
+            <div class="data-table-wrap threat-table-wrap">
               <table class="data-table" id="brandsTable">
                 <thead><tr><th scope="col">Brand</th><th scope="col">Detections</th><th scope="col">Risk</th></tr></thead>
                 <tbody id="brandsBody"><tr><td colspan="3" class="empty-state"><p>Loading…</p></td></tr></tbody>
               </table>
             </div>
-          </div>
-          <div>
+          </section>
+          <section class="threat-panel">
             <div class="section-header">
               <div class="section-title">Threat Type Breakdown</div>
             </div>
-            <div class="data-table-wrap">
+            <div class="data-table-wrap threat-table-wrap">
               <table class="data-table" id="typesTable">
                 <thead><tr><th scope="col">Threat Type</th><th scope="col">Count</th></tr></thead>
                 <tbody id="typesBody"><tr><td colspan="2" class="empty-state"><p>Loading…</p></td></tr></tbody>
               </table>
             </div>
-          </div>
+          </section>
         </div>
       </div>
 
@@ -144,7 +155,7 @@
           </select>
           <button class="btn btn-ghost btn-sm" data-action="load-feed" type="button">Apply</button>
         </div>
-        <div class="data-table-wrap">
+        <div class="data-table-wrap threat-table-wrap">
           <table class="data-table">
             <thead><tr><th scope="col">Domain</th><th scope="col">Impersonating</th><th scope="col">Type</th><th scope="col">Score</th><th scope="col">Sender</th><th scope="col">Time</th><th scope="col">Status</th><th scope="col" aria-label="Actions"></th></tr></thead>
             <tbody id="feedBody"><tr><td colspan="8" class="table-empty">Loading feed…</td></tr></tbody>
@@ -162,7 +173,7 @@
           </select>
           <button class="btn btn-ghost btn-sm" data-action="load-scam-emails" type="button">Apply</button>
         </div>
-        <div class="data-table-wrap">
+        <div class="data-table-wrap threat-table-wrap">
           <table class="data-table">
             <thead><tr><th scope="col">Subject</th><th scope="col">Sender</th><th scope="col">Category</th><th scope="col">Confidence</th><th scope="col">Reasons</th><th scope="col">Date</th><th scope="col">Actions</th></tr></thead>
             <tbody id="scamEmailsBody"><tr><td colspan="7" class="table-empty">Loading…</td></tr></tbody>
@@ -178,7 +189,7 @@
         </div>
         <div class="brand-grid mb-20" id="brandGrid"></div>
         <div class="section-header"><div class="section-title">Active Lookalike Alerts</div></div>
-        <div class="data-table-wrap">
+        <div class="data-table-wrap threat-table-wrap">
           <table class="data-table">
             <thead><tr><th scope="col">Detected Domain</th><th scope="col">Impersonates</th><th scope="col">Type</th><th scope="col">Score</th><th scope="col">Reasons</th><th scope="col">Time</th></tr></thead>
             <tbody id="lookalikeBody"><tr><td colspan="6" class="table-empty">Loading…</td></tr></tbody>
@@ -226,7 +237,7 @@
             <button class="btn btn-ghost btn-sm" data-action="hide-blacklist-form" type="button">Cancel</button>
           </div>
         </div>
-        <div class="data-table-wrap">
+        <div class="data-table-wrap threat-table-wrap">
           <table class="data-table">
             <thead><tr><th scope="col">Type</th><th scope="col">Value</th><th scope="col">Reason</th><th scope="col">Score</th><th scope="col">Added</th><th scope="col" aria-label="Actions"></th></tr></thead>
             <tbody id="blacklistBody"><tr><td colspan="6" class="table-empty">Loading…</td></tr></tbody>
@@ -260,7 +271,7 @@
             <button class="btn btn-ghost btn-sm" data-action="hide-whitelist-form" type="button">Cancel</button>
           </div>
         </div>
-        <div class="data-table-wrap">
+        <div class="data-table-wrap threat-table-wrap">
           <table class="data-table">
             <thead><tr><th scope="col">Type</th><th scope="col">Value</th><th scope="col">Reason</th><th scope="col">Added</th><th scope="col" aria-label="Actions"></th></tr></thead>
             <tbody id="whitelistBody"><tr><td colspan="5" class="table-empty">Loading…</td></tr></tbody>
@@ -270,7 +281,7 @@
 
       <!-- ── VIEW: Audit Log ── -->
       <div class="view" id="view-audit">
-        <div class="data-table-wrap">
+        <div class="data-table-wrap threat-table-wrap">
           <table class="data-table">
             <thead><tr><th scope="col">Action</th><th scope="col">Target</th><th scope="col">Value</th><th scope="col">Detail</th><th scope="col">Performed By</th><th scope="col">Time</th></tr></thead>
             <tbody id="auditBody"><tr><td colspan="6" class="table-empty">Loading…</td></tr></tbody>

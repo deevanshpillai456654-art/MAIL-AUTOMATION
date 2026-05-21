@@ -49,8 +49,10 @@ function showView(name) {
   document.querySelectorAll('.threat-nav-btn').forEach(b => { b.classList.remove('active'); b.removeAttribute('aria-current'); });
   const view = document.getElementById('view-' + name);
   if (view) view.classList.add('active');
-  const btn = document.querySelector(`[data-view="${name}"]`);
-  if (btn) { btn.classList.add('active'); btn.setAttribute('aria-current', 'page'); }
+  document.querySelectorAll(`[data-view="${name}"]`).forEach(btn => {
+    btn.classList.add('active');
+    btn.setAttribute('aria-current', 'page');
+  });
   const meta = VIEW_META[name] || {};
   document.getElementById('viewTitle').textContent = meta.title || name;
   document.getElementById('viewSub').textContent = meta.sub || '';
@@ -211,14 +213,14 @@ async function loadFeed() {
     const feedBody = document.getElementById('feedBody');
     window.setSafeHTML(feedBody, items.length
       ? items.map(f => `<tr data-alert-id="${esc(f.id)}">
-          <td><b class="text-primary">${esc(f.detected_domain) || '—'}</b></td>
-          <td>${f.impersonated_brand ? `<b>${esc(f.impersonated_brand)}</b><br><small class="text-muted">${esc(f.impersonated_domain || '')}</small>` : '—'}</td>
+          <td class="table-domain"><b class="text-primary">${esc(f.detected_domain) || '—'}</b></td>
+          <td class="table-domain">${f.impersonated_brand ? `<b>${esc(f.impersonated_brand)}</b><br><small class="text-muted">${esc(f.impersonated_domain || '')}</small>` : '—'}</td>
           <td>${threatTypeBadge(f.threat_type)}</td>
           <td>${scoreBar(f.confidence_score || 0)}</td>
-          <td class="text-muted-xs">${esc(f.sender_email || '—')}</td>
-          <td class="text-xs">${fmtDate(f.created_at)}</td>
+          <td class="table-email text-muted-xs">${esc(f.sender_email || '—')}</td>
+          <td class="table-date text-xs">${fmtDate(f.created_at)}</td>
           <td>${severityBadge(f.status === 'confirmed' ? 'critical' : f.status === 'active' ? 'high' : 'low')}</td>
-          <td><button class="btn btn-ghost btn-sm dismiss-btn" type="button">Dismiss</button></td>
+          <td class="table-actions"><button class="btn btn-ghost btn-sm dismiss-btn" type="button">Dismiss</button></td>
         </tr>`).join('')
       : '<tr><td colspan="8" class="empty-state"><p>No threats detected</p></td></tr>');
 
@@ -251,14 +253,14 @@ function feedPage(dir) {
 async function dismissAlert(id, btn, row) {
   // Immediate visual feedback
   if (btn)  { btn.disabled = true; btn.textContent = 'Dismissing…'; }
-  if (row)  { row.style.opacity = '0.4'; row.style.pointerEvents = 'none'; }
+  if (row)  row.classList.add('is-dismissing');
   try {
     await api(`/lookalike/${id}/dismiss`, { method: 'POST' });
     if (row) row.remove();
     showToast('Alert dismissed', '', 'low');
   } catch (e) {
     if (btn)  { btn.disabled = false; btn.textContent = 'Dismiss'; }
-    if (row)  { row.style.opacity = ''; row.style.pointerEvents = ''; }
+    if (row)  row.classList.remove('is-dismissing');
     showToast('Dismiss failed', e.message, 'high');
   }
 }
@@ -272,12 +274,12 @@ async function loadScamEmails() {
     window.setSafeHTML(document.getElementById('scamEmailsBody'), emails.length
       ? emails.map(e => `<tr>
           <td class="subject-cell" title="${esc(e.subject)}">${esc(e.subject || '(no subject)')}</td>
-          <td class="text-xs">${esc(e.sender || '')} <br><span class="text-muted">${esc(e.sender_email || '')}</span></td>
+          <td class="table-email text-xs">${esc(e.sender || '')} <br><span class="text-muted">${esc(e.sender_email || '')}</span></td>
           <td>${e.category === 'Scam' ? severityBadge('critical') : severityBadge('review')}</td>
           <td>${scoreBar(Math.round((e.confidence || 0)*100))}</td>
-          <td>${reasonTags(e.scam_reasons)}</td>
-          <td class="text-xs">${fmtDate(e.date)}</td>
-          <td class="nowrap">
+          <td class="table-reasons">${reasonTags(e.scam_reasons)}</td>
+          <td class="table-date text-xs">${fmtDate(e.date)}</td>
+          <td class="table-actions">
             <button class="btn btn-success btn-sm" data-action="restore-email" data-id="${esc(e.id)}" type="button">Restore</button>
             <button class="btn btn-danger btn-sm" data-action="confirm-scam" data-id="${esc(e.id)}" type="button">Confirm</button>
           </td>
@@ -337,12 +339,12 @@ async function loadLookalike() {
 function renderLookalikeTable(alerts) {
   window.setSafeHTML(document.getElementById('lookalikeBody'), alerts.length
     ? alerts.map(a => `<tr>
-        <td><b class="severity-text-critical">${esc(a.detected_domain)}</b></td>
-        <td>${a.impersonated_brand ? `<b>${esc(a.impersonated_brand)}</b>` : '—'}</td>
+        <td class="table-domain"><b class="severity-text-critical">${esc(a.detected_domain)}</b></td>
+        <td class="table-domain">${a.impersonated_brand ? `<b>${esc(a.impersonated_brand)}</b>` : '—'}</td>
         <td>${threatTypeBadge(a.threat_type)}</td>
         <td>${scoreBar(a.confidence_score || 0)}</td>
-        <td>${reasonTags(a.reasons)}</td>
-        <td class="text-xs">${fmtDate(a.created_at)}</td>
+        <td class="table-reasons">${reasonTags(a.reasons)}</td>
+        <td class="table-date text-xs">${fmtDate(a.created_at)}</td>
       </tr>`).join('')
     : '<tr><td colspan="6" class="empty-state"><p>No lookalike alerts</p></td></tr>');
 }
@@ -444,11 +446,11 @@ async function loadBlacklist() {
     window.setSafeHTML(document.getElementById('blacklistBody'), (data.items || []).length
       ? data.items.map(i => `<tr>
           <td>${i.entry_type === 'sender' ? '<span class="dot-blue">●</span> Sender' : '<span class="dot-blue">●</span> Domain'}</td>
-          <td class="mono-red">${esc(i.value)}</td>
-          <td class="text-muted-xs">${esc(i.reason || '—')}</td>
+          <td class="table-value mono-red">${esc(i.value)}</td>
+          <td class="table-reasons text-muted-xs">${esc(i.reason || '—')}</td>
           <td>${scoreBar(i.score || 0)}</td>
-          <td class="text-xs">${fmtDate(i.created_at)}</td>
-          <td><button class="btn btn-ghost btn-sm" data-action="remove-blacklist" data-id="${esc(i.id)}" type="button">Remove</button></td>
+          <td class="table-date text-xs">${fmtDate(i.created_at)}</td>
+          <td class="table-actions"><button class="btn btn-ghost btn-sm" data-action="remove-blacklist" data-id="${esc(i.id)}" type="button">Remove</button></td>
         </tr>`).join('')
       : '<tr><td colspan="6" class="empty-state"><p>No blacklisted entries</p></td></tr>');
   } catch (e) {}
@@ -493,10 +495,10 @@ async function loadWhitelist() {
     window.setSafeHTML(document.getElementById('whitelistBody'), (data.items || []).length
       ? data.items.map(i => `<tr>
           <td>${i.entry_type === 'sender' ? 'Sender' : 'Domain'}</td>
-          <td class="mono-green">${esc(i.value)}</td>
-          <td class="text-muted-xs">${esc(i.reason || '—')}</td>
-          <td class="text-xs">${fmtDate(i.created_at)}</td>
-          <td><button class="btn btn-ghost btn-sm" data-action="remove-whitelist" data-id="${esc(i.id)}" type="button">Remove</button></td>
+          <td class="table-value mono-green">${esc(i.value)}</td>
+          <td class="table-reasons text-muted-xs">${esc(i.reason || '—')}</td>
+          <td class="table-date text-xs">${fmtDate(i.created_at)}</td>
+          <td class="table-actions"><button class="btn btn-ghost btn-sm" data-action="remove-whitelist" data-id="${esc(i.id)}" type="button">Remove</button></td>
         </tr>`).join('')
       : '<tr><td colspan="5" class="empty-state"><p>No trusted entries</p></td></tr>');
   } catch (e) {}
@@ -542,10 +544,10 @@ async function loadAudit() {
       ? data.items.map(i => `<tr>
           <td class="text-primary font-bold">${esc(i.action)}</td>
           <td class="text-xs">${esc(i.target_type || '—')}</td>
-          <td class="mono-xs">${esc(i.target_value || '—')}</td>
-          <td class="text-muted-xs">${esc(i.detail || '—')}</td>
+          <td class="table-value mono-xs">${esc(i.target_value || '—')}</td>
+          <td class="table-reasons text-muted-xs">${esc(i.detail || '—')}</td>
           <td class="text-xs">${esc(i.performed_by || 'system')}</td>
-          <td class="text-xs">${fmtDate(i.created_at)}</td>
+          <td class="table-date text-xs">${fmtDate(i.created_at)}</td>
         </tr>`).join('')
       : '<tr><td colspan="6" class="empty-state"><p>No audit events recorded</p></td></tr>');
   } catch (e) {}
