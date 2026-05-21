@@ -109,6 +109,15 @@
         Workflows
       </button>
 
+      <button class="nav-btn" data-view="agents" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <rect x="4" y="6" width="12" height="10" rx="3"/>
+          <path d="M10 3v3M7.5 11h.1M12.5 11h.1M8 16v2M12 16v2"/>
+          <path d="M4 12H2M18 12h-2"/>
+        </svg>
+        Agents
+      </button>
+
       <button class="nav-btn" data-view="command" type="button">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
           <rect x="2" y="3" width="16" height="11" rx="2"/>
@@ -1337,6 +1346,51 @@
           </article>
         </div>
 
+      </section>
+
+      <!-- ----------- AGENTS VIEW -------------------------------- -->
+      <section class="view" id="view-agents" aria-label="Autonomous Operational Agents">
+        <div class="agents-shell">
+          <div class="agent-supervisor-panel" id="agentSupervisorPanel">
+            <div class="agent-supervisor-copy">
+              <span class="agent-eyebrow">Agent Supervisor</span>
+              <h2>Autonomous Agents</h2>
+              <p>Runtime state, schedules, recovery status and recent autonomous actions.</p>
+            </div>
+            <div class="agent-supervisor-actions">
+              <span class="agent-supervisor-state" id="agentSupervisorState">Loading</span>
+              <button class="btn sm" type="button" id="agentsRefreshBtn">Refresh</button>
+            </div>
+          </div>
+
+          <div id="agentKpiStrip" class="agent-kpi-strip" aria-live="polite"></div>
+
+          <div class="agent-main-grid">
+            <section class="agent-directory" aria-labelledby="agentDirectoryTitle">
+              <div class="agent-section-head">
+                <div>
+                  <h2 id="agentDirectoryTitle">Agent Fleet</h2>
+                  <p>Lifecycle, policy and workload status for every registered agent.</p>
+                </div>
+              </div>
+              <div id="agentGrid" class="agent-card-grid">
+                <div class="empty-state"><div class="spinner"></div></div>
+              </div>
+            </section>
+
+            <section class="agent-actions" aria-labelledby="agentActionsTitle">
+              <div class="agent-section-head">
+                <div>
+                  <h2 id="agentActionsTitle">Recent Actions</h2>
+                  <p>Operational findings and self-healing actions emitted by agents.</p>
+                </div>
+              </div>
+              <div id="agentActionFeed" class="agent-action-feed">
+                <div class="empty-state"><p>Loading...</p></div>
+              </div>
+            </section>
+          </div>
+        </div>
       </section>
 
       <!-- ----------- COMMAND CENTER VIEW ------------------------- -->

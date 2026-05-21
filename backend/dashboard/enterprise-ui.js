@@ -122,6 +122,7 @@
   PAGES.knowledge  = ['Knowledge Base', 'Search and maintain internal operating knowledge.'];
   PAGES.slos        = ['SLO Management', 'Service Level Objectives with error budget computation, breach detection and lifecycle management.'];
   PAGES.deployments = ['Releases', 'Track releases, rollout status and operational notes.'];
+  PAGES.agents      = ['Agents', 'Autonomous operational agents, lifecycle controls and recent agent actions.'];
 
   const FALLBACK_ADMIN_SECTIONS = [
     ['User Management','Manage users, invites and account ownership.'],
@@ -384,6 +385,7 @@
     if (view === 'deployments') initDeploymentsView();
     if (view === 'services')   initServicesView();
     if (view === 'problems')   initProblemsView();
+    if (view === 'agents')     initAgentsView();
     if (view === 'command')   initCommandCenterView();
     // Keep event stream alive while on command center; close when navigating away
     if (view !== 'command' && _cmdWs && _cmdWs.readyState === WebSocket.OPEN) {
@@ -2792,17 +2794,26 @@ ${section('Model Health', modelHealth)}
     applyNavigationRole(role);
   }
 
+  function setSidebarOpen(open) {
+    $('sidebar')?.classList.toggle('open', open);
+    $('sidebarOverlay')?.classList.toggle('open', open);
+    $('sidebarToggle')?.setAttribute('aria-expanded', String(open));
+  }
+
   // -- Global click delegation -------------------------------------------------
   document.addEventListener('click', async event => {
     const target = event.target.closest('button');
     if (!target) return;
 
-    if (target.dataset.view)     showView(target.dataset.view);
+    if (target.dataset.view) {
+      showView(target.dataset.view);
+      setSidebarOpen(false);
+    }
     if (target.dataset.openView) showView(target.dataset.openView, target.dataset.settingsJump);
     if (target.dataset.connectorNavId) openConnectorFromMainNav(target.dataset.connectorNavId);
     if (target.dataset.settings) renderSettings(target.dataset.settings);
 
-    if (target.id === 'sidebarToggle') $('sidebar')?.classList.toggle('open');
+    if (target.id === 'sidebarToggle') setSidebarOpen(!$('sidebar')?.classList.contains('open'));
     if (target.id === 'refreshBtn')    { await Promise.all([loadDashboard(), loadAccounts()]); toast('Refreshed', 'Latest operational data loaded.', 'ok'); }
 
     if (target.classList.contains('provider-card')) { selectProvider(target.dataset.provider, true); $('accountForm')?.email?.focus(); }
@@ -2921,7 +2932,7 @@ ${section('Model Health', modelHealth)}
 
   // -- Bindings ----------------------------------------------------------------
   function bind() {
-    $('sidebarOverlay')?.addEventListener('click', () => $('sidebar')?.classList.remove('open'));
+    $('sidebarOverlay')?.addEventListener('click', () => setSidebarOpen(false));
     $('accountForm')?.addEventListener('submit', saveAccount);
     $('accountForm')?.provider?.addEventListener('change', e => selectProvider(e.target.value, true));
     $('connectionMethod')?.addEventListener('change', () => { renderProviderActionPanel(state.currentProvider); const pw = $('accountForm')?.password; if (pw) pw.closest('label')?.classList.toggle('muted-field', selectedConnectionMethod() === 'oauth'); updateOAuthSubmitState(); });
@@ -3529,6 +3540,230 @@ ${section('Model Health', modelHealth)}
     }
   }
 
+  // -- Autonomous Agents ---------------------------------------------------------
+  let _agentsReady = false;
+  let _agentsStartupRefreshes = 0;
+
+  function initAgentsView() {
+    if (!_agentsReady) {
+      _agentsReady = true;
+      $('agentsRefreshBtn')?.addEventListener('click', loadAgentsDashboard);
+      $('agentGrid')?.addEventListener('click', event => {
+        const trigger = event.target.closest('[data-agent-trigger]');
+        if (trigger) {
+          runAgentNow(trigger.dataset.agentTrigger, trigger);
+          return;
+        }
+        const toggle = event.target.closest('[data-agent-toggle]');
+        if (toggle) {
+          toggleAgentPaused(toggle.dataset.agentToggle, toggle.dataset.agentPaused === '1', toggle);
+        }
+      });
+    }
+    loadAgentsDashboard();
+  }
+
+  async function loadAgentsDashboard() {
+    const grid = $('agentGrid');
+    const feed = $('agentActionFeed');
+    const kpis = $('agentKpiStrip');
+    if (grid) grid.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+    if (feed) feed.innerHTML = '<div class="empty-state"><p>Loading...</p></div>';
+    if (kpis) kpis.innerHTML = '';
+
+    const refreshBtn = $('agentsRefreshBtn');
+    if (refreshBtn) refreshBtn.disabled = true;
+    const [healthR, actionsR] = await Promise.all([
+      api('/api/v1/agents/health'),
+      api('/api/v1/agents/actions?limit=30'),
+    ]);
+    if (refreshBtn) refreshBtn.disabled = false;
+
+    if (!healthR.ok) {
+      if (grid) grid.innerHTML = `<div class="empty-state"><h3>Agents unavailable</h3><p>${esc(msgFromError(healthR.error))}</p></div>`;
+      if (feed) feed.innerHTML = '<div class="empty-state"><p>No agent action data loaded.</p></div>';
+      const supervisor = $('agentSupervisorState');
+      if (supervisor) {
+        supervisor.textContent = 'Unavailable';
+        supervisor.className = 'agent-supervisor-state bad';
+      }
+      return;
+    }
+
+    const health = healthR.data || {};
+    renderAgentsDashboard(health, actionsR.ok ? (actionsR.data.actions || []) : []);
+    if (health.supervisor_running) {
+      _agentsStartupRefreshes = 0;
+    } else if ((health.agents || []).length && _agentsStartupRefreshes < 2) {
+      _agentsStartupRefreshes += 1;
+      setTimeout(loadAgentsDashboard, 1500);
+    }
+  }
+
+  function agentRuntimeLabel(agent) {
+    if (!agent.enabled) return 'Disabled';
+    if (agent.running && !agent.paused) return 'Running';
+    if (agent.paused) return 'Paused';
+    if (agent.start_blocked_reason) return 'Blocked';
+    return 'Stopped';
+  }
+
+  function agentRuntimeTone(agent) {
+    if (!agent.enabled) return 'neutral';
+    if (agent.error_count > 0 || agent.start_blocked_reason) return 'bad';
+    if (agent.paused) return 'warn';
+    if (agent.running) return 'ok';
+    return 'neutral';
+  }
+
+  function agentTimeLabel(value) {
+    if (!value) return 'Not yet';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Not yet';
+    return date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function agentIntervalLabel(seconds) {
+    const total = Number(seconds) || 0;
+    if (total <= 0) return 'Manual';
+    if (total < 60) return `${total}s`;
+    const minutes = Math.round(total / 60);
+    if (minutes < 60) return `${minutes}m`;
+    return `${Math.round(minutes / 60)}h`;
+  }
+
+  function agentLimitsLabel(limits) {
+    const entries = Object.entries(limits || {}).filter(([, value]) => value !== undefined && value !== null && value !== '');
+    if (!entries.length) return 'Default';
+    return entries.slice(0, 2).map(([key, value]) => `${key}: ${value}`).join(' / ');
+  }
+
+  function renderAgentsDashboard(health, actions) {
+    const agents = health.agents || [];
+    const supervisor = $('agentSupervisorState');
+    if (supervisor) {
+      const healthy = Boolean(health.healthy);
+      supervisor.textContent = health.supervisor_running ? (healthy ? 'Healthy' : 'Needs attention') : 'Stopped';
+      supervisor.className = `agent-supervisor-state ${healthy ? 'ok' : health.supervisor_running ? 'warn' : 'bad'}`;
+    }
+
+    const kpis = $('agentKpiStrip');
+    if (kpis) {
+      const kpiItems = [
+        { label: 'Total Agents', value: health.total_agents ?? agents.length, tone: 'accent' },
+        { label: 'Running', value: health.running ?? agents.filter(agent => agent.running && !agent.paused).length, tone: 'ok' },
+        { label: 'Paused', value: health.paused ?? agents.filter(agent => agent.paused).length, tone: 'warn' },
+        { label: 'Errors', value: health.errored ?? agents.filter(agent => agent.error_count > 0).length, tone: 'bad' },
+        { label: 'Profile', value: health.low_resource ? 'Low Resource' : esc(health.profile || 'Standard'), tone: 'neutral' },
+      ];
+      kpis.innerHTML = kpiItems.map(item => `
+        <div class="agent-kpi-card ${item.tone}">
+          <span>${esc(item.label)}</span>
+          <strong>${esc(item.value)}</strong>
+        </div>
+      `).join('');
+    }
+
+    const grid = $('agentGrid');
+    if (grid) {
+      if (!agents.length) {
+        grid.innerHTML = '<div class="empty-state"><h3>No agents registered</h3><p>The agent supervisor did not return any registered agents.</p></div>';
+      } else {
+        grid.innerHTML = agents.map(agent => {
+          const tone = agentRuntimeTone(agent);
+          const label = agentRuntimeLabel(agent);
+          const runDisabled = !agent.enabled ? 'disabled' : '';
+          return `
+            <article class="agent-card ${tone}" data-agent-id="${esc(agent.id)}">
+              <div class="agent-card-head">
+                <div class="agent-title-wrap">
+                  <strong>${esc(agent.name)}</strong>
+                  <span>${esc(agent.domain || 'general')}</span>
+                </div>
+                <span class="agent-status-pill ${tone}">${esc(label)}</span>
+              </div>
+              <p class="agent-description">${esc(agent.description || 'Operational agent')}</p>
+              <div class="agent-meta-grid">
+                <span><b>Runs</b><small>${esc(agent.run_count ?? 0)}</small></span>
+                <span><b>Interval</b><small>${esc(agentIntervalLabel(agent.interval_s))}</small></span>
+                <span><b>Last Run</b><small>${esc(agentTimeLabel(agent.last_run))}</small></span>
+                <span><b>Next Run</b><small>${esc(agentTimeLabel(agent.next_run))}</small></span>
+                <span><b>Policy</b><small>${agent.enabled ? (agent.auto_start ? 'Autostart' : 'Manual Start') : 'Disabled'}</small></span>
+                <span><b>Limits</b><small>${esc(agentLimitsLabel(agent.limits))}</small></span>
+              </div>
+              ${agent.last_error ? `<div class="agent-error-line">${esc(agent.last_error)}</div>` : ''}
+              <div class="agent-card-actions">
+                <button class="btn sm" type="button" data-agent-trigger="${esc(agent.id)}" ${runDisabled}>Run Now</button>
+                <button class="btn sm ghost" type="button" data-agent-toggle="${esc(agent.id)}" data-agent-paused="${agent.paused ? '1' : '0'}">${agent.paused ? 'Resume' : 'Pause'}</button>
+              </div>
+            </article>
+          `;
+        }).join('');
+      }
+    }
+
+    renderAgentActionFeed(actions);
+  }
+
+  function renderAgentActionFeed(actions) {
+    const feed = $('agentActionFeed');
+    if (!feed) return;
+    if (!actions.length) {
+      feed.innerHTML = '<div class="empty-state"><p>No recent agent actions.</p></div>';
+      return;
+    }
+    const toneForSeverity = { critical: 'bad', high: 'bad', medium: 'warn', low: 'neutral', info: 'neutral' };
+    feed.innerHTML = actions.map(action => {
+      const tone = toneForSeverity[action.severity] || 'neutral';
+      return `
+        <div class="agent-action-item ${tone}">
+          <div>
+            <span class="agent-action-meta">
+              <b>${esc(action.agent_name || action.agent_id || 'Agent')}</b>
+              <small>${esc(action.action_type || 'action')}</small>
+            </span>
+            <strong>${esc(action.title || 'Agent action')}</strong>
+            ${action.detail ? `<p>${esc(action.detail)}</p>` : ''}
+          </div>
+          <time>${esc(agentTimeLabel(action.created_at))}</time>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function runAgentNow(agentId, button) {
+    if (!agentId) return;
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Running...';
+    }
+    const result = await api(`/api/v1/agents/${encodeURIComponent(agentId)}/trigger`, { method: 'POST' });
+    if (result.ok) {
+      toast('Agent triggered', `${agentId} run cycle dispatched.`, 'ok');
+      setTimeout(loadAgentsDashboard, 1200);
+    } else {
+      toast('Agent trigger failed', msgFromError(result.error), 'error');
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Run Now';
+      }
+    }
+  }
+
+  async function toggleAgentPaused(agentId, paused, button) {
+    if (!agentId) return;
+    if (button) button.disabled = true;
+    const action = paused ? 'resume' : 'pause';
+    const result = await api(`/api/v1/agents/${encodeURIComponent(agentId)}/${action}`, { method: 'POST' });
+    if (result.ok) {
+      toast(paused ? 'Agent resumed' : 'Agent paused', agentId, 'ok');
+      loadAgentsDashboard();
+    } else {
+      toast('Agent state change failed', msgFromError(result.error), 'error');
+      if (button) button.disabled = false;
+    }
+  }
+
   // -- Operational Command Center -----------------------------------------------
   let _cmdReady = false;
   let _cmdWs    = null;
@@ -4127,6 +4362,19 @@ ${section('Model Health', modelHealth)}
   const _PB_STATUS_BADGE = { completed: 'ok', running: 'neutral', failed: 'bad' };
   const _PB_STEP_BADGE   = { ok: 'ok', error: 'bad', skipped: 'neutral' };
 
+  function playbookTriggerLabel(type) {
+    if (type === 'event') return 'Event';
+    if (type === 'incident') return 'Incident';
+    return 'Manual';
+  }
+
+  function playbookMetaText(pb, stepCount) {
+    const trigger = playbookTriggerLabel(pb.trigger_type);
+    const filter = pb.trigger_filter ? `: ${pb.trigger_filter}` : '';
+    const runs = Number(pb.run_count || 0);
+    return `${trigger}${filter} - ${stepCount} step${stepCount !== 1 ? 's' : ''} - ${runs} run${runs !== 1 ? 's' : ''}`;
+  }
+
   function initPlaybooksView() {
     _loadPlaybookList();
     _loadPbRuns();
@@ -4179,29 +4427,31 @@ ${section('Model Health', modelHealth)}
       list.innerHTML = '<div class="empty-state"><p>No playbooks defined yet. Create one to automate platform responses.</p></div>';
       return;
     }
-    const _TRIGGER_ICON = { manual: 'settings', event: 'event', incident: 'alert' };
     list.innerHTML = `
-      <div class="activity-list">
+      <div class="playbook-list" role="list">
         ${playbooks.map(pb => {
           const stepCount = (pb.steps || []).length;
+          const triggerLabel = playbookTriggerLabel(pb.trigger_type);
+          const runCount = Number(pb.run_count || 0);
           return `
-            <div class="activity-item" data-pb-id="${esc(pb.id)}" style="padding:10px 12px;gap:10px;cursor:pointer;">
-              <div style="flex:1;min-width:0;">
-                <div style="display:flex;gap:6px;align-items:center;margin-bottom:3px;flex-wrap:wrap;">
-                  <span style="font-size:14px;">${_TRIGGER_ICON[pb.trigger_type] || '*'}</span>
-                  <strong style="font-size:13px;">${esc(pb.name)}</strong>
-                  ${!pb.enabled ? '<span class="badge neutral" style="font-size:9px;">disabled</span>' : ''}
+            <div class="playbook-item" data-pb-id="${esc(pb.id)}" role="listitem" tabindex="0">
+              <div class="playbook-main">
+                <div class="playbook-title-row">
+                  <span class="playbook-trigger-chip">${esc(triggerLabel)}</span>
+                  <strong>${esc(pb.name)}</strong>
+                  ${!pb.enabled ? '<span class="badge neutral playbook-status-chip">Disabled</span>' : ''}
                 </div>
-                <p style="margin:0;font-size:11px;color:var(--text-muted);">
-                  ${esc(pb.trigger_type)}${pb.trigger_filter ? ': ' + esc(pb.trigger_filter) : ''} Â·
-                  ${stepCount} step${stepCount !== 1 ? 's' : ''} Â·
-                  ${pb.run_count} run${pb.run_count !== 1 ? 's' : ''}
-                </p>
+                <p class="playbook-description">${esc(pb.description || 'No description provided.')}</p>
+                <div class="playbook-meta" aria-label="${esc(playbookMetaText(pb, stepCount))}">
+                  <span>${esc(triggerLabel)}${pb.trigger_filter ? ': ' + esc(pb.trigger_filter) : ''}</span>
+                  <span>${stepCount} step${stepCount !== 1 ? 's' : ''}</span>
+                  <span>${runCount} run${runCount !== 1 ? 's' : ''}</span>
+                </div>
               </div>
-              <div style="flex-shrink:0;display:flex;gap:5px;align-items:center;">
-                <button class="btn sm ghost" data-pb-run="${esc(pb.id)}" style="font-size:10px;">Run</button>
-                <button class="btn sm ghost" data-pb-edit="${esc(pb.id)}" style="font-size:10px;">Edit</button>
-                <button class="btn sm ghost" data-pb-del="${esc(pb.id)}" style="font-size:10px;color:var(--danger,#e55);">Del</button>
+              <div class="playbook-actions">
+                <button class="btn sm ghost" data-pb-run="${esc(pb.id)}" type="button">Run</button>
+                <button class="btn sm ghost" data-pb-edit="${esc(pb.id)}" type="button">Edit</button>
+                <button class="btn sm ghost playbook-delete-btn" data-pb-del="${esc(pb.id)}" type="button">Delete</button>
               </div>
             </div>`;
         }).join('')}
@@ -4257,7 +4507,7 @@ ${section('Model Health', modelHealth)}
       return;
     }
     list.innerHTML = `
-      <div class="activity-list">
+      <div class="playbook-run-list" role="list">
         ${runs.map(run => {
           const badge = _PB_STATUS_BADGE[run.status] || 'neutral';
           const ts    = run.started_at ? new Date(run.started_at).toLocaleString() : '';
@@ -4265,13 +4515,17 @@ ${section('Model Health', modelHealth)}
             ? `${((new Date(run.finished_at) - new Date(run.started_at)) / 1000).toFixed(1)}s`
             : (run.status === 'running' ? 'running...' : ' - ');
           return `
-            <div class="activity-item" style="padding:9px 12px;gap:10px;cursor:pointer;" data-run-id="${esc(run.id)}">
-              <span class="badge ${badge}" style="font-size:10px;flex-shrink:0;">${esc(run.status)}</span>
-              <div style="flex:1;min-width:0;">
-                <p style="margin:0;font-size:12px;font-weight:600;">${esc(run.playbook_name)}</p>
-                <p style="margin:2px 0 0;font-size:11px;color:var(--text-muted);">${esc(run.triggered_by)} Â· ${run.steps_done}/${run.steps_total} steps Â· ${dur}</p>
+            <div class="playbook-run-item" data-run-id="${esc(run.id)}" role="listitem" tabindex="0">
+              <span class="badge ${badge} playbook-run-status">${esc(run.status)}</span>
+              <div class="playbook-run-main">
+                <strong>${esc(run.playbook_name)}</strong>
+                <p class="playbook-meta">
+                  <span>${esc(run.triggered_by)}</span>
+                  <span>${run.steps_done}/${run.steps_total} steps</span>
+                  <span>${esc(dur)}</span>
+                </p>
               </div>
-              <span style="font-size:10px;color:var(--text-muted);white-space:nowrap;">${esc(ts)}</span>
+              <span class="playbook-run-time">${esc(ts)}</span>
             </div>`;
         }).join('')}
       </div>`;
