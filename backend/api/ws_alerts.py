@@ -32,10 +32,11 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional, Set
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from backend.auth.local_auth import require_local_auth_or_localhost
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/ws", tags=["websocket-alerts"])
+router = APIRouter(prefix="/ws", tags=["websocket-alerts"], dependencies=[Depends(require_local_auth_or_localhost)])
 
 
 # ---------------------------------------------------------------------------

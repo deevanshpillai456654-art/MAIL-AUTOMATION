@@ -4,7 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from backend.auth.local_auth import require_local_auth_or_localhost
 
 from backend.core.production_guardrails import run_local_guardrails
 from backend.core.production_scorecard import assert_gate, build_scorecard
@@ -13,7 +14,7 @@ from backend.core.granular_production_scorecard import assert_granular_gate, bui
 from backend.core.analytics_engine import LocalAnalyticsEngine
 from backend import config
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_local_auth_or_localhost)])
 
 
 @router.get("/production/readiness-score")

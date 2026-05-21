@@ -8,13 +8,14 @@ from pathlib import Path
 import os
 import psutil
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from backend.auth.local_auth import require_local_auth_or_localhost
 from pydantic import BaseModel
 from typing import Optional
 
 from backend.utils.port_manager import PortManager, get_service_info
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_local_auth_or_localhost)])
 
 port_manager = PortManager()
 
