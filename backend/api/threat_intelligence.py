@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import logging
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Generator, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Body
@@ -38,12 +38,12 @@ router = APIRouter(prefix="/threat", tags=["threat-intelligence"], dependencies=
 
 def _db_now() -> str:
     """Timestamp for DB insertion — space-separated for SQLite compatibility."""
-    return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _api_now() -> str:
     """ISO timestamp for API JSON responses."""
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
 def _raw_conn():
@@ -278,7 +278,7 @@ async def get_threat_stats() -> Dict:
             ).fetchall()
             top_brands = [{"brand": r[0], "count": r[1]} for r in rows]
 
-            since7 = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+            since7 = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
             recent_actions = conn.execute(
                 "SELECT COUNT(*) FROM threat_audit_log WHERE created_at > ?", (since7,)
             ).fetchone()[0]
@@ -861,7 +861,7 @@ async def dismiss_lookalike(alert_id: int) -> Dict:
 @router.get("/analytics")
 async def get_threat_analytics(days: int = Query(30, ge=1, le=365)) -> Dict:
     # Use space-separated format to match email created_at column format
-    since = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
     with _conn() as conn:
         try:
             scam_rows = conn.execute(
@@ -927,16 +927,18 @@ def _run_scan_sync() -> Dict:
     engine = get_engine()
     sf = ScamFilter()
 
-    rows = conn.execute(
+    scan_cursor = conn.execute(
         "SELECT id, subject, sender, sender_email, category, confidence, metadata "
         "FROM emails ORDER BY id"
-    ).fetchall()
+    )
 
     inserted_alerts = 0
     reclassified = 0
+    scanned_count = 0
     now = _db_now()
 
-    for row in rows:
+    for row in scan_cursor:
+        scanned_count += 1
         email_id, subject, sender_name, sender_email, category, confidence, metadata_raw = row
         sender_email = (sender_email or "").strip()
         subject = subject or ""
@@ -1058,7 +1060,7 @@ def _run_scan_sync() -> Dict:
             pass
     conn.commit()
 
-    total_scanned = len(rows)
+    total_scanned = scanned_count
 
     try:
         conn.execute(

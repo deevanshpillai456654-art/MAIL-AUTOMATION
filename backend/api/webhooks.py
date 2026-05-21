@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from backend.auth.local_auth import require_local_auth
@@ -217,7 +217,7 @@ async def dispatch_event(event: Dict) -> None:
     try:
         con = _conn()
         con.row_factory = sqlite3.Row
-        rows = con.execute("SELECT * FROM webhooks WHERE is_active=1").fetchall()
+        rows = con.execute("SELECT * FROM webhooks WHERE is_active=1 LIMIT 10000").fetchall()
         con.close()
     except Exception as exc:
         logger.debug("Webhook dispatch DB read failed: %s", exc)
@@ -327,13 +327,21 @@ def _validate_url(url: str) -> None:
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("", summary="List all registered webhooks")
-async def list_webhooks(_auth=Depends(require_local_auth)):
+async def list_webhooks(
+    limit:  int = Query(200, ge=1, le=1000),
+    offset: int = Query(0,   ge=0),
+    _auth=Depends(require_local_auth),
+):
     try:
         con = _conn()
         con.row_factory = sqlite3.Row
-        rows = con.execute("SELECT * FROM webhooks ORDER BY created_at DESC").fetchall()
+        total = con.execute("SELECT COUNT(*) FROM webhooks").fetchone()[0]
+        rows  = con.execute(
+            "SELECT * FROM webhooks ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        ).fetchall()
         con.close()
-        return {"webhooks": [_row_to_dict(r) for r in rows], "count": len(rows)}
+        return {"webhooks": [_row_to_dict(r) for r in rows], "count": total, "limit": limit, "offset": offset}
     except Exception as exc:
         raise HTTPException(500, f"DB error: {exc}")
 

@@ -119,6 +119,8 @@ def _init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_ven_status   ON vendors (status);
         CREATE INDEX IF NOT EXISTS idx_ven_category ON vendors (category);
         CREATE INDEX IF NOT EXISTS idx_ven_end      ON vendors (contract_end);
+        CREATE INDEX IF NOT EXISTS idx_ven_sla      ON vendors (sla_tier);
+        CREATE INDEX IF NOT EXISTS idx_ven_owner    ON vendors (owner);
         CREATE INDEX IF NOT EXISTS idx_con_vendor   ON vendor_contacts (vendor_id);
         CREATE INDEX IF NOT EXISTS idx_rev_vendor   ON vendor_reviews (vendor_id, created_at DESC);
     """)
@@ -318,7 +320,7 @@ async def expiring_vendors(
             "WHERE contract_end != '' AND status != 'terminated' "
             "AND date(contract_end) <= date('now', ? || ' days') "
             "AND date(contract_end) >= date('now') "
-            "ORDER BY contract_end ASC",
+            "ORDER BY contract_end ASC LIMIT 500",
             (f"+{days}",),
         ).fetchall()
         con.close()
@@ -434,7 +436,7 @@ async def list_contacts(vendor_id: str, _auth=Depends(require_local_auth)):
         _get_ven_or_404(con, vendor_id)
         rows = con.execute(
             f"SELECT {','.join(_CON_COLS)} FROM vendor_contacts "
-            "WHERE vendor_id=? ORDER BY is_primary DESC, created_at ASC",
+            "WHERE vendor_id=? ORDER BY is_primary DESC, created_at ASC LIMIT 50",
             (vendor_id,),
         ).fetchall()
         con.close()
@@ -501,7 +503,7 @@ async def list_reviews(vendor_id: str, _auth=Depends(require_local_auth)):
         _get_ven_or_404(con, vendor_id)
         rows = con.execute(
             f"SELECT {','.join(_REV_COLS)} FROM vendor_reviews "
-            "WHERE vendor_id=? ORDER BY created_at DESC",
+            "WHERE vendor_id=? ORDER BY created_at DESC LIMIT 200",
             (vendor_id,),
         ).fetchall()
         avg = con.execute(

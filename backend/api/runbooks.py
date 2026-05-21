@@ -95,6 +95,8 @@ def _init_db() -> None:
             ON runbooks (slug);
         CREATE INDEX IF NOT EXISTS idx_rb_category
             ON runbooks (category);
+        CREATE INDEX IF NOT EXISTS idx_rb_updated
+            ON runbooks (updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_rv_runbook
             ON runbook_versions (runbook_id, version_number DESC);
     """)
@@ -302,7 +304,7 @@ async def list_categories(_auth=Depends(require_local_auth)):
         con = _conn()
         rows = con.execute(
             "SELECT DISTINCT category FROM runbooks "
-            "WHERE category != '' ORDER BY category"
+            "WHERE category != '' ORDER BY category LIMIT 100"
         ).fetchall()
         con.close()
     except Exception:
@@ -406,7 +408,11 @@ async def delete_runbook(runbook_id: str, _auth=Depends(require_local_auth)):
 
 
 @router.get("/{runbook_id}/versions", summary="Version history")
-async def list_versions(runbook_id: str, _auth=Depends(require_local_auth)):
+async def list_versions(
+    runbook_id: str,
+    limit: int = Query(100, ge=1, le=500),
+    _auth=Depends(require_local_auth),
+):
     try:
         con = _conn()
         exists = con.execute("SELECT id FROM runbooks WHERE id=?", (runbook_id,)).fetchone()
@@ -415,8 +421,8 @@ async def list_versions(runbook_id: str, _auth=Depends(require_local_auth)):
             raise HTTPException(404, "Runbook not found")
         rows = con.execute(
             "SELECT id, runbook_id, version_number, edited_by, edited_at, change_note "
-            "FROM runbook_versions WHERE runbook_id=? ORDER BY version_number DESC",
-            (runbook_id,),
+            "FROM runbook_versions WHERE runbook_id=? ORDER BY version_number DESC LIMIT ?",
+            (runbook_id, limit),
         ).fetchall()
         con.close()
     except HTTPException:

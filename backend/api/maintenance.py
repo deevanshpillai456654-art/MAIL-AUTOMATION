@@ -219,12 +219,12 @@ async def _check_windows() -> None:
         con = _conn()
         to_activate = con.execute(
             f"SELECT {','.join(_WINDOW_COLS)} FROM maintenance_windows "
-            "WHERE status='scheduled' AND starts_at <= ?",
+            "WHERE status='scheduled' AND starts_at <= ? LIMIT 100",
             (now,),
         ).fetchall()
         to_complete = con.execute(
             f"SELECT {','.join(_WINDOW_COLS)} FROM maintenance_windows "
-            "WHERE status='active' AND ends_at <= ?",
+            "WHERE status='active' AND ends_at <= ? LIMIT 100",
             (now,),
         ).fetchall()
         con.close()

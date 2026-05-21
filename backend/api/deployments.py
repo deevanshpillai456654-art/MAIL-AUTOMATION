@@ -104,10 +104,11 @@ def _init_db() -> None:
             created_at    TEXT NOT NULL
         );
 
-        CREATE INDEX IF NOT EXISTS idx_dep_status  ON deployments (status);
-        CREATE INDEX IF NOT EXISTS idx_dep_env     ON deployments (environment);
-        CREATE INDEX IF NOT EXISTS idx_dep_svc     ON deployments (service_id);
-        CREATE INDEX IF NOT EXISTS idx_dnote_dep   ON deployment_notes (deployment_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_dep_status   ON deployments (status);
+        CREATE INDEX IF NOT EXISTS idx_dep_env      ON deployments (environment);
+        CREATE INDEX IF NOT EXISTS idx_dep_svc      ON deployments (service_id);
+        CREATE INDEX IF NOT EXISTS idx_dep_created  ON deployments (created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_dnote_dep    ON deployment_notes (deployment_id, created_at DESC);
     """)
     con.commit()
     con.close()

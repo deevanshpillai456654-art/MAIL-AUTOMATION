@@ -47,6 +47,7 @@ from pydantic import BaseModel
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
 from backend.core.runtime_control import get_runtime_control
+from backend.security.ssrf import validate_outbound_url
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/scheduled-reports", tags=["scheduled-reports"])
@@ -263,6 +264,10 @@ async def _generate_report_content(config_name: str, sections: list[str]) -> dic
 
 async def _post_webhook(url: str, payload: dict) -> bool:
     """POST JSON report to a webhook URL. Returns True on 2xx."""
+    decision = validate_outbound_url(url)
+    if not decision.allowed:
+        logger.warning("ReportScheduler: blocked webhook delivery to %s (%s)", url, decision.reason)
+        return False
     try:
         import hmac as hmaclib
         import hashlib
@@ -385,7 +390,7 @@ class ReportScheduler:
             con = _conn()
             rows = con.execute(
                 f"SELECT {','.join(_CONFIG_COLS)} FROM report_configs "
-                "WHERE enabled=1 AND next_run <= ?",
+                "WHERE enabled=1 AND next_run <= ? LIMIT 100",
                 (now,),
             ).fetchall()
             con.close()
@@ -443,16 +448,27 @@ class ConfigPatch(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("", summary="List report configs")
-async def list_configs(_auth=Depends(require_local_auth)):
+async def list_configs(
+    limit:  int = Query(200, ge=1, le=1000),
+    offset: int = Query(0,   ge=0),
+    _auth=Depends(require_local_auth),
+):
     try:
         con = _conn()
-        rows = con.execute(
-            f"SELECT {','.join(_CONFIG_COLS)} FROM report_configs ORDER BY created_at DESC"
+        total = con.execute("SELECT COUNT(*) FROM report_configs").fetchone()[0]
+        rows  = con.execute(
+            f"SELECT {','.join(_CONFIG_COLS)} FROM report_configs ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, offset),
         ).fetchall()
         con.close()
     except Exception:
-        return {"configs": []}
-    return {"configs": [dict(zip(_CONFIG_COLS, r)) for r in rows]}
+        return {"configs": [], "total": 0, "limit": limit, "offset": offset}
+    return {
+        "configs": [dict(zip(_CONFIG_COLS, r)) for r in rows],
+        "total":   total,
+        "limit":   limit,
+        "offset":  offset,
+    }
 
 
 @router.post("", status_code=201, summary="Create report config")
@@ -462,6 +478,10 @@ async def create_config(body: ConfigCreate, _auth=Depends(require_local_auth)):
     unknown = [s for s in body.sections.split(",") if s.strip() and s.strip() not in _SECTIONS]
     if unknown:
         raise HTTPException(400, f"Unknown sections: {unknown}. Valid: {_SECTIONS}")
+    if body.delivery == "webhook" and body.webhook_url:
+        decision = validate_outbound_url(body.webhook_url)
+        if not decision.allowed:
+            raise HTTPException(400, f"webhook_url not allowed: {decision.reason}")
 
     cfg_id = str(uuid.uuid4())
     now = _now()
@@ -572,6 +592,10 @@ async def patch_config(
     if body.delivery is not None:
         updates.append("delivery = ?"); params.append(body.delivery)
     if body.webhook_url is not None:
+        if body.webhook_url:
+            decision = validate_outbound_url(body.webhook_url)
+            if not decision.allowed:
+                raise HTTPException(400, f"webhook_url not allowed: {decision.reason}")
         updates.append("webhook_url = ?"); params.append(body.webhook_url)
     if body.enabled is not None:
         updates.append("enabled = ?"); params.append(1 if body.enabled else 0)

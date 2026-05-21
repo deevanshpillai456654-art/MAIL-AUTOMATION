@@ -5,9 +5,14 @@ import json
 import sqlite3
 import time
 import uuid
+import hashlib
 from pathlib import Path
 from threading import RLock
 from typing import Any, Dict, Optional
+
+
+class QueueOverflowError(RuntimeError):
+    """Raised when queue depth would exceed the configured safe limit."""
 
 
 class PersistentJobQueue:
@@ -61,6 +66,40 @@ class PersistentJobQueue:
             )
         return job_id
 
+    def enqueue_unique(
+        self,
+        queue: str,
+        payload: Dict[str, Any],
+        *,
+        idempotency_key: str,
+        max_attempts: int = 5,
+        max_depth: Optional[int] = None,
+    ) -> str:
+        digest = hashlib.sha256(f"{queue}:{idempotency_key}".encode("utf-8")).hexdigest()
+        job_id = f"job_{digest}"
+        encoded = json.dumps(payload, sort_keys=True)
+        now = time.time()
+        with self._lock, self._connect() as conn:
+            existing = conn.execute("SELECT job_id FROM persistent_jobs WHERE job_id = ?", (job_id,)).fetchone()
+            if existing:
+                return str(existing["job_id"])
+            if max_depth is not None:
+                row = conn.execute(
+                    "SELECT COUNT(*) AS count FROM persistent_jobs WHERE queue = ? AND status IN ('pending', 'leased')",
+                    (queue,),
+                ).fetchone()
+                if int(row["count"] if row else 0) >= int(max_depth):
+                    raise QueueOverflowError(f"Queue '{queue}' exceeds max depth {max_depth}")
+            conn.execute(
+                """
+                INSERT INTO persistent_jobs
+                (job_id, queue, payload, status, attempts, max_attempts, created_at, updated_at)
+                VALUES (?, ?, ?, 'pending', 0, ?, ?, ?)
+                """,
+                (job_id, queue, encoded, max(1, int(max_attempts)), now, now),
+            )
+        return job_id
+
     def lease_next(self, queue: str, *, lease_seconds: int = 60) -> Optional[Dict[str, Any]]:
         now = time.time()
         lease_until = now + max(1, int(lease_seconds))
@@ -108,7 +147,7 @@ class PersistentJobQueue:
             row = conn.execute("SELECT attempts, max_attempts FROM persistent_jobs WHERE job_id = ?", (job_id,)).fetchone()
             if not row:
                 return
-            status = "failed" if int(row["attempts"] or 0) >= int(row["max_attempts"] or 1) else "pending"
+            status = "dead_letter" if int(row["attempts"] or 0) >= int(row["max_attempts"] or 1) else "pending"
             conn.execute(
                 """
                 UPDATE persistent_jobs
@@ -136,5 +175,54 @@ class PersistentJobQueue:
             rows = conn.execute("SELECT status, COUNT(*) AS count FROM persistent_jobs GROUP BY status").fetchall()
         return {str(row["status"]): int(row["count"]) for row in rows}
 
+    def counts_by_queue(self) -> Dict[str, Dict[str, int]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT queue, status, COUNT(*) AS count FROM persistent_jobs GROUP BY queue, status"
+            ).fetchall()
+        counts: Dict[str, Dict[str, int]] = {}
+        for row in rows:
+            queue = str(row["queue"])
+            counts.setdefault(queue, {})
+            counts[queue][str(row["status"])] = int(row["count"])
+        return counts
 
-__all__ = ["PersistentJobQueue"]
+    def stale_leases(self) -> int:
+        now = time.time()
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS count FROM persistent_jobs
+                WHERE status = 'leased' AND lease_until IS NOT NULL AND lease_until < ?
+                """,
+                (now,),
+            ).fetchone()
+        return int(row["count"] if row else 0)
+
+    def cleanup_terminal_jobs(self, *, max_age_seconds: int = 86400) -> int:
+        cutoff = time.time() - max(0, int(max_age_seconds))
+        with self._lock, self._connect() as conn:
+            cur = conn.execute(
+                """
+                DELETE FROM persistent_jobs
+                WHERE status IN ('completed', 'dead_letter', 'failed') AND updated_at <= ?
+                """,
+                (cutoff,),
+            )
+            return int(cur.rowcount)
+
+    def requeue_dead_letter(self, job_id: str) -> bool:
+        now = time.time()
+        with self._lock, self._connect() as conn:
+            cur = conn.execute(
+                """
+                UPDATE persistent_jobs
+                SET status = 'pending', lease_until = NULL, last_error = NULL, updated_at = ?
+                WHERE job_id = ? AND status IN ('dead_letter', 'failed')
+                """,
+                (now, job_id),
+            )
+            return int(cur.rowcount) > 0
+
+
+__all__ = ["PersistentJobQueue", "QueueOverflowError"]

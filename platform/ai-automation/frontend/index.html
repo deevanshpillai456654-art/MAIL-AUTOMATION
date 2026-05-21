@@ -257,25 +257,63 @@
 
       <!-- Analytics -->
       <div class="page" id="page-analytics">
-        <div class="section-header">
-          <div><div class="section-title">Analytics</div><div class="section-sub">Workflow performance and trends</div></div>
-          <select class="form-select" style="width:120px" id="analyticsDays" onchange="loadAnalytics()">
-            <option value="7">Last 7 days</option>
-            <option value="14">Last 14 days</option>
-            <option value="30">Last 30 days</option>
-          </select>
-        </div>
-        <div class="card" style="margin-bottom:16px;">
-          <div class="card-header"><div class="card-title">Execution Timeline</div></div>
-          <div id="timelineChart"></div>
-        </div>
-        <div class="card">
-          <div class="card-header"><div class="card-title">Workflow Performance</div></div>
-          <div class="table-wrap" style="margin-top:8px;">
-            <table>
-              <thead><tr><th>Workflow</th><th>Total</th><th>Success</th><th>Failed</th><th>Avg Duration</th><th>Success Rate</th></tr></thead>
-              <tbody id="analyticsTableBody"></tbody>
-            </table>
+        <div class="analytics-shell">
+          <div class="analytics-hero">
+            <div>
+              <div class="section-title">Analytics</div>
+              <div class="section-sub">Workflow performance, reliability, and run trends</div>
+            </div>
+            <div class="analytics-toolbar">
+              <select class="form-select analytics-range-select" id="analyticsDays" onchange="loadAnalytics()">
+                <option value="7">Last 7 days</option>
+                <option value="14">Last 14 days</option>
+                <option value="30">Last 30 days</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" onclick="loadAnalytics()">Refresh</button>
+            </div>
+          </div>
+
+          <div class="analytics-kpi-grid" id="analyticsKpis"></div>
+
+          <div class="analytics-layout">
+            <section class="card analytics-card analytics-card-main">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Execution Timeline</div>
+                  <div class="card-subtitle">Daily run volume with success and failure mix</div>
+                </div>
+              </div>
+              <div id="timelineChart"></div>
+            </section>
+
+            <section class="card analytics-card analytics-outcome-panel" id="analyticsOutcome"></section>
+          </div>
+
+          <div class="analytics-layout analytics-layout-bottom">
+            <section class="card analytics-card analytics-card-main">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Workflow Performance</div>
+                  <div class="card-subtitle">Reliability and speed by workflow</div>
+                </div>
+              </div>
+              <div class="table-wrap analytics-table-wrap">
+                <table class="analytics-table">
+                  <thead><tr><th>Workflow</th><th>Runs</th><th>Outcomes</th><th>Avg Duration</th><th>Last Run</th><th>Health</th></tr></thead>
+                  <tbody id="analyticsTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="card analytics-card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Top Workflows</div>
+                  <div class="card-subtitle">Highest execution volume</div>
+                </div>
+              </div>
+              <div class="analytics-workflow-list" id="analyticsWorkflowSpotlight"></div>
+            </section>
           </div>
         </div>
       </div>

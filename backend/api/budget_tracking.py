@@ -118,6 +118,8 @@ def _init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_bud_status   ON budgets (status);
         CREATE INDEX IF NOT EXISTS idx_bud_category ON budgets (category);
         CREATE INDEX IF NOT EXISTS idx_bud_period   ON budgets (period_start, period_end);
+        CREATE INDEX IF NOT EXISTS idx_bud_owner    ON budgets (owner);
+        CREATE INDEX IF NOT EXISTS idx_bud_team     ON budgets (team);
         CREATE INDEX IF NOT EXISTS idx_ent_budget   ON cost_entries (budget_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_ent_date     ON cost_entries (entry_date DESC);
     """)

@@ -49,6 +49,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from backend.security.ssrf import validate_outbound_url
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
@@ -199,6 +200,9 @@ async def _execute_step(step: dict, context: dict) -> dict:
             url = _render(step.get("url", ""), context)
             if not url:
                 raise ValueError("webhook_post step missing 'url'")
+            decision = validate_outbound_url(url)
+            if not decision.allowed:
+                raise ValueError(f"webhook_post URL not allowed: {decision.reason}")
             raw_payload = step.get("payload") or {}
             payload = _render_dict(raw_payload, context) if isinstance(raw_payload, dict) else {}
             success = await _http_post(url, payload)
@@ -293,24 +297,13 @@ async def _run_playbook(playbook_id: str, trigger_context: dict) -> str:
     step_log: list[dict] = []
     final_status = "completed"
 
-    for i, step in enumerate(steps):
+    for step in steps:
         step_result = await _execute_step(step, dict(trigger_context))
         step_log.append(step_result)
 
         if step_result["status"] == "error" and step.get("halt_on_error", False):
             final_status = "failed"
             break
-
-        try:
-            con = _conn()
-            con.execute(
-                "UPDATE playbook_runs SET steps_done=?, step_log=? WHERE id=?",
-                (i + 1, json.dumps(step_log), run_id),
-            )
-            con.commit()
-            con.close()
-        except Exception:
-            pass
 
     finished_at = _now()
     try:
@@ -384,7 +377,7 @@ def ensure_playbooks_running() -> None:
         con = _conn()
         rows = con.execute(
             f"SELECT {','.join(_PB_COLS)} FROM playbooks "
-            "WHERE enabled=1 AND trigger_type IN ('event','incident')"
+            "WHERE enabled=1 AND trigger_type IN ('event','incident') LIMIT 10000"
         ).fetchall()
         con.close()
         for row in rows:
@@ -417,21 +410,27 @@ class PlaybookPatch(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("", summary="List playbooks")
-async def list_playbooks(_auth=Depends(require_local_auth)):
+async def list_playbooks(
+    limit:  int = Query(200, ge=1, le=1000),
+    offset: int = Query(0,   ge=0),
+    _auth=Depends(require_local_auth),
+):
     try:
         con = _conn()
-        rows = con.execute(
-            f"SELECT {','.join(_PB_COLS)} FROM playbooks ORDER BY created_at DESC"
+        total = con.execute("SELECT COUNT(*) FROM playbooks").fetchone()[0]
+        rows  = con.execute(
+            f"SELECT {','.join(_PB_COLS)} FROM playbooks ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, offset),
         ).fetchall()
         con.close()
     except Exception:
-        return {"playbooks": []}
+        return {"playbooks": [], "total": 0}
     result = []
     for row in rows:
         pb = dict(zip(_PB_COLS, row))
         pb["steps"] = json.loads(pb.get("steps", "[]"))
         result.append(pb)
-    return {"playbooks": result}
+    return {"playbooks": result, "total": total, "limit": limit, "offset": offset}
 
 
 @router.post("", status_code=201, summary="Create playbook")

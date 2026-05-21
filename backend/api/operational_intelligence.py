@@ -594,7 +594,7 @@ class IntelligenceEngine:
             con = _open(_WORKFLOWS_DB)
             if con:
                 rows = con.execute(
-                    "SELECT json_extract(trigger_cfg,'$.template_id') FROM workflows WHERE is_active=1"
+                    "SELECT json_extract(trigger_cfg,'$.template_id') FROM workflows WHERE is_active=1 LIMIT 10000"
                 ).fetchall()
                 active_templates = {r[0] for r in rows if r[0]}
                 con.close()

@@ -197,7 +197,7 @@ def _query_history(metric: str, hours: int) -> List[Dict[str, Any]]:
         rows = con.execute(
             """SELECT recorded_at, value FROM metric_snapshots
                WHERE metric=? AND recorded_at >= ?
-               ORDER BY recorded_at ASC""",
+               ORDER BY recorded_at ASC LIMIT 10000""",
             (metric, cutoff),
         ).fetchall()
         con.close()

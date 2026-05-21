@@ -93,7 +93,7 @@ def _get_scheduled_workflows() -> List[Dict[str, Any]]:
         rows = con.execute(
             """SELECT id, name, trigger_cfg, steps_json
                FROM workflows
-               WHERE is_active=1 AND trigger_type='schedule'"""
+               WHERE is_active=1 AND trigger_type='schedule' LIMIT 10000"""
         ).fetchall()
         con.close()
         result = []

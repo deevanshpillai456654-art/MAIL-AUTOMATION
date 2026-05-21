@@ -1,4 +1,5 @@
 import logging
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 
@@ -6,6 +7,8 @@ def configure_logging(
     log_dir: str | Path,
     log_level: str,
     root_logger: logging.Logger | None = None,
+    max_bytes: int = 10 * 1024 * 1024,
+    backup_count: int = 5,
 ) -> Path:
     from backend.utils.logger import RedactingFormatter
 
@@ -28,10 +31,20 @@ def configure_logging(
             break
 
     if existing_file_handler:
-        existing_file_handler.setFormatter(formatter)
-        existing_file_handler.setLevel(level)
-    else:
-        file_handler = logging.FileHandler(log_file)
+        if isinstance(existing_file_handler, RotatingFileHandler):
+            existing_file_handler.setFormatter(formatter)
+            existing_file_handler.setLevel(level)
+        else:
+            logger.removeHandler(existing_file_handler)
+            existing_file_handler.close()
+            existing_file_handler = None
+    if not existing_file_handler:
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=max(1024, int(max_bytes)),
+            backupCount=max(1, int(backup_count)),
+            encoding="utf-8",
+        )
         file_handler.setFormatter(formatter)
         file_handler.setLevel(level)
         logger.addHandler(file_handler)

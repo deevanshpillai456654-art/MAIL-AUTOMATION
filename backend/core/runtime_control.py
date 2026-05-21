@@ -75,6 +75,7 @@ class AgentPolicy:
 
 SERVICE_POLICIES: Dict[str, ServicePolicy] = {
     "enterprise_system": ServicePolicy("enterprise_system", "Enterprise System", "core", True, False, True, True, True, heavy=True),
+    "enterprise_operations": ServicePolicy("enterprise_operations", "Enterprise Operations", "operations", True, True, True, True, True, "enterprise_operations"),
     "event_bus": ServicePolicy("event_bus", "Event Bus", "core", True, True, True, True, True, "events"),
     "human_approval": ServicePolicy("human_approval", "Human Approval", "workflow", True, True, True, True, True, "human_approval"),
     "agents": ServicePolicy("agents", "Agent Supervisor", "agents", True, False, True, True, True, "agents", heavy=True),

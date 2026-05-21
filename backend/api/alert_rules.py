@@ -43,7 +43,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from backend.auth.local_auth import require_local_auth
@@ -232,13 +232,18 @@ class AlertRulesEngine:
         try:
             con = _conn()
             con.row_factory = sqlite3.Row
-            rules = con.execute("SELECT * FROM alert_rules WHERE is_active=1").fetchall()
+            rules = con.execute("SELECT * FROM alert_rules WHERE is_active=1 LIMIT 10000").fetchall()
+            # Batch-load all states in one query to avoid N+1 reads per rule
+            state_rows = con.execute("SELECT * FROM alert_rule_state LIMIT 10000").fetchall()
+            states = {r["rule_id"]: dict(r) for r in state_rows}
             con.close()
         except Exception as exc:
             logger.debug("AlertRulesEngine: DB read failed: %s", exc)
             return
 
         now_dt = datetime.now(timezone.utc)
+        value_updates: list[tuple] = []  # (rule_id, last_value) for batch write
+
         for rule in rules:
             rule_id   = rule["id"]
             metric    = rule["metric"]
@@ -252,42 +257,41 @@ class AlertRulesEngine:
                 continue
 
             breached = _eval_condition(value, operator, threshold)
-
-            # Update last_value in state regardless
-            try:
-                con = _conn()
-                con.execute(
-                    """INSERT INTO alert_rule_state (rule_id, last_value)
-                       VALUES (?, ?)
-                       ON CONFLICT(rule_id) DO UPDATE SET last_value=excluded.last_value""",
-                    (rule_id, value),
-                )
-                con.commit()
-                con.close()
-            except Exception:
-                pass
+            value_updates.append((rule_id, value))
 
             if not breached:
                 continue
 
-            # Check cooldown
-            try:
-                con = _conn()
-                row = con.execute(
-                    "SELECT last_breach FROM alert_rule_state WHERE rule_id=?", (rule_id,)
-                ).fetchone()
-                con.close()
-                if row and row[0]:
-                    last_dt = datetime.fromisoformat(row[0])
+            # Check cooldown using in-memory state (no per-rule DB query)
+            state = states.get(rule_id, {})
+            last_breach_ts = state.get("last_breach")
+            if last_breach_ts:
+                try:
+                    last_dt = datetime.fromisoformat(last_breach_ts)
                     if last_dt.tzinfo is None:
                         last_dt = last_dt.replace(tzinfo=timezone.utc)
                     if (now_dt - last_dt).total_seconds() < cooldown * 60:
                         continue   # still in cooldown
-            except Exception:
-                pass
+                except Exception:
+                    pass
 
             # Fire breach
             await self._fire_breach(rule_id, rule["name"], metric, operator, threshold, value, severity)
+
+        # Batch-write last_value for all evaluated rules (one DB round-trip)
+        if value_updates:
+            try:
+                con = _conn()
+                con.executemany(
+                    """INSERT INTO alert_rule_state (rule_id, last_value)
+                       VALUES (?, ?)
+                       ON CONFLICT(rule_id) DO UPDATE SET last_value=excluded.last_value""",
+                    value_updates,
+                )
+                con.commit()
+                con.close()
+            except Exception as exc:
+                logger.debug("AlertRulesEngine: state batch-update failed: %s", exc)
 
     async def _fire_breach(
         self,
@@ -345,9 +349,9 @@ class AlertRulesEngine:
         try:
             con = _conn()
             con.row_factory = sqlite3.Row
-            rules = con.execute("SELECT * FROM alert_rules WHERE is_active=1").fetchall()
+            rules = con.execute("SELECT * FROM alert_rules WHERE is_active=1 LIMIT 10000").fetchall()
             states = {
-                r[0]: dict(r) for r in con.execute("SELECT * FROM alert_rule_state").fetchall()
+                r[0]: dict(r) for r in con.execute("SELECT * FROM alert_rule_state LIMIT 10000").fetchall()
             }
             con.close()
         except Exception:
@@ -436,13 +440,21 @@ def _row_to_dict(row) -> Dict:
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("", summary="List all alert rules")
-async def list_rules(_auth=Depends(require_local_auth)):
+async def list_rules(
+    limit:  int = Query(500, ge=1, le=2000),
+    offset: int = Query(0,   ge=0),
+    _auth=Depends(require_local_auth),
+):
     try:
         con = _conn()
         con.row_factory = sqlite3.Row
-        rows = con.execute("SELECT * FROM alert_rules ORDER BY created_at DESC").fetchall()
+        total = con.execute("SELECT COUNT(*) FROM alert_rules").fetchone()[0]
+        rows  = con.execute(
+            "SELECT * FROM alert_rules ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        ).fetchall()
         con.close()
-        return {"rules": [_row_to_dict(r) for r in rows], "count": len(rows)}
+        return {"rules": [_row_to_dict(r) for r in rows], "count": total, "limit": limit, "offset": offset}
     except Exception as exc:
         raise HTTPException(500, f"DB error: {exc}")
 

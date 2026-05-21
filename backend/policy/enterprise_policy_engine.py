@@ -408,7 +408,7 @@ class LegalHoldSystem:
         try:
             with self._get_conn() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT * FROM legal_holds WHERE status = 'active'")
+                cursor.execute("SELECT * FROM legal_holds WHERE status = 'active' LIMIT 10000")
                 for row in cursor.fetchall():
                     holds[row["hold_id"]] = LegalHold(
                         hold_id=row["hold_id"],
@@ -933,7 +933,7 @@ class EnterpriseComplianceFramework:
         try:
             with self._get_conn() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT * FROM compliance_policies")
+                cursor.execute("SELECT * FROM compliance_policies LIMIT 10000")
                 for row in cursor.fetchall():
                     self._policies[row["policy_id"]] = CompliancePolicy(
                         policy_id=row["policy_id"],

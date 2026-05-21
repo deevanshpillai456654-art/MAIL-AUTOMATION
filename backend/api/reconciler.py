@@ -117,24 +117,23 @@ class OperationalReconciler:
                 cutoff = (datetime.now(timezone.utc) - timedelta(seconds=self.STUCK_EXECUTION_THRESHOLD_S)).isoformat()
                 stuck  = con.execute(
                     """SELECT id, workflow_id FROM workflow_executions
-                       WHERE status='running' AND started_at < ?""",
+                       WHERE status='running' AND started_at < ? LIMIT 1000""",
                     (cutoff,),
                 ).fetchall()
-                for row in stuck:
-                    exec_id = row[0]
-                    wf_id   = row[1]
-                    con.execute(
+                if stuck:
+                    now_s = _now()
+                    con.executemany(
                         "UPDATE workflow_executions SET status='failed', error=?, finished_at=? WHERE id=?",
-                        ("Stuck execution — auto-recovered by reconciler", _now(), exec_id),
+                        [("Stuck execution — auto-recovered by reconciler", now_s, row[0]) for row in stuck],
                     )
-                    actions.append(f"Recovered stuck execution {exec_id}")
+                    con.commit()
+                for row in stuck:
+                    actions.append(f"Recovered stuck execution {row[0]}")
                     events.append({
                         "type":     "workflow.recovered",
                         "severity": "medium",
-                        "payload":  {"execution_id": exec_id, "workflow_id": wf_id, "action": "auto_fail"},
+                        "payload":  {"execution_id": row[0], "workflow_id": row[1], "action": "auto_fail"},
                     })
-                if stuck:
-                    con.commit()
                 con.close()
         except Exception as exc:
             logger.debug("Reconciler: stuck execution check failed: %s", exc)

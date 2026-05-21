@@ -338,7 +338,7 @@ async def oauth_callback(connector_id: str, req: OAuthCallbackRequest):
                 "result": result}
     except Exception as exc:
         log.exception("OAuth callback failed for %s", connector_id)
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail="OAuth token exchange failed")
     finally:
         await connector.close()
 
@@ -399,7 +399,7 @@ async def receive_webhook(
         raise
     except Exception as exc:
         log.exception("Webhook processing failed: %s/%s", connector_id, tenant_id)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Webhook processing failed")
     finally:
         await connector.close()
 

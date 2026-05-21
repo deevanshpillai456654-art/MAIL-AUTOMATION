@@ -99,6 +99,7 @@ def _init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_kb_status   ON kb_articles (status);
         CREATE INDEX IF NOT EXISTS idx_kb_category ON kb_articles (category);
         CREATE INDEX IF NOT EXISTS idx_kb_slug     ON kb_articles (slug);
+        CREATE INDEX IF NOT EXISTS idx_kb_updated  ON kb_articles (updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_rev_art     ON kb_revisions (article_id, created_at DESC);
     """)
     con.commit()
@@ -373,14 +374,18 @@ async def transition_article(
 # ── Revisions ─────────────────────────────────────────────────────────────────
 
 @router.get("/articles/{article_id}/revisions", summary="List article revisions")
-async def list_revisions(article_id: str, _auth=Depends(require_local_auth)):
+async def list_revisions(
+    article_id: str,
+    limit: int = Query(100, ge=1, le=500),
+    _auth=Depends(require_local_auth),
+):
     try:
         con = _conn()
         _get_art_or_404(con, article_id)
         rows = con.execute(
             f"SELECT {','.join(_REV_COLS)} FROM kb_revisions "
-            "WHERE article_id=? ORDER BY created_at DESC",
-            (article_id,),
+            "WHERE article_id=? ORDER BY created_at DESC LIMIT ?",
+            (article_id, limit),
         ).fetchall()
         con.close()
     except HTTPException:

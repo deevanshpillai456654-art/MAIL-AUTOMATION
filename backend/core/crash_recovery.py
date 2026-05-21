@@ -233,9 +233,9 @@ class CrashRecoveryEngine:
         with self._get_conn() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT * FROM workflow_checkpoints 
+                SELECT * FROM workflow_checkpoints
                 WHERE workflow_id = ?
-                ORDER BY created_at ASC
+                ORDER BY created_at ASC LIMIT 1000
             """, (workflow_id,))
             for row in cursor.fetchall():
                 checkpoints.append(WorkflowCheckpoint(
@@ -266,7 +266,7 @@ class CrashRecoveryEngine:
                 cursor.execute("""
                     SELECT DISTINCT workflow_id FROM workflow_checkpoints
                     WHERE is_complete = 0
-                    ORDER BY created_at ASC
+                    ORDER BY created_at ASC LIMIT 1000
                 """)
             
             return [row[0] for row in cursor.fetchall()]
@@ -346,9 +346,9 @@ class CrashRecoveryEngine:
         with self._get_conn() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT * FROM oauth_flow_states 
+                SELECT * FROM oauth_flow_states
                 WHERE is_complete = 0
-                ORDER BY created_at ASC
+                ORDER BY created_at ASC LIMIT 1000
             """)
             for row in cursor.fetchall():
                 flows.append({
@@ -493,7 +493,7 @@ class CrashRecoveryEngine:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT operation_id, operation_type, state FROM operation_checkpoints
-                WHERE is_committed = 0
+                WHERE is_committed = 0 LIMIT 1000
             """)
             
             for row in cursor.fetchall():

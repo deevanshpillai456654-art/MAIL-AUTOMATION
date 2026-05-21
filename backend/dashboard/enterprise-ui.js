@@ -2396,8 +2396,128 @@
     });
   }
 
+  function reportNumber(value) {
+    if (typeof value === 'string' && value.trim().endsWith('%')) return Number.parseFloat(value);
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function reportLabel(key) {
+    return String(key || '').replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  function buildReportSummary(email = {}, business = {}, learning = {}, modelHealth = {}) {
+    const received = reportNumber(email.received);
+    const processed = reportNumber(email.processed);
+    const failed = reportNumber(email.failed);
+    const categorized = reportNumber(email.categorized);
+    const forwarded = reportNumber(email.forwarded);
+    const learningAccuracy = reportNumber(learning.learning_accuracy);
+    const fallbackRate = reportNumber(modelHealth.onnx_fallback_rate);
+    const businessSignals = Object.values(business).reduce((total, value) => total + reportNumber(value), 0);
+    const processRate = received ? Math.min(100, (processed / received) * 100) : (processed ? 100 : 0);
+    const categorizedRate = processed ? Math.min(100, (categorized / processed) * 100) : 0;
+    const failureRate = processed ? Math.min(100, (failed / processed) * 100) : 0;
+    const modelScore = Math.max(0, 100 - fallbackRate);
+    const healthScore = Math.round((processRate + categorizedRate + Math.max(0, 100 - failureRate) + learningAccuracy + modelScore) / 5);
+    return {
+      received,
+      processed,
+      failed,
+      categorized,
+      forwarded,
+      learningAccuracy,
+      fallbackRate,
+      businessSignals,
+      processRate,
+      categorizedRate,
+      failureRate,
+      modelScore,
+      healthScore,
+      status: healthScore >= 90 ? 'ready' : healthScore >= 70 ? 'watch' : 'risk',
+      runtime: modelHealth.runtime || modelHealth.active_model || 'Runtime',
+    };
+  }
+
+  function renderReportKpis(summary) {
+    const items = [
+      {label:'Processed', value:summary.processed, meta:`${Math.round(summary.processRate)}% of received`, tone:'blue'},
+      {label:'Categorized', value:summary.categorized, meta:`${Math.round(summary.categorizedRate)}% classified`, tone:'green'},
+      {label:'Business Signals', value:summary.businessSignals, meta:'RFQ, invoice, support and freight', tone:'violet'},
+      {label:'Learning Accuracy', value:`${Math.round(summary.learningAccuracy)}%`, meta:`${Math.round(summary.fallbackRate)}% fallback`, tone:summary.learningAccuracy >= 90 ? 'green' : 'amber'},
+    ];
+    const strip = $('reportKpiStrip');
+    if (strip) {
+      strip.classList.add('report-kpi-strip');
+      strip.innerHTML = items.map(item => `
+      <div class="report-kpi-card report-kpi-${item.tone}" role="listitem">
+        <span>${esc(item.label)}</span>
+        <strong>${esc(item.value)}</strong>
+        <small>${esc(item.meta)}</small>
+      </div>
+    `).join('');
+    }
+  }
+
+  function renderReportInsightPanel(summary) {
+    if (!$('reportInsightPanel')) return;
+    const insightPanel = $('reportInsightPanel').closest('.panel');
+    if (insightPanel) insightPanel.classList.add('report-insight-panel');
+    $('reportInsightPanel').innerHTML = `
+      <div class="report-signal-status report-signal-${summary.status}">
+        <span>Health score</span>
+        <strong>${summary.healthScore}%</strong>
+      </div>
+      <div class="report-signal-bars">
+        ${[
+          ['Processing', summary.processRate],
+          ['Classification', summary.categorizedRate],
+          ['Reliability', Math.max(0, 100 - summary.failureRate)],
+          ['Learning', summary.learningAccuracy],
+          ['Model', summary.modelScore],
+        ].map(([label, value]) => `
+          <div class="report-signal-row">
+            <div><span>${esc(label)}</span><strong>${Math.round(value)}%</strong></div>
+            <div class="report-signal-track"><div class="report-signal-fill" data-progress="${Math.round(value)}"></div></div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="report-signal-meta">
+        <div><span>Runtime</span><strong>${esc(summary.runtime)}</strong></div>
+        <div><span>Failures</span><strong>${summary.failed}</strong></div>
+      </div>
+    `;
+    applyDynamicVisuals($('reportInsightPanel'));
+  }
+
+  function renderReportPipeline(summary) {
+    const max = Math.max(summary.received, summary.processed, summary.categorized, summary.forwarded, 1);
+    const stages = [
+      ['Received', summary.received],
+      ['Processed', summary.processed],
+      ['Categorized', summary.categorized],
+      ['Forwarded', summary.forwarded],
+    ];
+    const pipeline = $('reportPipeline');
+    if (pipeline) {
+      pipeline.classList.add('report-pipeline');
+      pipeline.innerHTML = stages.map(([label, value]) => `
+      <div class="report-pipeline-card" role="listitem">
+        <div><span>${esc(label)}</span><strong>${value}</strong></div>
+        <div class="report-pipeline-track"><div class="report-pipeline-fill" data-progress="${Math.round((value / max) * 100)}"></div></div>
+      </div>
+    `).join('');
+      applyDynamicVisuals(pipeline);
+    }
+  }
+
   function renderReportCards(id, values) {
-    if ($(id)) $(id).innerHTML = Object.entries(values || {}).map(([k,v]) => `<div class="report-card" role="listitem"><span>${esc(k.replaceAll('_',' '))}</span><strong>${esc(v)}</strong></div>`).join('');
+    if ($(id)) $(id).innerHTML = Object.entries(values || {}).map(([k,v]) => `
+      <div class="report-card report-card-modern" role="listitem">
+        <span>${esc(reportLabel(k))}</span>
+        <strong>${esc(v)}</strong>
+      </div>
+    `).join('');
   }
 
   function renderBars(id, values) {
@@ -2413,6 +2533,10 @@
     const business = state.reports.business || fallbackReports().business;
     const learning = state.reports.learning || fallbackReports().learning;
     const modelHealth = state.reports.model_health || fallbackReports().model_health;
+    const summary = buildReportSummary(email, business, learning, modelHealth);
+    renderReportKpis(summary);
+    renderReportInsightPanel(summary);
+    renderReportPipeline(summary);
     renderReportCards('emailReport', email);
     renderReportCards('businessReport', business);
     renderReportCards('learningReport', learning);

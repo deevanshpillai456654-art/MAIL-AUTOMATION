@@ -18,6 +18,7 @@ from backend.api.enterprise_refinement import router as enterprise_refinement_ro
 from backend.api.enterprise_reports import router as enterprise_reports_router
 from backend.api.enterprise_templates import router as enterprise_templates_router
 from backend.api.enterprise_updates import router as enterprise_updates_router
+from backend.api.enterprise_operations import router as enterprise_operations_router
 from backend.api.export import router as export_router
 from backend.api.agents import router as agents_router
 from backend.api.event_bus import router as event_bus_router
@@ -123,6 +124,7 @@ API_ROUTER_SPECS: tuple[RouterSpec, ...] = (
     RouterSpec("enterprise_reports", enterprise_reports_router),
     RouterSpec("enterprise_admin", enterprise_admin_router),
     RouterSpec("enterprise_updates", enterprise_updates_router),
+    RouterSpec("enterprise_operations", enterprise_operations_router),
     RouterSpec("threat_intelligence", threat_intelligence_router),
     RouterSpec("ws_alerts", ws_alerts_router),
     RouterSpec("ai_assistant", ai_assistant_router),

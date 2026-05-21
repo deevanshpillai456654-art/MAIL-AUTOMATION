@@ -1,7 +1,7 @@
 """Database maintenance helpers for Phase-1 production stability.
 
 Provides:
-  - Retention policy: prune old completed job queue entries and stale sync logs
+  - Retention policy: prune old completed/dead-letter job queue entries and stale sync logs
   - WAL checkpoint: reclaim disk space consumed by the SQLite write-ahead log
   - Storage report: current DB + data directory sizes
 
@@ -22,7 +22,7 @@ logger = logging.getLogger("db_maintenance")
 
 # ── tuneable constants ────────────────────────────────────────────────────────
 
-# Completed/failed job queue rows older than this are deleted
+# Completed/dead-letter job queue rows older than this are deleted
 JOB_RETENTION_DAYS = int(os.environ.get("JOB_RETENTION_DAYS", "7"))
 
 # Completed sync_status rows older than this are deleted
@@ -70,7 +70,7 @@ def run_wal_checkpoint(db_paths: list[str | Path]) -> Dict[str, int]:
 # ── job queue retention ───────────────────────────────────────────────────────
 
 def prune_job_queue(db_path: str | Path, retention_days: int = JOB_RETENTION_DAYS) -> int:
-    """Delete completed and permanently-failed job records older than `retention_days`."""
+    """Delete completed and terminal job records older than `retention_days`."""
     cutoff = time.time() - retention_days * 86400
     path = str(db_path)
     if not os.path.exists(path):
@@ -79,7 +79,7 @@ def prune_job_queue(db_path: str | Path, retention_days: int = JOB_RETENTION_DAY
         conn = sqlite3.connect(path, timeout=15, isolation_level=None)
         conn.execute("PRAGMA journal_mode=WAL")
         cur = conn.execute(
-            "DELETE FROM persistent_jobs WHERE status IN ('completed', 'failed') AND updated_at < ?",
+            "DELETE FROM persistent_jobs WHERE status IN ('completed', 'dead_letter', 'failed') AND updated_at < ?",
             (cutoff,),
         )
         deleted = cur.rowcount

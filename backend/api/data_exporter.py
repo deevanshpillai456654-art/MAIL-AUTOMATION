@@ -160,10 +160,10 @@ class DataExporter:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        cursor.execute("SELECT * FROM rules")
-        
+        cursor.execute("SELECT * FROM rules LIMIT 10000")
+
         output_file = self.export_dir / f"{job_id}.{format.value}"
-        
+
         if format == ExportFormat.JSON:
             rows = cursor.fetchall()
             self._export_json(rows, output_file)

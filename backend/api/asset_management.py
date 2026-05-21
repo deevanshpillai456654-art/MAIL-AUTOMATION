@@ -133,12 +133,15 @@ def _init_db() -> None:
             created_at TEXT NOT NULL
         );
 
-        CREATE INDEX IF NOT EXISTS idx_asset_status ON assets (status);
-        CREATE INDEX IF NOT EXISTS idx_asset_type   ON assets (type);
-        CREATE INDEX IF NOT EXISTS idx_asset_env    ON assets (environment);
-        CREATE INDEX IF NOT EXISTS idx_rel_source   ON asset_relationships (source_id);
-        CREATE INDEX IF NOT EXISTS idx_rel_target   ON asset_relationships (target_id);
-        CREATE INDEX IF NOT EXISTS idx_evt_asset    ON asset_events (asset_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_asset_status   ON assets (status);
+        CREATE INDEX IF NOT EXISTS idx_asset_type     ON assets (type);
+        CREATE INDEX IF NOT EXISTS idx_asset_env      ON assets (environment);
+        CREATE INDEX IF NOT EXISTS idx_asset_owner    ON assets (owner);
+        CREATE INDEX IF NOT EXISTS idx_asset_team     ON assets (team);
+        CREATE INDEX IF NOT EXISTS idx_asset_hostname ON assets (hostname);
+        CREATE INDEX IF NOT EXISTS idx_rel_source     ON asset_relationships (source_id);
+        CREATE INDEX IF NOT EXISTS idx_rel_target     ON asset_relationships (target_id);
+        CREATE INDEX IF NOT EXISTS idx_evt_asset      ON asset_events (asset_id, created_at DESC);
     """)
     con.commit()
     con.close()
@@ -423,7 +426,7 @@ async def list_relationships(asset_id: str, _auth=Depends(require_local_auth)):
         _get_asset_or_404(con, asset_id)
         rows = con.execute(
             f"SELECT {','.join(_REL_COLS)} FROM asset_relationships "
-            "WHERE source_id=? OR target_id=? ORDER BY created_at DESC",
+            "WHERE source_id=? OR target_id=? ORDER BY created_at DESC LIMIT 200",
             (asset_id, asset_id),
         ).fetchall()
         con.close()

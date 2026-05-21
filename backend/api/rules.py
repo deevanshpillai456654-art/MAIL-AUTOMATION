@@ -514,7 +514,7 @@ async def enterprise_rule_templates():
 
 @router.get("/rules/export")
 async def export_rules():
-    rows = db.fetch_all("SELECT * FROM rules ORDER BY created_at DESC")
+    rows = db.fetch_all("SELECT * FROM rules ORDER BY created_at DESC LIMIT 10000")
     return {"format":"json", "rules": rows, "count": len(rows)}
 
 @router.post("/rules/import")

@@ -2073,7 +2073,7 @@ async def event_generator():
     while True:
         db = get_db()
         syncs = db.fetch_all("SELECT * FROM sync_status ORDER BY started_at DESC LIMIT 5")
-        email_count = len(db.fetch_all("SELECT id FROM emails WHERE created_at > datetime('now', '-1 hour')"))
+        email_count = (db.fetch_one("SELECT COUNT(*) AS c FROM emails WHERE created_at > datetime('now', '-1 hour')") or {}).get("c", 0)
         accounts = [public_account(account) for account in db.get_all_accounts()]
         data = {
             "sync_status": syncs,

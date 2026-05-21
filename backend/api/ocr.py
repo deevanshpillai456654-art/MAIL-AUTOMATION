@@ -20,7 +20,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
@@ -374,7 +374,7 @@ async def scan_email(
 
 @router.get("/history", summary="List OCR scan history")
 async def get_history(
-    limit: int = 50,
+    limit: int = Query(50, ge=1, le=1000),
     _auth=Depends(require_local_auth),
 ):
     con = _db()

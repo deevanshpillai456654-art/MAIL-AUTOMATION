@@ -7,7 +7,7 @@ empty message list.  Valid empty inbox reads still complete with fetched=0.
 
 import logging
 from typing import List, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import time
 
 from backend.db.database import Database
@@ -24,11 +24,11 @@ class ProviderSyncReadError(RuntimeError):
 
 
 def _utc_now() -> str:
-    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _since_iso(days: int = 7) -> str:
-    return (datetime.utcnow() - timedelta(days=days)).isoformat(timespec="seconds") + "Z"
+    return (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class OutlookSync:
@@ -87,6 +87,16 @@ class OutlookSync:
                 raise ProviderSyncReadError(last_error) from exc
 
         raise ProviderSyncReadError(last_error or f"Microsoft Graph request failed for {endpoint}")
+
+    async def _make_request_async(self, method: str, endpoint: str, **kwargs) -> Dict:
+        from backend.sync.async_provider_transport import AsyncProviderTransport, ProviderTransportError
+
+        transport = AsyncProviderTransport(provider="outlook", api_base=self.API_BASE, headers=self.headers)
+        try:
+            return await transport.request_json(method, endpoint, **kwargs)
+        except ProviderTransportError as exc:
+            self.db.update_account_status(self.account_id, "degraded", "provider_error", str(exc))
+            raise ProviderSyncReadError(str(exc)) from exc
 
     def get_messages(self, folder_id: str = "inbox", max_results: int = 100, filter_query: str = None) -> List[Dict]:
         params = {"$top": min(max_results, self.MAX_RESULTS), "$orderby": "receivedDateTime desc"}

@@ -6,7 +6,7 @@ sync idempotency before mailbox work starts.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional, Type
 import logging
 
@@ -254,4 +254,4 @@ class MailboxOrchestrator:
             if not account:
                 return {"ok": False, "status": "missing"}
             return self.adapter_for(account["provider"]).health_check(account_id).as_dict()
-        return {"accounts": MailboxHealthEngine(self.db).all_health(), "timestamp": datetime.utcnow().isoformat(timespec="seconds") + "Z"}
+        return {"accounts": MailboxHealthEngine(self.db).all_health(), "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}

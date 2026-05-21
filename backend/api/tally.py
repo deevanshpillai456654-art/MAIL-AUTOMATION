@@ -306,7 +306,7 @@ async def discover(_auth=Depends(require_local_auth)):
 async def companies(_auth=Depends(require_local_auth)):
     init_tally_db()
     with _conn() as con:
-        rows = con.execute("SELECT name, guid, health, last_sync_at FROM tally_companies WHERE tenant_id=? ORDER BY name", ("default",)).fetchall()
+        rows = con.execute("SELECT name, guid, health, last_sync_at FROM tally_companies WHERE tenant_id=? ORDER BY name LIMIT 1000", ("default",)).fetchall()
     return {"companies": [dict(row) for row in rows]}
 
 
@@ -314,7 +314,7 @@ async def companies(_auth=Depends(require_local_auth)):
 async def ledgers(_auth=Depends(require_local_auth)):
     init_tally_db()
     with _conn() as con:
-        rows = con.execute("SELECT name, parent, closing_balance, updated_at FROM tally_ledgers WHERE tenant_id=? ORDER BY name", ("default",)).fetchall()
+        rows = con.execute("SELECT name, parent, closing_balance, updated_at FROM tally_ledgers WHERE tenant_id=? ORDER BY name LIMIT 5000", ("default",)).fetchall()
     return {"ledgers": [dict(row) for row in rows]}
 
 
@@ -322,7 +322,7 @@ async def ledgers(_auth=Depends(require_local_auth)):
 async def vouchers(_auth=Depends(require_local_auth)):
     init_tally_db()
     with _conn() as con:
-        rows = con.execute("SELECT voucher_type, voucher_number, amount, status, updated_at FROM tally_vouchers WHERE tenant_id=? ORDER BY updated_at DESC", ("default",)).fetchall()
+        rows = con.execute("SELECT voucher_type, voucher_number, amount, status, updated_at FROM tally_vouchers WHERE tenant_id=? ORDER BY updated_at DESC LIMIT 500", ("default",)).fetchall()
     return {"vouchers": [dict(row) for row in rows]}
 
 
@@ -330,7 +330,7 @@ async def vouchers(_auth=Depends(require_local_auth)):
 async def inventory(_auth=Depends(require_local_auth)):
     init_tally_db()
     with _conn() as con:
-        rows = con.execute("SELECT item_name, quantity, valuation, reorder_level, updated_at FROM tally_inventory WHERE tenant_id=? ORDER BY item_name", ("default",)).fetchall()
+        rows = con.execute("SELECT item_name, quantity, valuation, reorder_level, updated_at FROM tally_inventory WHERE tenant_id=? ORDER BY item_name LIMIT 5000", ("default",)).fetchall()
     return {"items": [dict(row) for row in rows]}
 
 
@@ -338,7 +338,7 @@ async def inventory(_auth=Depends(require_local_auth)):
 async def gst(_auth=Depends(require_local_auth)):
     init_tally_db()
     with _conn() as con:
-        rows = con.execute("SELECT company_name, period, mismatch_count, tax_payable, status, updated_at FROM tally_gst_reports WHERE tenant_id=? ORDER BY updated_at DESC", ("default",)).fetchall()
+        rows = con.execute("SELECT company_name, period, mismatch_count, tax_payable, status, updated_at FROM tally_gst_reports WHERE tenant_id=? ORDER BY updated_at DESC LIMIT 500", ("default",)).fetchall()
     return {"reports": [dict(row) for row in rows], "alerts": []}
 
 

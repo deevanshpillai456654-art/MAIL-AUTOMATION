@@ -47,7 +47,7 @@ from typing import Any, Callable, Dict, Generator, List, Optional, Set
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from backend.auth.local_auth import require_local_auth
+from backend.auth.local_auth import require_local_auth, request_has_valid_local_auth
 from backend.config import DATA_DIR
 
 logger = logging.getLogger(__name__)
@@ -554,6 +554,12 @@ async def event_stream(websocket: WebSocket):
         {"type": "set_filter", "filter": {"min_severity": "high", "event_types": [...]}}
         {"type": "ping"}
     """
+    # BaseHTTPMiddleware (LocalAPIAuthMiddleware) intercepts only "http" scope connections,
+    # not "websocket" scope — auth must be enforced here before accepting the handshake.
+    if not request_has_valid_local_auth(websocket):
+        await websocket.close(code=4001)
+        return
+
     if not _bus._running:
         await _bus.start()
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from backend.db.database import Database
@@ -27,7 +27,7 @@ class ProviderOperationResult:
             "account_id": self.account_id,
             "message": self.message,
             "detail": self.detail,
-            "timestamp": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
 
 

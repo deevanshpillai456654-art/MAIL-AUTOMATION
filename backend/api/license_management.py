@@ -137,6 +137,10 @@ def _init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_lic_status  ON licenses (status);
         CREATE INDEX IF NOT EXISTS idx_lic_type    ON licenses (type);
         CREATE INDEX IF NOT EXISTS idx_lic_expiry  ON licenses (expiry_date);
+        CREATE INDEX IF NOT EXISTS idx_lic_vendor  ON licenses (vendor);
+        CREATE INDEX IF NOT EXISTS idx_lic_owner   ON licenses (owner);
+        CREATE INDEX IF NOT EXISTS idx_lic_team    ON licenses (team);
+        CREATE INDEX IF NOT EXISTS idx_lic_product ON licenses (product);
         CREATE INDEX IF NOT EXISTS idx_asn_license ON assignments (license_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_ren_license ON renewals (license_id, created_at DESC);
     """)
@@ -372,7 +376,7 @@ async def expiring_licenses(
             "WHERE expiry_date != '' "
             "  AND expiry_date <= date('now', ?) "
             "  AND status NOT IN ('terminated','cancelled') "
-            "ORDER BY expiry_date ASC",
+            "ORDER BY expiry_date ASC LIMIT 500",
             (interval,),
         ).fetchall()
         con.close()
@@ -491,7 +495,7 @@ async def list_assignments(license_id: str, _auth=Depends(require_local_auth)):
         _get_lic_or_404(con, license_id)
         rows = con.execute(
             f"SELECT {','.join(_ASN_COLS)} FROM assignments "
-            "WHERE license_id=? ORDER BY created_at DESC",
+            "WHERE license_id=? ORDER BY created_at DESC LIMIT 1000",
             (license_id,),
         ).fetchall()
         con.close()
@@ -567,7 +571,7 @@ async def list_renewals(license_id: str, _auth=Depends(require_local_auth)):
         _get_lic_or_404(con, license_id)
         rows = con.execute(
             f"SELECT {','.join(_REN_COLS)} FROM renewals "
-            "WHERE license_id=? ORDER BY created_at DESC",
+            "WHERE license_id=? ORDER BY created_at DESC LIMIT 200",
             (license_id,),
         ).fetchall()
         con.close()

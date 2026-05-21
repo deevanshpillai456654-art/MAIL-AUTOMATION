@@ -97,6 +97,8 @@ def _init_db() -> None:
             ON sla_breaches (incident_id, breach_type);
         CREATE INDEX IF NOT EXISTS idx_sb_created
             ON sla_breaches (created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_sb_policy
+            ON sla_breaches (policy_id, created_at DESC);
     """)
     con.commit()
     con.close()
@@ -136,7 +138,7 @@ def _fetch_open_incidents() -> list[dict]:
         con = sqlite3.connect(inc_db, timeout=5)
         rows = con.execute(
             "SELECT id, title, severity, status, created_at "
-            "FROM incidents WHERE status IN ('open','acknowledged')"
+            "FROM incidents WHERE status IN ('open','acknowledged') LIMIT 5000"
         ).fetchall()
         con.close()
         return [
@@ -212,7 +214,7 @@ async def _check_sla() -> None:
     try:
         con = _conn()
         rows = con.execute(
-            f"SELECT {','.join(_POLICY_COLS)} FROM sla_policies WHERE enabled=1"
+            f"SELECT {','.join(_POLICY_COLS)} FROM sla_policies WHERE enabled=1 LIMIT 10000"
         ).fetchall()
         con.close()
     except Exception as exc:
@@ -417,7 +419,7 @@ async def list_policies(_auth=Depends(require_local_auth)):
     try:
         con = _conn()
         rows = con.execute(
-            f"SELECT {','.join(_POLICY_COLS)} FROM sla_policies ORDER BY created_at DESC"
+            f"SELECT {','.join(_POLICY_COLS)} FROM sla_policies ORDER BY created_at DESC LIMIT 200"
         ).fetchall()
         con.close()
     except Exception:

@@ -673,49 +673,176 @@ async function loadAnalytics() {
     api('/analytics/workflows'),
     api(`/analytics/executions/timeline?days=${days}`),
   ]);
-  if (wfRes.ok) renderAnalyticsTable(wfRes.data);
-  if (timelineRes.ok) renderTimeline(timelineRes.data);
+  const workflows = wfRes.ok && Array.isArray(wfRes.data) ? wfRes.data : [];
+  const timeline = timelineRes.ok && Array.isArray(timelineRes.data) ? timelineRes.data : [];
+  renderAnalyticsOverview(workflows, timeline, Number(days));
+  renderAnalyticsTable(workflows);
+  renderTimeline(timeline);
+}
+
+function num(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function fmtPct(value) {
+  return `${Math.round(num(value))}%`;
+}
+
+function summarizeAnalytics(workflows = [], timeline = []) {
+  const totals = workflows.reduce((acc, w) => {
+    acc.runs += num(w.total_executions);
+    acc.success += num(w.successful);
+    acc.failed += num(w.failed);
+    acc.pending += num(w.pending_approvals);
+    acc.duration += num(w.avg_duration_ms) * num(w.total_executions);
+    return acc;
+  }, { runs: 0, success: 0, failed: 0, pending: 0, duration: 0 });
+  const successRate = totals.runs ? (totals.success / totals.runs) * 100 : 0;
+  const failureRate = totals.runs ? (totals.failed / totals.runs) * 100 : 0;
+  const avgDuration = totals.runs ? totals.duration / totals.runs : 0;
+  const activeWorkflows = workflows.filter(w => num(w.total_executions) > 0).length;
+  const peakDay = timeline.reduce((best, day) => num(day.total) > num(best.total) ? day : best, { total: 0, date: '-' });
+  const topWorkflow = [...workflows].sort((a, b) => num(b.total_executions) - num(a.total_executions))[0] || null;
+  return {
+    ...totals,
+    successRate,
+    failureRate,
+    avgDuration,
+    activeWorkflows,
+    peakDay,
+    topWorkflow,
+    health: successRate >= 90 ? 'strong' : successRate >= 70 ? 'watch' : 'risk',
+  };
+}
+
+function renderAnalyticsOverview(workflows, timeline, days) {
+  const summary = summarizeAnalytics(workflows, timeline);
+  const kpis = [
+    { label: 'Total Runs', value: summary.runs, meta: `${summary.activeWorkflows} active workflows`, tone: 'accent' },
+    { label: 'Success Rate', value: fmtPct(summary.successRate), meta: `${summary.success} completed`, tone: summary.health },
+    { label: 'Failures', value: summary.failed, meta: `${fmtPct(summary.failureRate)} of runs`, tone: summary.failed ? 'risk' : 'strong' },
+    { label: 'Avg Duration', value: fmtDuration(summary.avgDuration), meta: `${days || 7} day window`, tone: 'neutral' },
+  ];
+  window.setSafeHTML(document.getElementById('analyticsKpis'), kpis.map(item => `
+    <div class="analytics-kpi-card analytics-tone-${esc(item.tone)}">
+      <div class="analytics-kpi-label">${esc(item.label)}</div>
+      <div class="analytics-kpi-value">${esc(item.value)}</div>
+      <div class="analytics-kpi-meta">${esc(item.meta)}</div>
+    </div>
+  `).join(''));
+
+  const outcomeTotal = Math.max(summary.runs, 1);
+  window.setSafeHTML(document.getElementById('analyticsOutcome'), `
+    <div class="card-header">
+      <div>
+        <div class="card-title">Outcome Mix</div>
+        <div class="card-subtitle">Completed, failed, and waiting runs</div>
+      </div>
+      <span class="analytics-health-pill analytics-health-${summary.health}">${esc(summary.health)}</span>
+    </div>
+    <div class="analytics-outcome-bars">
+      ${[
+        { label: 'Completed', value: summary.success, tone: 'success' },
+        { label: 'Failed', value: summary.failed, tone: 'failed' },
+        { label: 'Waiting', value: summary.pending, tone: 'waiting' },
+      ].map(item => `
+        <div class="analytics-outcome-row">
+          <div class="analytics-outcome-label"><span>${esc(item.label)}</span><strong>${item.value}</strong></div>
+          <div class="analytics-meter"><div class="analytics-meter-fill analytics-${item.tone}" data-width="${(item.value / outcomeTotal * 100).toFixed(1)}"></div></div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="analytics-insight-strip">
+      <div><span>Peak day</span><strong>${esc(summary.peakDay.date || '-')}</strong></div>
+      <div><span>Top flow</span><strong>${esc(summary.topWorkflow?.workflow_name || 'No runs')}</strong></div>
+    </div>
+  `);
+
+  const top = [...workflows].sort((a, b) => num(b.total_executions) - num(a.total_executions)).slice(0, 4);
+  window.setSafeHTML(
+    document.getElementById('analyticsWorkflowSpotlight'),
+    top.length ? top.map(w => {
+      const rate = num(w.success_rate);
+      return `<div class="analytics-workflow-card">
+        <div class="analytics-workflow-head">
+          <strong>${esc(w.workflow_name)}</strong>
+          <span>${fmtPct(rate)}</span>
+        </div>
+        <div class="analytics-workflow-meta">${num(w.total_executions)} runs - ${fmtDuration(num(w.avg_duration_ms))} avg</div>
+        <div class="analytics-meter"><div class="analytics-meter-fill ${rate >= 80 ? 'analytics-success' : rate >= 50 ? 'analytics-waiting' : 'analytics-failed'}" data-width="${rate.toFixed(1)}"></div></div>
+      </div>`;
+    }).join('') : '<div class="empty compact"><div class="empty-desc">No workflow runs yet</div></div>'
+  );
+  applyAnalyticsWidths();
 }
 
 function renderAnalyticsTable(data) {
   const tbody = document.getElementById('analyticsTableBody');
   if (!data.length) { window.setSafeHTML(
     tbody,
-    `<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">No data</td></tr>`
+    `<tr><td colspan="6"><div class="analytics-empty-table">No workflow analytics yet</div></td></tr>`
   ); return; }
   window.setSafeHTML(tbody, data.map(w => `
     <tr>
-      <td>${esc(w.workflow_name)}</td>
-      <td>${w.total_executions}</td>
-      <td style="color:var(--green)">${w.successful}</td>
-      <td style="color:var(--red)">${w.failed}</td>
-      <td class="td-mono">${fmtDuration(w.avg_duration_ms)}</td>
-      <td><div style="display:flex;align-items:center;gap:8px">
-        <div class="chart-bar-track" style="width:80px"><div class="chart-bar-fill" style="width:${w.success_rate.toFixed(0)}%;background:${w.success_rate>80?'var(--green)':w.success_rate>50?'var(--yellow)':'var(--red)'}"></div></div>
-        <span style="font-size:12px">${w.success_rate.toFixed(0)}%</span>
-      </div></td>
+      <td>
+        <div class="analytics-table-title">${esc(w.workflow_name)}</div>
+        <div class="analytics-table-sub">Last run ${w.last_executed ? relTime(w.last_executed) : 'never'}</div>
+      </td>
+      <td class="td-mono">${num(w.total_executions)}</td>
+      <td>
+        <div class="analytics-outcome-chips">
+          <span class="chip chip-success">${num(w.successful)} done</span>
+          <span class="chip chip-failed">${num(w.failed)} failed</span>
+          <span class="chip chip-waiting">${num(w.pending_approvals)} waiting</span>
+        </div>
+      </td>
+      <td class="td-mono">${fmtDuration(num(w.avg_duration_ms))}</td>
+      <td>${w.last_executed ? relTime(w.last_executed) : '-'}</td>
+      <td>
+        <div class="analytics-health-cell">
+          <span>${fmtPct(w.success_rate)}</span>
+          <div class="analytics-meter"><div class="analytics-meter-fill ${num(w.success_rate) >= 80 ? 'analytics-success' : num(w.success_rate) >= 50 ? 'analytics-waiting' : 'analytics-failed'}" data-width="${num(w.success_rate).toFixed(1)}"></div></div>
+        </div>
+      </td>
     </tr>
   `).join(''));
+  applyAnalyticsWidths();
 }
 
 function renderTimeline(data) {
   if (!data.length) { window.setSafeHTML(
     document.getElementById('timelineChart'),
-    '<div class="empty" style="padding:20px"><div class="empty-desc">No execution data</div></div>'
+    '<div class="empty compact"><div class="empty-desc">No execution data</div></div>'
   ); return; }
   const maxTotal = Math.max(...data.map(d => d.total), 1);
   window.setSafeHTML(
     document.getElementById('timelineChart'),
-    `<div class="chart-bar-wrap" style="padding:4px 0">
-      ${data.map(d => `<div class="chart-bar-row">
-        <div class="chart-bar-label" style="min-width:90px">${esc(d.date)}</div>
-        <div class="chart-bar-track" style="position:relative">
-          <div class="chart-bar-fill" style="width:${(d.total/maxTotal*100).toFixed(1)}%;background:var(--accent)"></div>
+    `<div class="analytics-timeline-grid">
+      ${data.map(d => {
+        const total = Math.max(num(d.total), 0);
+        const completed = num(d.completed);
+        const failed = num(d.failed);
+        return `<div class="analytics-timeline-row">
+        <div class="analytics-timeline-date">${esc(d.date)}</div>
+        <div class="analytics-timeline-track">
+          <div class="analytics-timeline-total" data-width="${(total / maxTotal * 100).toFixed(1)}"></div>
+          <div class="analytics-timeline-success" data-width="${(completed / Math.max(total, 1) * 100).toFixed(1)}"></div>
+          <div class="analytics-timeline-failed" data-width="${(failed / Math.max(total, 1) * 100).toFixed(1)}"></div>
         </div>
-        <div class="chart-bar-val">${d.total} runs</div>
-      </div>`).join('')}
+        <div class="analytics-timeline-count">${total} runs</div>
+      </div>`;
+      }).join('')}
     </div>`
   );
+  applyAnalyticsWidths();
+}
+
+function applyAnalyticsWidths() {
+  document.querySelectorAll('[data-width]').forEach(el => {
+    const width = Math.max(0, Math.min(100, num(el.dataset.width)));
+    el.style.width = `${width}%`;
+  });
 }
 
 // ---------------------------------------------------------------------------

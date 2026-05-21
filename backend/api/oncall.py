@@ -41,6 +41,7 @@ import asyncio
 import logging
 import sqlite3
 import uuid
+from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
@@ -193,7 +194,7 @@ def _get_open_incidents() -> list[dict]:
         con = sqlite3.connect(inc_db, timeout=5)
         rows = con.execute(
             "SELECT id, title, severity, created_at FROM incidents "
-            "WHERE status IN ('open','acknowledged')"
+            "WHERE status IN ('open','acknowledged') LIMIT 1000"
         ).fetchall()
         con.close()
         return [{"id": r[0], "title": r[1], "severity": r[2], "created_at": r[3]}
@@ -254,26 +255,32 @@ async def _run_escalations() -> None:
     try:
         con = _conn()
         schedules = con.execute(
-            f"SELECT {','.join(_SCH_COLS)} FROM oncall_schedules WHERE enabled=1"
+            f"SELECT {','.join(_SCH_COLS)} FROM oncall_schedules WHERE enabled=1 LIMIT 10000"
+        ).fetchall()
+        if not schedules:
+            con.close()
+            return
+        # Batch-fetch all escalations for all enabled schedules in one query
+        schedule_ids = [r[0] for r in schedules]
+        placeholders = ",".join("?" * len(schedule_ids))
+        esc_rows = con.execute(
+            f"SELECT {','.join(_ESC_COLS)} FROM oncall_escalations "
+            f"WHERE schedule_id IN ({placeholders}) ORDER BY schedule_id, level ASC LIMIT 10000",
+            schedule_ids,
         ).fetchall()
         con.close()
     except Exception:
         return
 
+    # Group escalations by schedule_id in memory
+    esc_by_schedule: dict[str, list] = defaultdict(list)
+    for row in esc_rows:
+        esc = dict(zip(_ESC_COLS, row))
+        esc_by_schedule[esc["schedule_id"]].append(esc)
+
     for sch_row in schedules:
         schedule = dict(zip(_SCH_COLS, sch_row))
-        try:
-            con = _conn()
-            esc_rows = con.execute(
-                f"SELECT {','.join(_ESC_COLS)} FROM oncall_escalations "
-                "WHERE schedule_id=? ORDER BY level ASC",
-                (schedule["id"],),
-            ).fetchall()
-            con.close()
-        except Exception:
-            continue
-
-        escalations = [dict(zip(_ESC_COLS, r)) for r in esc_rows]
+        escalations = esc_by_schedule.get(schedule["id"], [])
         if not escalations:
             continue
 
@@ -368,16 +375,23 @@ class EscalationCreate(BaseModel):
 # ── Sub-routes before /{schedule_id} ─────────────────────────────────────────
 
 @router.get("/schedules", summary="List on-call schedules")
-async def list_schedules(_auth=Depends(require_local_auth)):
+async def list_schedules(
+    limit:  int = Query(200, ge=1, le=1000),
+    offset: int = Query(0,   ge=0),
+    _auth=Depends(require_local_auth),
+):
     try:
         con = _conn()
-        rows = con.execute(
-            f"SELECT {','.join(_SCH_COLS)} FROM oncall_schedules ORDER BY created_at DESC"
+        total = con.execute("SELECT COUNT(*) FROM oncall_schedules").fetchone()[0]
+        rows  = con.execute(
+            f"SELECT {','.join(_SCH_COLS)} FROM oncall_schedules "
+            "ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, offset),
         ).fetchall()
         con.close()
     except Exception:
-        return {"schedules": []}
-    return {"schedules": [dict(zip(_SCH_COLS, r)) for r in rows]}
+        return {"schedules": [], "total": 0}
+    return {"schedules": [dict(zip(_SCH_COLS, r)) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 
 @router.post("/schedules", status_code=201, summary="Create on-call schedule")

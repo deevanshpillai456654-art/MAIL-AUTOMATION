@@ -144,7 +144,8 @@ def verify_api_key(key: str) -> Optional[dict]:
             if exp < datetime.now(timezone.utc):
                 return None
         except Exception:
-            pass
+            logger.warning("api_keys: malformed expires_at for key %s — treating as expired", record["id"])
+            return None
     try:
         con = _conn()
         con.execute(

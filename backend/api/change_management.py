@@ -120,6 +120,12 @@ def _init_db() -> None:
             ON change_requests (status);
         CREATE INDEX IF NOT EXISTS idx_cr_type
             ON change_requests (change_type);
+        CREATE INDEX IF NOT EXISTS idx_cr_risk
+            ON change_requests (risk_level);
+        CREATE INDEX IF NOT EXISTS idx_cr_owner
+            ON change_requests (owner);
+        CREATE INDEX IF NOT EXISTS idx_cr_assignee
+            ON change_requests (assignee);
         CREATE INDEX IF NOT EXISTS idx_apr_change
             ON change_approvals (change_id);
     """)
@@ -301,7 +307,7 @@ async def get_change(change_id: str, _auth=Depends(require_local_auth)):
         con = _conn()
         row = _get_change_or_404(con, change_id)
         aprs = con.execute(
-            f"SELECT {','.join(_APR_COLS)} FROM change_approvals WHERE change_id=? ORDER BY created_at",
+            f"SELECT {','.join(_APR_COLS)} FROM change_approvals WHERE change_id=? ORDER BY created_at LIMIT 100",
             (change_id,),
         ).fetchall()
         con.close()
@@ -410,7 +416,7 @@ async def list_approvals(change_id: str, _auth=Depends(require_local_auth)):
         con = _conn()
         _get_change_or_404(con, change_id)
         rows = con.execute(
-            f"SELECT {','.join(_APR_COLS)} FROM change_approvals WHERE change_id=? ORDER BY created_at",
+            f"SELECT {','.join(_APR_COLS)} FROM change_approvals WHERE change_id=? ORDER BY created_at LIMIT 100",
             (change_id,),
         ).fetchall()
         con.close()

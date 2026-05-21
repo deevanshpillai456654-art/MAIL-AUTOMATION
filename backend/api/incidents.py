@@ -86,6 +86,10 @@ def _init_db() -> None:
             ON incidents (status, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_inc_rule
             ON incidents (rule_id, status);
+        CREATE INDEX IF NOT EXISTS idx_inc_severity
+            ON incidents (severity);
+        CREATE INDEX IF NOT EXISTS idx_inc_assigned
+            ON incidents (assigned_to);
         CREATE INDEX IF NOT EXISTS idx_tl_incident
             ON incident_timeline (incident_id, ts ASC);
     """)
@@ -332,7 +336,8 @@ async def incident_stats(_auth=Depends(require_local_auth)):
         ).fetchone()[0]
         total = con.execute("SELECT COUNT(*) FROM incidents").fetchone()[0]
         con.close()
-    except Exception:
+    except Exception as exc:
+        logger.error("IncidentManager: stats query failed: %s", exc)
         return {"total": 0, "by_status": {}, "by_severity": {}, "opened_24h": 0, "resolved_24h": 0}
     return {
         "total":        total,
@@ -354,7 +359,7 @@ async def get_incident(incident_id: str, _auth=Depends(require_local_auth)):
             con.close()
             raise HTTPException(404, "Incident not found")
         timeline = con.execute(
-            f"SELECT {','.join(_TL_COLS)} FROM incident_timeline WHERE incident_id=? ORDER BY ts ASC",
+            f"SELECT {','.join(_TL_COLS)} FROM incident_timeline WHERE incident_id=? ORDER BY ts ASC LIMIT 500",
             (incident_id,),
         ).fetchall()
         con.close()

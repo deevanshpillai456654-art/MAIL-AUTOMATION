@@ -460,7 +460,7 @@ async def list_reviews(risk_id: str, _auth=Depends(require_local_auth)):
         _get_risk_or_404(con, risk_id)
         rows = con.execute(
             f"SELECT {','.join(_REV_COLS)} FROM risk_reviews "
-            "WHERE risk_id=? ORDER BY created_at DESC",
+            "WHERE risk_id=? ORDER BY created_at DESC LIMIT 200",
             (risk_id,),
         ).fetchall()
         con.close()

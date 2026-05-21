@@ -112,6 +112,9 @@ def _init_db() -> None:
 
         CREATE INDEX IF NOT EXISTS idx_slo_status  ON slos (status);
         CREATE INDEX IF NOT EXISTS idx_slo_service ON slos (service);
+        CREATE INDEX IF NOT EXISTS idx_slo_owner   ON slos (owner);
+        CREATE INDEX IF NOT EXISTS idx_slo_team    ON slos (team);
+        CREATE INDEX IF NOT EXISTS idx_slo_window  ON slos (time_window);
         CREATE INDEX IF NOT EXISTS idx_meas_slo    ON slo_measurements (slo_id, recorded_at DESC);
     """)
     con.commit()
@@ -325,7 +328,7 @@ async def slo_stats(_auth=Depends(require_local_auth)):
         ).fetchall()
         # Count active SLOs that are currently breaching (latest measurement < target)
         active_rows = con.execute(
-            f"SELECT {','.join(_SLO_COLS)} FROM slos WHERE status='active'"
+            f"SELECT {','.join(_SLO_COLS)} FROM slos WHERE status='active' LIMIT 5000"
         ).fetchall()
         breaching = 0
         for row in active_rows:

@@ -28,7 +28,7 @@ def test_create_vendor_returns_id(client):
 
 def test_created_vendor_appears_in_list(client):
     client.post("/api/v1/vendors", json={"name": "ListVendor", "category": "cloud"})
-    resp = client.get("/api/v1/vendors")
+    resp = client.get("/api/v1/vendors", params={"q": "ListVendor"})
     names = [v["name"] for v in resp.json()["vendors"]]
     assert "ListVendor" in names
 

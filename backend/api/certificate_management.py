@@ -122,6 +122,10 @@ def _init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_cert_type    ON certificates (type);
         CREATE INDEX IF NOT EXISTS idx_cert_domain  ON certificates (domain);
         CREATE INDEX IF NOT EXISTS idx_cert_expiry  ON certificates (expires_at);
+        CREATE INDEX IF NOT EXISTS idx_cert_owner   ON certificates (owner);
+        CREATE INDEX IF NOT EXISTS idx_cert_team    ON certificates (team);
+        CREATE INDEX IF NOT EXISTS idx_cert_issuer  ON certificates (issuer);
+        CREATE INDEX IF NOT EXISTS idx_cert_env     ON certificates (environment);
         CREATE INDEX IF NOT EXISTS idx_ren_cert     ON cert_renewals (cert_id, created_at DESC);
     """)
     con.commit()
@@ -341,7 +345,7 @@ async def expiring_certs(
             "WHERE expires_at != '' "
             "  AND expires_at <= date('now', ?) "
             "  AND status NOT IN ('revoked','cancelled','archived') "
-            "ORDER BY expires_at ASC",
+            "ORDER BY expires_at ASC LIMIT 500",
             (interval,),
         ).fetchall()
         con.close()
@@ -457,7 +461,7 @@ async def list_renewals(cert_id: str, _auth=Depends(require_local_auth)):
         _get_cert_or_404(con, cert_id)
         rows = con.execute(
             f"SELECT {','.join(_REN_COLS)} FROM cert_renewals "
-            "WHERE cert_id=? ORDER BY created_at DESC",
+            "WHERE cert_id=? ORDER BY created_at DESC LIMIT 100",
             (cert_id,),
         ).fetchall()
         con.close()

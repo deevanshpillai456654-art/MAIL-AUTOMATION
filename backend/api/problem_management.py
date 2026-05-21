@@ -119,6 +119,12 @@ def _init_db() -> None:
             ON problems (status);
         CREATE INDEX IF NOT EXISTS idx_pr_priority
             ON problems (priority);
+        CREATE INDEX IF NOT EXISTS idx_pr_category
+            ON problems (category);
+        CREATE INDEX IF NOT EXISTS idx_pr_owner
+            ON problems (owner);
+        CREATE INDEX IF NOT EXISTS idx_pr_assignee
+            ON problems (assignee);
         CREATE INDEX IF NOT EXISTS idx_pi_problem
             ON problem_incidents (problem_id);
         CREATE INDEX IF NOT EXISTS idx_tl_problem
@@ -299,7 +305,7 @@ async def get_problem(problem_id: str, _auth=Depends(require_local_auth)):
         row = _get_problem_or_404(con, problem_id)
         inc_rows = con.execute(
             "SELECT id, problem_id, incident_id, note, linked_at "
-            "FROM problem_incidents WHERE problem_id=? ORDER BY linked_at",
+            "FROM problem_incidents WHERE problem_id=? ORDER BY linked_at LIMIT 100",
             (problem_id,),
         ).fetchall()
         tl_rows = con.execute(
@@ -425,7 +431,7 @@ async def list_linked_incidents(problem_id: str, _auth=Depends(require_local_aut
         _get_problem_or_404(con, problem_id)
         rows = con.execute(
             "SELECT id, problem_id, incident_id, note, linked_at "
-            "FROM problem_incidents WHERE problem_id=? ORDER BY linked_at",
+            "FROM problem_incidents WHERE problem_id=? ORDER BY linked_at LIMIT 100",
             (problem_id,),
         ).fetchall()
         con.close()

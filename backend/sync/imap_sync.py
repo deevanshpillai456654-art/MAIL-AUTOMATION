@@ -9,7 +9,7 @@ import email
 import imaplib
 import json
 import socket
-from datetime import datetime
+from datetime import datetime, timezone
 from email.header import decode_header, make_header
 from email.policy import default
 from email.utils import parseaddr
@@ -27,7 +27,7 @@ class ProviderSyncReadError(RuntimeError):
 
 
 def _utc_now() -> str:
-    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _header(value: Optional[str]) -> str:

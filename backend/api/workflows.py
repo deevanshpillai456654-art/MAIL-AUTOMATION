@@ -36,7 +36,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -621,7 +621,7 @@ async def get_recommendations(_auth=Depends(require_local_auth)):
     with _conn() as con:
         active_ids = {
             r[0] for r in con.execute(
-                "SELECT json_extract(trigger_cfg, '$.template_id') FROM workflows WHERE is_active=1"
+                "SELECT json_extract(trigger_cfg, '$.template_id') FROM workflows WHERE is_active=1 LIMIT 10000"
             ).fetchall()
         }
         # Pull a rough email category distribution to personalise recommendations
@@ -711,12 +711,18 @@ async def list_all_executions(
 
 
 @router.get("", summary="List all tenant workflows")
-async def list_workflows(_auth=Depends(require_local_auth)):
+async def list_workflows(
+    limit:  int = Query(500, ge=1, le=2000),
+    offset: int = Query(0,   ge=0),
+    _auth=Depends(require_local_auth),
+):
     with _conn() as con:
-        rows = con.execute(
-            "SELECT * FROM workflows ORDER BY is_active DESC, run_count DESC"
+        total = con.execute("SELECT COUNT(*) FROM workflows").fetchone()[0]
+        rows  = con.execute(
+            "SELECT * FROM workflows ORDER BY is_active DESC, run_count DESC LIMIT ? OFFSET ?",
+            (limit, offset),
         ).fetchall()
-    return {"workflows": [_row_dict(r) for r in rows]}
+    return {"workflows": [_row_dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 
 @router.post("", summary="Create a workflow (from template or custom)")
@@ -893,7 +899,7 @@ async def get_workflow_history(
 async def get_execution_steps(exec_id: str, _auth=Depends(require_local_auth)):
     with _conn() as con:
         rows = con.execute(
-            "SELECT * FROM workflow_step_logs WHERE execution_id=? ORDER BY rowid ASC",
+            "SELECT * FROM workflow_step_logs WHERE execution_id=? ORDER BY rowid ASC LIMIT 1000",
             (exec_id,),
         ).fetchall()
     return {"steps": [_row_dict(r) for r in rows]}
