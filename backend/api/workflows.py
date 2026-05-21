@@ -748,9 +748,9 @@ async def create_workflow(
             """INSERT INTO workflows
                (id, name, description, category, icon, trigger_type, trigger_cfg,
                 steps_json, is_active, run_count, success_count, fail_count, created_at, updated_at)
-               VALUES (?,?,?,?,?,?,?,?,0,0,0,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,0,0,0,0,?,?)""",
             (wf_id, name, desc, cat, icon, trig,
-             json.dumps(tcfg_stored), json.dumps(steps), 0, now, now),
+             json.dumps(tcfg_stored), json.dumps(steps), now, now),
         )
         con.commit()
         row = con.execute("SELECT * FROM workflows WHERE id=?", (wf_id,)).fetchone()
