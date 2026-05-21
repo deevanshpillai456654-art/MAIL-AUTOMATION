@@ -92,10 +92,11 @@ class DataExporter:
         """Async export"""
         try:
             # Get emails from DB
-            conn = sqlite3.connect(config.DB_PATH)
+            conn = sqlite3.connect(config.DB_PATH, timeout=30, check_same_thread=False)
+            conn.execute("PRAGMA journal_mode=WAL")
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            
+
             query = "SELECT * FROM emails"
             params = []
             
@@ -154,10 +155,11 @@ class DataExporter:
         import secrets
         job_id = f"export_rules_{secrets.token_hex(8)}"
         
-        conn = sqlite3.connect(config.DB_PATH)
+        conn = sqlite3.connect(config.DB_PATH, timeout=30, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL")
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        
+
         cursor.execute("SELECT * FROM rules")
         
         output_file = self.export_dir / f"{job_id}.{format.value}"
