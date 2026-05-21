@@ -17,9 +17,9 @@
 - Modify: `backend/config/__init__.py`
 - Test: `tests/test_runtime_control_wave1.py`
 
-- [ ] Write tests for `low_resource`, `lite`, `standard`, and `enterprise` profiles.
-- [ ] Implement `RuntimeControl`, `RuntimeProfile`, `AI_MODE`, `is_service_enabled`, `is_agent_enabled`, and startup limits.
-- [ ] Expose config constants from environment variables.
+- [x] Write tests for `low_resource`, `lite`, `standard`, and `enterprise` profiles.
+- [x] Implement `RuntimeControl`, `RuntimeProfile`, `AI_MODE`, `is_service_enabled`, `is_agent_enabled`, and startup limits.
+- [x] Expose config constants from environment variables.
 
 ### Task 2: Startup and Router Gating
 
@@ -28,10 +28,10 @@
 - Modify: `backend/app/router_registry.py`
 - Test: `tests/test_runtime_control_wave1.py`
 
-- [ ] Write tests proving low-resource profile skips heavy autostart services.
-- [ ] Write tests proving disabled routers are not registered.
-- [ ] Patch startup to use a small `start_optional_service` helper.
-- [ ] Patch router registration to consult runtime policy.
+- [x] Write tests proving low-resource profile skips heavy autostart services.
+- [x] Write tests proving disabled routers are not registered.
+- [x] Patch startup to use a small `start_optional_service` helper.
+- [x] Patch router registration to consult runtime policy.
 
 ### Task 3: Runtime API and Frontend State
 
@@ -41,16 +41,16 @@
 - Modify: `backend/dashboard/enterprise-ui.js`
 - Test: `tests/test_runtime_control_wave1.py`
 
-- [ ] Write API tests for `/api/v1/runtime/profile`, `/api/v1/runtime/services`, and `/api/v1/runtime/agents`.
-- [ ] Return AI mode, low-resource state, service toggles, agent toggles, limits, and frontend flags.
-- [ ] Patch dashboard JS to fetch runtime profile and apply low-resource CSS/state flags.
+- [x] Write API tests for `/api/v1/runtime/profile`, `/api/v1/runtime/services`, and `/api/v1/runtime/agents`.
+- [x] Return AI mode, low-resource state, service toggles, agent toggles, limits, and frontend flags.
+- [x] Patch dashboard JS to fetch runtime profile and apply low-resource CSS/state flags.
 
 ### Task 4: Verification
 
 **Files:**
 - Test: full suite
 
-- [ ] Run focused tests.
-- [ ] Run Python compile checks.
-- [ ] Run dashboard JS syntax check.
-- [ ] Run full pytest suite.
+- [x] Run focused tests.
+- [x] Run Python compile checks.
+- [x] Run dashboard JS syntax check.
+- [x] Run full pytest suite.

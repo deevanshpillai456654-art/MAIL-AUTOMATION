@@ -16,9 +16,9 @@
 - Create: `backend/core/enterprise_operations.py`
 - Test: `tests/test_enterprise_operations.py`
 
-- [ ] Write failing tests for service state persistence, restart protection, queue diagnostics, deployment validation, and report generation.
-- [ ] Implement `ServiceStateStore`, `QueueInspector`, `DeploymentValidator`, and `EnterpriseOperationsCenter`.
-- [ ] Verify tests pass.
+- [x] Write failing tests for service state persistence, restart protection, queue diagnostics, deployment validation, and report generation.
+- [x] Implement `ServiceStateStore`, `QueueInspector`, `DeploymentValidator`, and `EnterpriseOperationsCenter`.
+- [x] Verify tests pass.
 
 ### Task 2: Operations API Router
 
@@ -27,10 +27,10 @@
 - Modify: `backend/app/router_registry.py`
 - Test: `tests/test_enterprise_operations_api.py`
 
-- [ ] Write failing API tests for overview, service controls, queue report, deployment validation, update diagnostics, observability dashboard, and final reports.
-- [ ] Implement authenticated API endpoints.
-- [ ] Register the router behind `/api/v1`.
-- [ ] Verify tests pass.
+- [x] Write failing API tests for overview, service controls, queue report, deployment validation, update diagnostics, observability dashboard, and final reports.
+- [x] Implement authenticated API endpoints.
+- [x] Register the router behind `/api/v1`.
+- [x] Verify tests pass.
 
 ### Task 3: Queue Safety Upgrade
 
@@ -38,9 +38,9 @@
 - Modify: `backend/core/persistent_job_queue.py`
 - Test: `tests/test_enterprise_operations.py`
 
-- [ ] Write failing tests for dead-letter counts and queue cleanup.
-- [ ] Add dead-letter status semantics, per-queue counts, stale lease reporting, and safe cleanup helpers.
-- [ ] Verify tests pass.
+- [x] Write failing tests for dead-letter counts and queue cleanup.
+- [x] Add dead-letter status semantics, per-queue counts, stale lease reporting, and safe cleanup helpers.
+- [x] Verify tests pass.
 
 ### Task 4: Logging and Resource Diagnostics
 
@@ -49,10 +49,10 @@
 - Modify: `backend/core/enterprise_operations.py`
 - Test: `tests/test_enterprise_operations.py`
 
-- [ ] Write failing tests proving log rotation handler is configured and low-resource recommendations are emitted.
-- [ ] Switch service logging to rotating file handler.
-- [ ] Add CPU, memory, log, cache, and cleanup diagnostics.
-- [ ] Verify tests pass.
+- [x] Write failing tests proving log rotation handler is configured and low-resource recommendations are emitted.
+- [x] Switch service logging to rotating file handler.
+- [x] Add CPU, memory, log, cache, and cleanup diagnostics.
+- [x] Verify tests pass.
 
 ### Task 5: Final Validation Reports
 
@@ -60,7 +60,7 @@
 - Create: `ENTERPRISE_OPERATIONS_HARDENING_REPORT.md`
 - Test: `tests/test_enterprise_operations.py`
 
-- [ ] Generate the 18 requested report sections from the implemented diagnostics.
-- [ ] Verify the report builder includes each required section and remaining technical debt.
-- [ ] Run targeted tests, then full validation command if feasible.
+- [x] Generate the 18 requested report sections from the implemented diagnostics.
+- [x] Verify the report builder includes each required section and remaining technical debt.
+- [x] Run targeted tests, then full validation command if feasible.
 
