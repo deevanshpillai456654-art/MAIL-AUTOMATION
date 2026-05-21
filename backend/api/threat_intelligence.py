@@ -116,6 +116,10 @@ def _ensure_threat_tables() -> None:
                                     CHECK(status IN ('active','dismissed','confirmed')),
                 created_at          TEXT NOT NULL
             );
+            CREATE INDEX IF NOT EXISTS idx_tbl_value  ON threat_blacklist  (entry_type, value);
+            CREATE INDEX IF NOT EXISTS idx_twl_value  ON threat_whitelist  (entry_type, value);
+            CREATE INDEX IF NOT EXISTS idx_tal_time   ON threat_audit_log  (created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_tla_status ON threat_lookalike_alerts (status);
         """)
         conn.commit()
     finally:

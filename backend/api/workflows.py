@@ -106,6 +106,11 @@ def _db() -> sqlite3.Connection:
             error         TEXT,
             log_lines     TEXT DEFAULT '[]'
         );
+        CREATE INDEX IF NOT EXISTS idx_wf_active     ON workflows (is_active, trigger_type);
+        CREATE INDEX IF NOT EXISTS idx_we_workflow   ON workflow_executions (workflow_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_we_status     ON workflow_executions (status);
+        CREATE INDEX IF NOT EXISTS idx_wsl_execution ON workflow_step_logs (execution_id);
+        CREATE INDEX IF NOT EXISTS idx_wsl_workflow  ON workflow_step_logs (workflow_id, started_at DESC);
     """)
     con.commit()
     return con

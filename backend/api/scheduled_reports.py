@@ -93,6 +93,8 @@ def _init_db() -> None:
             content      TEXT NOT NULL DEFAULT '',
             delivered    INTEGER NOT NULL DEFAULT 0
         );
+        CREATE INDEX IF NOT EXISTS idx_rc_enabled  ON report_configs (enabled);
+        CREATE INDEX IF NOT EXISTS idx_rc_next     ON report_configs (next_run);
         CREATE INDEX IF NOT EXISTS idx_rr_config
             ON report_runs (config_id, generated_at DESC);
     """)

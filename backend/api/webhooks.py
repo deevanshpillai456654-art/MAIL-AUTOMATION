@@ -91,6 +91,7 @@ def _init_db() -> None:
             error       TEXT,
             created_at  TEXT NOT NULL
         );
+        CREATE INDEX IF NOT EXISTS idx_wh_active     ON webhooks (is_active);
         CREATE INDEX IF NOT EXISTS idx_wh_deliveries
             ON webhook_deliveries (webhook_id, created_at DESC);
     """)
@@ -98,7 +99,9 @@ def _init_db() -> None:
 
 
 def _conn() -> sqlite3.Connection:
-    return sqlite3.connect(_DB_PATH, timeout=10)
+    con = sqlite3.connect(_DB_PATH, timeout=10)
+    con.execute("PRAGMA journal_mode=WAL")
+    return con
 
 
 def _now() -> str:

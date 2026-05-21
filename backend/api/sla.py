@@ -91,6 +91,8 @@ def _init_db() -> None:
             UNIQUE (incident_id, breach_type)
         );
 
+        CREATE INDEX IF NOT EXISTS idx_sp_enabled   ON sla_policies (enabled);
+        CREATE INDEX IF NOT EXISTS idx_sp_severity  ON sla_policies (severity);
         CREATE INDEX IF NOT EXISTS idx_sb_incident
             ON sla_breaches (incident_id, breach_type);
         CREATE INDEX IF NOT EXISTS idx_sb_created

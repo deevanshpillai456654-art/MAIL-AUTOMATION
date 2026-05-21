@@ -183,6 +183,16 @@ def init_tally_db() -> None:
               status TEXT DEFAULT 'queued',
               created_at TEXT
             );
+            CREATE INDEX IF NOT EXISTS idx_tc_status    ON tally_connections  (status);
+            CREATE INDEX IF NOT EXISTS idx_tc_tenant    ON tally_connections  (tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_tsj_status   ON tally_sync_jobs    (status, tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_tsj_created  ON tally_sync_jobs    (created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_tco_tenant   ON tally_companies    (tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_tl_tenant    ON tally_ledgers      (tenant_id, company_name);
+            CREATE INDEX IF NOT EXISTS idx_tv_type      ON tally_vouchers     (tenant_id, voucher_type);
+            CREATE INDEX IF NOT EXISTS idx_tg_status    ON tally_gst_reports  (tenant_id, status);
+            CREATE INDEX IF NOT EXISTS idx_tal_tenant   ON tally_audit_logs   (tenant_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_tn_status    ON tally_notifications (status, tenant_id);
             """
         )
         con.commit()

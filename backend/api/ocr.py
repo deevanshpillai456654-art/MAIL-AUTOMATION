@@ -51,6 +51,8 @@ def _db() -> sqlite3.Connection:
             created_at  TEXT
         )
     """)
+    con.execute("CREATE INDEX IF NOT EXISTS idx_ocr_status  ON ocr_jobs (status)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_ocr_created ON ocr_jobs (created_at DESC)")
     con.commit()
     return con
 
