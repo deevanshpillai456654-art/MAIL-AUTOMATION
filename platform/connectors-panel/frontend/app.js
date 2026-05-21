@@ -83,7 +83,7 @@ function statusBadge(status) {
 }
 
 function dot(status) {
-  return `<span class="status-dot ${status}"></span>`;
+  return `<span class="status-dot ${esc(status)}"></span>`;
 }
 
 function toast(msg, type = 'info', duration = 3500) {
@@ -1913,7 +1913,7 @@ async function loadLeads() {
       <td>${esc(l.contact_name||'—')}</td>
       <td>${esc(l.source||'—')}</td>
       <td>${statusBadge(l.status||'new')}</td>
-      <td>${l.score != null ? `<span>${l.score}</span>` : '—'}</td>
+      <td>${l.score != null ? `<span>${Number(l.score)|0}</span>` : '—'}</td>
       <td>${esc(l.assigned_to||'—')}</td>
       <td>${timeAgo(l.created_at)}</td>
       <td>
@@ -2002,7 +2002,7 @@ async function loadContacts() {
       <td><a href="mailto:${esc(c.email||'')}">${esc(c.email||'—')}</a></td>
       <td>${esc(c.company||'—')}</td>
       <td>${esc(c.job_title||'—')}</td>
-      <td>${c.score != null ? `<span>${c.score}</span>` : '—'}</td>
+      <td>${c.score != null ? `<span>${Number(c.score)|0}</span>` : '—'}</td>
       <td>${statusBadge(c.status||'active')}</td>
       <td>
         <button class="btn btn-xs btn-secondary" onclick="editContactModal('${esc(c.id)}')">Edit</button>

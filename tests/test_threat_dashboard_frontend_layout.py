@@ -47,3 +47,21 @@ def test_threat_dashboard_runtime_keeps_duplicate_nav_controls_in_sync():
     assert "classList.remove('is-dismissing')" in js
     assert "row.style.opacity" not in js
     assert "row.style.pointerEvents" not in js
+
+
+def test_threat_dashboard_safe_html_preserves_table_rows():
+    js = (DASHBOARD / "scam-panel.js").read_text(encoding="utf-8")
+    css = (DASHBOARD / "scam-panel.css").read_text(encoding="utf-8")
+
+    assert "document.createElement('template')" in js
+    assert "new DOMParser" not in js
+    assert "template.content.childNodes" in js
+    assert ".threat-mobile-nav {\n  display: none !important;" in css
+    assert ".threat-mobile-nav { display: flex !important; }" in css
+
+
+def test_threat_dashboard_escape_helper_keeps_zero_values_visible():
+    js = (DASHBOARD / "scam-panel.js").read_text(encoding="utf-8")
+
+    assert "String(s ?? '')" in js
+    assert "String(s || '')" not in js

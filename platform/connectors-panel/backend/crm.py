@@ -88,7 +88,7 @@ async def create_contact(body: dict[str, Any], tenant_id: str = Query(...)):
         "INSERT INTO crm_contacts (id,tenant_id,first_name,last_name,email,phone,company,job_title,source,status,lead_score,tags_json,custom_fields,assigned_to,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (cid, tenant_id, body["first_name"], body.get("last_name"),
          body.get("email"), body.get("phone"), body.get("company"), body.get("job_title"),
-         body.get("source"), body.get("status","active"), body.get("lead_score",0),
+         body.get("source"), body.get("status","active"), _int(body.get("lead_score", 0)),
          body.get("tags_json","[]"), body.get("custom_fields","{}"), body.get("assigned_to"), now, now),
     )
     return db.fetch_one("SELECT * FROM crm_contacts WHERE id=?", (cid,))
@@ -115,6 +115,8 @@ async def update_contact(contact_id: str, body: dict[str, Any], tenant_id: str =
     now = utc_now_str()
     allowed = {"first_name","last_name","email","phone","company","job_title","source","status","lead_score","tags_json","custom_fields","assigned_to"}
     updates = {k: v for k, v in body.items() if k in allowed}
+    if "lead_score" in updates:
+        updates["lead_score"] = _int(updates["lead_score"])
     if updates:
         db.execute(f"UPDATE crm_contacts SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=? AND tenant_id=?", list(updates.values()) + [now, contact_id, tenant_id])  # nosec B608
     return {"ok": True}
@@ -160,7 +162,7 @@ async def create_lead(body: dict[str, Any], tenant_id: str = Query(...)):
     db.execute(
         "INSERT INTO crm_leads (id,tenant_id,contact_id,title,source,status,score,estimated_value,currency,assigned_to,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (lid, tenant_id, body.get("contact_id"), body["title"],
-         body.get("source"), body.get("status","new"), body.get("score",0),
+         body.get("source"), body.get("status","new"), _int(body.get("score", 0)),
          body.get("estimated_value"), body.get("currency","USD"), body.get("assigned_to"),
          body.get("notes"), now, now),
     )
@@ -173,6 +175,8 @@ async def update_lead(lead_id: str, body: dict[str, Any], tenant_id: str = Query
     now = utc_now_str()
     allowed = {"title","source","status","score","estimated_value","assigned_to","notes"}
     updates = {k: v for k, v in body.items() if k in allowed}
+    if "score" in updates:
+        updates["score"] = _int(updates["score"])
     if updates:
         db.execute(f"UPDATE crm_leads SET {', '.join(f'{k}=?' for k in updates)}, updated_at=? WHERE id=? AND tenant_id=?", list(updates.values()) + [now, lead_id, tenant_id])  # nosec B608
     return {"ok": True}

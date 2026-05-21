@@ -22,4 +22,5 @@ async def admin_overview():
 
 @router.get("/admin/audit", dependencies=[Depends(require_local_auth_or_localhost)])
 async def admin_audit(limit: int = 100):
-    return {"audit": db.fetch_all("SELECT * FROM rule_action_audit ORDER BY created_at DESC LIMIT ?", (min(limit, 1000),)), "count": min(limit, 1000)}
+    safe = max(1, min(limit, 1000))
+    return {"audit": db.fetch_all("SELECT * FROM rule_action_audit ORDER BY created_at DESC LIMIT ?", (safe,)), "count": safe}

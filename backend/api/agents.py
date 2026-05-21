@@ -861,13 +861,14 @@ async def agent_actions(
     agent_id: Optional[str] = None,
     _auth=Depends(require_local_auth),
 ):
+    safe = max(1, min(limit, 1000))
     # Read from persistent store (survives restarts); fall back to ring buffer
-    actions = _query_actions(agent_id=agent_id, limit=limit)
+    actions = _query_actions(agent_id=agent_id, limit=safe)
     if not actions:
         if agent_id:
-            actions = _action_log.get_by_agent(agent_id, limit)
+            actions = _action_log.get_by_agent(agent_id, safe)
         else:
-            actions = _action_log.get_all()[:limit]
+            actions = _action_log.get_all()[:safe]
     return {"actions": actions, "count": len(actions)}
 
 

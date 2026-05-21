@@ -269,7 +269,7 @@ body {
 }
 
 .threat-mobile-nav {
-  display: none;
+  display: none !important;
   gap: 8px;
   padding: 10px 16px;
   overflow-x: auto;
@@ -741,7 +741,7 @@ body {
 @media (max-width: 900px) {
   .threat-shell { grid-template-columns: 1fr; }
   .threat-sidebar { display: none; }
-  .threat-mobile-nav { display: flex; }
+  .threat-mobile-nav { display: flex !important; }
   .threat-dashboard-grid,
   .two-col { grid-template-columns: 1fr; }
 }

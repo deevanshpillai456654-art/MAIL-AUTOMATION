@@ -185,6 +185,7 @@ class CrashRecoveryEngine:
     @contextmanager
     def _get_conn(self):
         conn = sqlite3.connect(str(self.recovery_db_path))
+        conn.row_factory = sqlite3.Row
         try:
             yield conn
         finally:

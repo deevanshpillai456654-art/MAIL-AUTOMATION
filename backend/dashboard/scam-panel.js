@@ -6,11 +6,11 @@ window.setSafeHTML = function(el, html) {
     el.textContent = String(html);
     return;
   }
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const badTags = doc.querySelectorAll('script, iframe, object, embed, form, base, applet, meta, link');
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  const badTags = template.content.querySelectorAll('script, iframe, object, embed, form, base, applet, meta, link');
   badTags.forEach(n => n.remove());
-  const all = doc.querySelectorAll('*');
+  const all = template.content.querySelectorAll('*');
   for (let i = 0; i < all.length; i++) {
     const node = all[i];
     for (let j = node.attributes.length - 1; j >= 0; j--) {
@@ -20,7 +20,7 @@ window.setSafeHTML = function(el, html) {
       }
     }
   }
-  el.replaceChildren(...doc.body.childNodes);
+  el.replaceChildren(...template.content.childNodes);
 };
 
 
@@ -648,7 +648,7 @@ function setNavBadge(id, count) {
 
 // ── Escape helper ─────────────────────────────────────────
 function esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ── Init ──────────────────────────────────────────────────
