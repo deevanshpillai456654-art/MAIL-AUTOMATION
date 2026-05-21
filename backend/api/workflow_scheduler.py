@@ -195,8 +195,8 @@ class WorkflowScheduler:
                     """INSERT INTO workflow_executions
                        (id, workflow_id, trigger_type, status, step_count,
                         steps_done, input_data, output_data, created_at)
-                       VALUES (?,?,'schedule','pending',?,0,?,?)""",
-                    (exec_id, wf_id, len(steps), json.dumps({"fired_at": fired_at.isoformat()}), "{}", now_s),
+                       VALUES (?,?,'schedule','pending',?,0,?,'{}',?)""",
+                    (exec_id, wf_id, len(steps), json.dumps({"fired_at": fired_at.isoformat()}), now_s),
                 )
                 con.commit()
 

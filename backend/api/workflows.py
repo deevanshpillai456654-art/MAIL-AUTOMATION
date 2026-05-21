@@ -935,9 +935,9 @@ async def trigger_workflow_by_template(
                 """INSERT INTO workflow_executions
                    (id, workflow_id, trigger_type, status, step_count, steps_done,
                     input_data, output_data, created_at)
-                   VALUES (?,?,'pending',?,0,?,?,?)""",
+                   VALUES (?,?,?,'pending',?,0,?,'{}',?)""",
                 (exec_id, wf_id, trigger_type, len(steps),
-                 json.dumps(input_data or {}), "{}", now),
+                 json.dumps(input_data or {}), now),
             )
             con.commit()
 
