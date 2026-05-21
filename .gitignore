@@ -66,6 +66,8 @@ local-service/models/
 *.db-journal
 *.db-wal
 *.db-shm
+backend/data/localhost.json
+backend/data/service.json
 platform/*.db
 platform/*.db-wal
 platform/*.db-shm

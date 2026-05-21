@@ -5,7 +5,8 @@ Adaptive Learning API Endpoints
 API routes for adaptive AI learning system.
 """
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+from backend.auth.local_auth import require_local_auth_or_localhost
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 from datetime import datetime
@@ -16,7 +17,7 @@ from backend.ai.adaptive_pipeline import get_adaptive_ai, AdaptiveAI
 from backend.ai.learning_engine import LearningSignal
 from backend import config
 
-router = APIRouter(prefix="/learning", tags=["Adaptive Learning"])
+router = APIRouter(prefix="/learning", tags=["Adaptive Learning"], dependencies=[Depends(require_local_auth_or_localhost)])
 
 
 class FeedbackRequest(BaseModel):

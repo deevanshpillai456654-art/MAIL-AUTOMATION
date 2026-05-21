@@ -1,5 +1,6 @@
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body
+from backend.auth.local_auth import require_local_auth_or_localhost
 from pydantic import BaseModel
 from typing import Optional, Any, Dict
 import json
@@ -10,7 +11,7 @@ from backend.auth.provider_config import ProviderConfigManager, oauth_group_for
 from backend.auth.token_crypto import TokenCipher
 from backend import config
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_local_auth_or_localhost)])
 db = Database(config.DB_PATH)
 
 MANUAL_METHODS = {"app_password", "imap", "imap_smtp", "advanced_imap", "manual", "password"}

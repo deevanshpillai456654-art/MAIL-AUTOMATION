@@ -4,13 +4,14 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
+from backend.auth.local_auth import require_local_auth_or_localhost
 from pydantic import BaseModel, Field
 from backend.core.runtime_control import get_runtime_control
 from backend.core.ai_gateway import get_ai_gateway
 from backend.security.redaction import redact
 
-router = APIRouter(prefix="/frontend", tags=["frontend-runtime"])
+router = APIRouter(prefix="/frontend", tags=["frontend-runtime"], dependencies=[Depends(require_local_auth_or_localhost)])
 
 _MAX_EVENTS = 100
 _TELEMETRY_BUFFER: List[Dict[str, Any]] = []

@@ -9,8 +9,9 @@ from pathlib import Path
 import logging
 import psutil
 import platform
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import PlainTextResponse
+from backend.auth.local_auth import require_local_auth_or_localhost
 from datetime import datetime
 from typing import Dict
 
@@ -111,7 +112,7 @@ def get_storage_info() -> Dict:
     return info
 
 
-@router.get("/health/detailed")
+@router.get("/health/detailed", dependencies=[Depends(require_local_auth_or_localhost)])
 async def detailed_health():
     db_status = get_db_status()
     system_status = get_system_status()
@@ -133,7 +134,7 @@ async def detailed_health():
     }
 
 
-@router.get("/health/components")
+@router.get("/health/components", dependencies=[Depends(require_local_auth_or_localhost)])
 async def component_health():
     components = {
         "api": {"status": "up", "version": APP_VERSION},

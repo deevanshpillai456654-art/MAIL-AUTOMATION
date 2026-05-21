@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from backend.auth.local_auth import require_local_auth_or_localhost
 
 
 def _client():
@@ -7,6 +8,7 @@ def _client():
 
     app = FastAPI()
     app.include_router(router, prefix="/api/v1")
+    app.dependency_overrides[require_local_auth_or_localhost] = lambda: None
     return TestClient(app)
 
 

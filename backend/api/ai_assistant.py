@@ -29,7 +29,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from backend.auth.local_auth import require_local_auth_or_localhost
 from pydantic import BaseModel
 
 from backend.core.assistant import (
@@ -39,7 +40,7 @@ from backend.core.assistant import (
     get_session_manager,
 )
 
-router = APIRouter(tags=["assistant"])
+router = APIRouter(tags=["assistant"], dependencies=[Depends(require_local_auth_or_localhost)])
 logger = logging.getLogger("assistant.api")
 
 

@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+from backend.auth.local_auth import require_local_auth_or_localhost
 from pydantic import BaseModel, Field
 
 from backend.ai.local_first import (
@@ -28,7 +29,7 @@ from backend.auth.local_auth import request_has_valid_local_auth
 from backend.core.ai_gateway import get_ai_gateway
 from backend.runtime_version import APP_VERSION, DISPLAY_VERSION, VERSION_INFO
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_local_auth_or_localhost)])
 
 
 def _model_to_dict(model: BaseModel) -> Dict[str, Any]:

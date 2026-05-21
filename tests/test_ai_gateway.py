@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from backend.auth.local_auth import require_local_auth_or_localhost
+
+_no_auth = {require_local_auth_or_localhost: lambda: None}
 
 
 def test_ai_gateway_disabled_mode_never_loads_local_models():
@@ -35,6 +38,7 @@ def test_ai_gateway_api_exposes_runtime_policy(monkeypatch):
 
     app = FastAPI()
     app.include_router(router, prefix="/api/v1")
+    app.dependency_overrides.update(_no_auth)
     client = TestClient(app)
 
     resp = client.get("/api/v1/ai/gateway/status")
@@ -66,6 +70,7 @@ def test_ai_runtime_status_uses_gateway_when_ai_disabled(monkeypatch):
 
     app = FastAPI()
     app.include_router(ai_mod.router, prefix="/api/v1")
+    app.dependency_overrides.update(_no_auth)
     client = TestClient(app)
 
     resp = client.get("/api/v1/ai/runtime/status")
@@ -89,6 +94,7 @@ def test_ai_onnx_classify_rejects_when_ai_disabled(monkeypatch):
 
     app = FastAPI()
     app.include_router(ai_mod.router, prefix="/api/v1")
+    app.dependency_overrides.update(_no_auth)
     client = TestClient(app)
 
     resp = client.post("/api/v1/ai/onnx/classify", json={"subject": "Hello"})
@@ -112,6 +118,7 @@ def test_ai_onnx_validate_and_evaluate_reject_when_ai_disabled(monkeypatch):
 
     app = FastAPI()
     app.include_router(ai_mod.router, prefix="/api/v1")
+    app.dependency_overrides.update(_no_auth)
     client = TestClient(app)
 
     validate = client.post("/api/v1/ai/onnx/validate", json={"model_name": "tiny"})

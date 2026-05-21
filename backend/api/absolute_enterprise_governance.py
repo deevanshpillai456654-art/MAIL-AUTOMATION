@@ -1,7 +1,8 @@
 from __future__ import annotations
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from backend.auth.local_auth import require_local_auth_or_localhost
 from backend.core.absolute_enterprise_governance import AbsoluteEnterpriseGovernanceEngine
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_local_auth_or_localhost)])
 def engine() -> AbsoluteEnterpriseGovernanceEngine:
     return AbsoluteEnterpriseGovernanceEngine()
 @router.get("/enterprise/certification")

@@ -1,9 +1,10 @@
 from __future__ import annotations
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File
+from backend.auth.local_auth import require_local_auth_or_localhost
 from backend.core.zip_patch_update import update_status, validate_patch_zip
 from pathlib import Path
 import tempfile, shutil
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_local_auth_or_localhost)])
 @router.get("/updates/status")
 async def status(): return update_status()
 @router.post("/updates/validate")
