@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -23,6 +24,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BASE_URL = "http://127.0.0.1:4597/dashboard"
 DEFAULT_OUTPUT_DIR = ROOT / "artifacts" / "dashboard-visual-smoke"
 SERVICE_STARTUP_WAIT_SECONDS = 90
+# Visual smoke runs in offline and packaged Windows environments where Chromium's
+# font readiness promise can remain pending even after the app is fully rendered.
+os.environ.setdefault("PW_TEST_SCREENSHOT_NO_FONTS_READY", "1")
 SERVICE_START_COMMAND = (
     sys.executable,
     "-m",
@@ -59,17 +63,25 @@ class CaptureRecord:
     path: Path
 
 
+def primary_nav_selector(view_name: str) -> str:
+    return f'.main-nav > button.nav-btn[data-view="{view_name}"]'
+
+
 DASHBOARD_VIEWS: tuple[DashboardView, ...] = (
     DashboardView("dashboard", "initial", ready_selector="#view-dashboard.active"),
-    DashboardView("accounts", "nav", '[data-view="accounts"]', "#view-accounts.active"),
-    DashboardView("inbox", "nav", '[data-view="inbox"]', "#view-inbox.active"),
+    DashboardView("accounts", "nav", primary_nav_selector("accounts"), "#view-accounts.active"),
+    DashboardView("inbox", "nav", primary_nav_selector("inbox"), "#view-inbox.active"),
     DashboardView("scam", "filter", '[data-filter="scam"]', "#view-inbox.active"),
-    DashboardView("ai", "nav", '[data-view="ai"]', "#view-ai.active"),
-    DashboardView("automations", "nav", '[data-view="automations"]', "#view-automations.active"),
-    DashboardView("templates", "nav", '[data-view="templates"]', "#view-templates.active"),
-    DashboardView("reports", "nav", '[data-view="reports"]', "#view-reports.active"),
-    DashboardView("admin", "nav", '[data-view="admin"]', "#view-admin.active"),
-    DashboardView("settings", "nav", '[data-view="settings"]', "#view-settings.active"),
+    DashboardView("ai", "nav", primary_nav_selector("ai"), "#view-ai.active"),
+    DashboardView("automations", "nav", primary_nav_selector("automations"), "#view-automations.active"),
+    DashboardView("templates", "nav", primary_nav_selector("templates"), "#view-templates.active"),
+    DashboardView("reports", "nav", primary_nav_selector("reports"), "#view-reports.active"),
+    DashboardView("connectors", "nav", primary_nav_selector("connectors"), "#view-connectors.active"),
+    DashboardView("workflows", "nav", primary_nav_selector("workflows"), "#view-workflows.active"),
+    DashboardView("agents", "nav", primary_nav_selector("agents"), "#view-agents.active"),
+    DashboardView("command", "nav", primary_nav_selector("command"), "#view-command.active"),
+    DashboardView("admin", "nav", primary_nav_selector("admin"), "#view-admin.active"),
+    DashboardView("settings", "nav", primary_nav_selector("settings"), "#view-settings.active"),
 )
 
 
@@ -141,7 +153,7 @@ def open_view(page, view: DashboardView, timeout_ms: int) -> None:
         page.wait_for_selector(view.ready_selector, timeout=timeout_ms)
         return
     if view.name == "scam":
-        page.locator('[data-view="inbox"]').click()
+        page.locator(primary_nav_selector("inbox")).click()
         page.wait_for_selector("#view-inbox.active", timeout=timeout_ms)
     page.locator(view.selector).click()
     page.wait_for_selector(view.ready_selector, timeout=timeout_ms)

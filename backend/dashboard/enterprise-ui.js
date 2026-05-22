@@ -1477,6 +1477,7 @@
     const staticChips = [
       `<button class="filter-chip ${active==='all'?'active':''}" data-filter="all" type="button">All</button>`,
       `<button class="filter-chip ${active==='unread'?'active':''}" data-filter="unread" type="button">Unread</button>`,
+      `<button class="filter-chip ${active==='scam'?'active':''}" data-filter="scam" type="button">Scam</button>`,
     ];
 
     // One chip per distinct category found in the client's emails

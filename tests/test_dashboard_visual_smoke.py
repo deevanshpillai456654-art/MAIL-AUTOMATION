@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import os
 
 from PIL import Image
 
@@ -18,12 +19,34 @@ def test_dashboard_visual_smoke_plan_covers_core_views_and_scam_filter():
         "automations",
         "templates",
         "reports",
+        "connectors",
+        "workflows",
+        "agents",
+        "command",
         "admin",
         "settings",
     ]
     assert smoke.DASHBOARD_VIEWS[0].action == "initial"
     assert smoke.DASHBOARD_VIEWS[3].action == "filter"
     assert smoke.DASHBOARD_VIEWS[3].selector == '[data-filter="scam"]'
+
+
+def test_dashboard_exposes_stable_scam_filter_chip_for_visual_smoke():
+    html = Path("backend/dashboard/index.html").read_text(encoding="utf-8")
+    js = Path("backend/dashboard/enterprise-ui.js").read_text(encoding="utf-8")
+
+    assert 'data-filter="scam"' in html
+    assert 'data-filter="scam"' in js
+    assert "Scam" in js
+
+
+def test_dashboard_visual_smoke_nav_selectors_target_primary_sidebar_buttons():
+    from scripts import dashboard_visual_smoke as smoke
+
+    for view in smoke.DASHBOARD_VIEWS:
+        if view.action == "nav":
+            assert view.selector.startswith(".main-nav > button.nav-btn")
+            assert ".nav-nested" not in view.selector
 
 
 def test_dashboard_visual_smoke_output_paths_are_stable(tmp_path):
@@ -56,6 +79,12 @@ def test_dashboard_visual_smoke_requires_playwright_with_clear_message(monkeypat
         assert "python -m playwright install chromium" in str(exc)
     else:
         raise AssertionError("Expected missing Playwright to raise RuntimeError")
+
+
+def test_dashboard_visual_smoke_disables_font_ready_wait_for_offline_screenshots():
+    from scripts import dashboard_visual_smoke  # noqa: F401
+
+    assert os.environ.get("PW_TEST_SCREENSHOT_NO_FONTS_READY") == "1"
 
 
 def test_dashboard_visual_smoke_manifest_lists_generated_screenshots(tmp_path):
