@@ -18,31 +18,31 @@ CHECKS = [
     {
         "id": "SEC-001",
         "name": "request signing middleware present",
-        "path": "local-service/api/middleware.py",
+        "path": "backend/api/middleware.py",
         "must_contain": ["class RequestSigningMiddleware", "RequestSigner", "request_signature_rejected"],
     },
     {
         "id": "SEC-002",
         "name": "request body limit middleware present",
-        "path": "local-service/api/middleware.py",
+        "path": "backend/api/middleware.py",
         "must_contain": ["class RequestSizeLimitMiddleware", "Payload too large"],
     },
     {
         "id": "SEC-003",
         "name": "webhook SSRF protection present",
-        "path": "local-service/api/webhooks.py",
+        "path": "backend/api/webhook_manager.py",
         "must_contain": ["validate_outbound_url", "webhook_delivery_blocked"],
     },
     {
         "id": "SEC-004",
         "name": "frontend telemetry redaction present",
-        "path": "local-service/api/frontend_runtime.py",
-        "must_contain": ["from security.redaction import redact", "item = redact"],
+        "path": "backend/api/frontend_runtime.py",
+        "must_contain": ["from backend.security.redaction import redact", "item = redact"],
     },
     {
         "id": "SEC-005",
         "name": "security status API exposed",
-        "path": "local-service/api/security.py",
+        "path": "backend/api/security.py",
         "must_contain": ["/status", "request_signing", "ssrf_protection"],
     },
     {
@@ -55,15 +55,15 @@ CHECKS = [
     {
         "id": "SEC-007",
         "name": "websocket continuation tokens are not persisted",
-        "path": "local-service/dashboard/realtime/ws_client.js",
+        "path": "backend/dashboard/realtime/ws_client.js",
         "must_contain": ["Keep websocket continuation tokens in memory only"],
         "must_not_contain": ["sessionStorage.setItem('ws_session_token'"],
     },
     {
         "id": "SEC-008",
         "name": "production CORS does not wildcard extension origins",
-        "path": "local-service/main.py",
-        "must_contain": ["allow_origin_regex=None if getattr(config, \"IS_PRODUCTION\", False) else local_cors_regex"],
+        "path": "backend/app/middleware.py",
+        "must_contain": ["allow_origin_regex=None if is_production else local_origin_regex"],
     },
 ]
 

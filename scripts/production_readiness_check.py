@@ -17,10 +17,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SERVICE = ROOT / "backend"
-# sys.path not needed — use backend package
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from core.production_readiness import ProductionReadinessValidator, evidence_templates  # noqa: E402
+from backend.core.production_readiness import ProductionReadinessValidator, evidence_templates  # noqa: E402
 
 
 def _run(cmd: list[str], timeout: int = 300) -> dict:
@@ -56,45 +56,66 @@ def _load_report(path: Path) -> dict:
 
 
 def _local_first_result(target: int) -> dict:
-    # Keep this gate fast and non-recursive. The refresh commands are:
-    #   python scripts/validate_ai30_99_release.py
-    #   python scripts/validate_ai31_persistence_recovery.py
-    ai30_report = _load_report(ROOT / "AI30_99_VALIDATION_REPORT.json")
-    ai31_report = _load_report(ROOT / "AI31_PERSISTENCE_RECOVERY_VALIDATION_REPORT.json")
-    root_validation = _run([sys.executable, "validate_project.py"], timeout=120)
+    # Keep this gate bounded and aligned with the current repository layout.
+    # It intentionally avoids the full pytest suite to prevent recursive long
+    # runs while still covering packaging, runtime policy, security, and UI smoke.
+    package_validation = _run([sys.executable, "-B", "scripts/validate_ai36_production_cleanup.py"], timeout=180)
+    focused_pytest = _run([
+        sys.executable,
+        "-B",
+        "-m",
+        "pytest",
+        "tests/test_enterprise_operations.py",
+        "tests/test_runtime_control_wave1.py",
+        "tests/test_runtime_control_wave2.py",
+        "tests/test_dashboard_visual_smoke.py",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+    ], timeout=240)
+    security_gate = _run([sys.executable, "-B", "scripts/security_red_team_check.py", "--json"], timeout=60)
+    dashboard_smoke = _run([sys.executable, "-B", "scripts/dashboard_visual_smoke.py", "--timeout-ms", "60000"], timeout=300)
     cache_ok, cache_hits = _runtime_cache_clean()
-    ai30_ok = bool(ai30_report.get("passed")) and float(ai30_report.get("minimum_score", 0) or 0) >= 99
-    ai31_ok = bool(ai31_report.get("passed")) and float(ai31_report.get("score", 0) or 0) >= 97
     checks = [
         {
-            "id": "local_first.ai30_release_validator",
+            "id": "local_first.ai36_package_validation",
             "category": "release",
-            "title": "AI30 99-readiness release validator",
-            "status": "pass" if ai30_ok else "fail",
-            "points": 20 if ai30_ok else 0,
-            "max_points": 20,
+            "title": "AI36 frontend/backend package validation",
+            "status": "pass" if package_validation["returncode"] == 0 else "fail",
+            "points": 25 if package_validation["returncode"] == 0 else 0,
+            "max_points": 25,
             "target": 95,
-            "detail": f"report_passed={ai30_report.get('passed')}; minimum_score={ai30_report.get('minimum_score')}",
+            "detail": package_validation["tail"],
         },
         {
-            "id": "local_first.ai31_persistence_recovery",
-            "category": "persistence",
-            "title": "AI31 atomic persistence, WAL, and durable queue validation",
-            "status": "pass" if ai31_ok else "fail",
-            "points": 20 if ai31_ok else 0,
-            "max_points": 20,
+            "id": "local_first.focused_runtime_pytest",
+            "category": "runtime",
+            "title": "Focused runtime, enterprise operations, and visual smoke tests",
+            "status": "pass" if focused_pytest["returncode"] == 0 else "fail",
+            "points": 25 if focused_pytest["returncode"] == 0 else 0,
+            "max_points": 25,
             "target": 95,
-            "detail": f"report_passed={ai31_report.get('passed')}; score={ai31_report.get('score')}",
+            "detail": focused_pytest["tail"],
         },
         {
-            "id": "local_first.root_project_validation",
-            "category": "packaging",
-            "title": "Root customer-facing project validation",
-            "status": "pass" if root_validation["returncode"] == 0 else "fail",
-            "points": 15 if root_validation["returncode"] == 0 else 0,
+            "id": "local_first.security_regression_gate",
+            "category": "security",
+            "title": "Local red-team security regression gate",
+            "status": "pass" if security_gate["returncode"] == 0 else "fail",
+            "points": 20 if security_gate["returncode"] == 0 else 0,
+            "max_points": 20,
+            "target": 95,
+            "detail": security_gate["tail"],
+        },
+        {
+            "id": "local_first.dashboard_visual_smoke",
+            "category": "frontend",
+            "title": "Dashboard visual smoke across top-level views",
+            "status": "pass" if dashboard_smoke["returncode"] == 0 else "fail",
+            "points": 15 if dashboard_smoke["returncode"] == 0 else 0,
             "max_points": 15,
             "target": 95,
-            "detail": root_validation["tail"],
+            "detail": dashboard_smoke["tail"],
         },
         {
             "id": "local_first.runtime_cache_clean",
@@ -231,4 +252,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
