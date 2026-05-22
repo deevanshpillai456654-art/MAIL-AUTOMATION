@@ -7,6 +7,7 @@
   <link rel="manifest" href="/dashboard/pwa_manifest.json" />
   <link rel="apple-touch-icon" href="/dashboard/assets/apple-touch-icon.png" />
   <link rel="stylesheet" href="/dashboard/enterprise-ui.css?v=15" />
+  <link rel="stylesheet" href="/dashboard/hybrid-theme.css?v=1" />
   <meta name="description" content="INTEMO - Enterprise AI Email Operations Platform" />
   <!-- light theme marker: #F6F8FB -->
 </head>
@@ -40,14 +41,6 @@
         Dashboard
       </button>
 
-      <button class="nav-btn" data-view="accounts" type="button">
-        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-          <circle cx="10" cy="7" r="3.5"/>
-          <path d="M3 18a7 7 0 0 1 14 0"/>
-        </svg>
-        Accounts
-      </button>
-
       <button class="nav-btn" data-view="inbox" type="button">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
           <path d="M2 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5Z"/>
@@ -75,32 +68,6 @@
         Automations
       </button>
 
-      <button class="nav-btn" data-view="templates" type="button">
-        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-          <rect x="3" y="3" width="14" height="14" rx="2"/>
-          <path d="M3 8h14M8 8v9"/>
-        </svg>
-        Templates
-      </button>
-
-      <button class="nav-btn" data-view="reports" type="button">
-        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-          <path d="M3 17V9M7 17V5M11 17V9M15 17V3"/>
-          <path d="M1 17h18"/>
-        </svg>
-        Analytics
-      </button>
-
-      <button class="nav-btn" data-view="connectors" type="button">
-        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-          <circle cx="5" cy="10" r="2.5"/>
-          <circle cx="15" cy="5" r="2.5"/>
-          <circle cx="15" cy="15" r="2.5"/>
-          <path d="M7.4 9l5.2-2.8M7.4 11l5.2 2.8"/>
-        </svg>
-        Connectors
-      </button>
-
       <button class="nav-btn" data-view="workflows" type="button">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
           <circle cx="4" cy="10" r="2"/><circle cx="10" cy="4" r="2"/><circle cx="10" cy="16" r="2"/><circle cx="16" cy="10" r="2"/>
@@ -118,6 +85,32 @@
         Agents
       </button>
 
+      <button class="nav-btn" data-view="connectors" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <circle cx="5" cy="10" r="2.5"/>
+          <circle cx="15" cy="5" r="2.5"/>
+          <circle cx="15" cy="15" r="2.5"/>
+          <path d="M7.4 9l5.2-2.8M7.4 11l5.2 2.8"/>
+        </svg>
+        Connectors
+      </button>
+
+      <button class="nav-btn" data-view="reports" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <path d="M3 17V9M7 17V5M11 17V9M15 17V3"/>
+          <path d="M1 17h18"/>
+        </svg>
+        Analytics
+      </button>
+
+      <button class="nav-btn" data-view="accounts" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <circle cx="10" cy="7" r="3.5"/>
+          <path d="M3 18a7 7 0 0 1 14 0"/>
+        </svg>
+        Accounts
+      </button>
+
       <button class="nav-btn" data-view="command" type="button">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
           <rect x="2" y="3" width="16" height="11" rx="2"/>
@@ -130,90 +123,39 @@
 
       <div class="installed-connector-nav" id="installedConnectorNav" aria-label="Installed connectors"></div>
 
-      <div class="nav-section-label">Smart Workspace</div>
-
-      <div class="nav-mode-switch" aria-label="Navigation mode">
-        <button class="nav-mode-button" id="navModeToggle" type="button" aria-pressed="false">Show advanced tools</button>
-      </div>
-
-      <details class="nav-group" data-nav-role="basic-client" open>
-        <summary>
-          <span>
-            <span class="nav-group-title">Protection & Compliance</span>
-            <span class="nav-group-subtitle">Calm oversight and governance</span>
-          </span>
-        </summary>
+      <!-- Operations support — collapsed by default -->
+      <details class="nav-group">
+        <summary><span class="nav-group-title">Service Operations</span></summary>
         <div class="nav-submenu">
-          <a class="nav-btn nav-link nav-nested" href="/security">Security Insights</a>
-          <button class="nav-btn nav-nested" data-view="risks" type="button">Risk Overview</button>
+          <button class="nav-btn nav-nested" data-view="dispatches"  type="button">Activity Queue</button>
+          <button class="nav-btn nav-nested" data-view="playbooks"   type="button">AI Actions</button>
+          <button class="nav-btn nav-nested" data-view="runbooks"    type="button">Automation Guides</button>
+          <button class="nav-btn nav-nested" data-view="sla"         type="button">Service Goals</button>
+          <button class="nav-btn nav-nested" data-view="oncall"      type="button">Team Availability</button>
+          <button class="nav-btn nav-nested" data-view="services"    type="button">Service Catalog</button>
+          <button class="nav-btn nav-nested" data-view="problems"    type="button">Service Issues</button>
+          <button class="nav-btn nav-nested" data-view="changes"     type="button">Change Requests</button>
+        </div>
+      </details>
+
+      <!-- Advanced / admin tools — collapsed by default -->
+      <details class="nav-group">
+        <summary><span class="nav-group-title">Advanced</span></summary>
+        <div class="nav-submenu">
+          <a  class="nav-btn nav-nested nav-link" href="/security">Security Insights</a>
+          <button class="nav-btn nav-nested" data-view="risks"        type="button">Risk Overview</button>
           <button class="nav-btn nav-nested" data-view="certificates" type="button">Secure Access</button>
-          <button class="nav-btn nav-nested" data-view="licenses" type="button">Licenses</button>
-          <button class="nav-btn nav-nested" data-view="budgets" type="button">Budgets</button>
-        </div>
-      </details>
-
-      <details class="nav-group" data-nav-role="basic-client" open>
-        <summary>
-          <span>
-            <span class="nav-group-title">Operations Support</span>
-            <span class="nav-group-subtitle">Guided service workflows</span>
-          </span>
-        </summary>
-        <div class="nav-submenu">
-          <button class="nav-btn nav-nested" data-view="dispatches" type="button">Activity Queue</button>
-          <button class="nav-btn nav-nested" data-view="playbooks" type="button">AI Actions</button>
-          <button class="nav-btn nav-nested" data-view="runbooks" type="button">Automation Guides</button>
-          <button class="nav-btn nav-nested" data-view="sla" type="button">Service Goals</button>
-          <button class="nav-btn nav-nested" data-view="slos" type="button">SLO Management</button>
-          <button class="nav-btn nav-nested" data-view="oncall" type="button">Team Availability</button>
-          <button class="nav-btn nav-nested" data-view="services" type="button">Service Catalog</button>
-          <button class="nav-btn nav-nested" data-view="problems" type="button">Service Issues</button>
-          <button class="nav-btn nav-nested" data-view="changes" type="button">Change Requests</button>
-        </div>
-      </details>
-
-      <details class="nav-group" data-nav-role="admin">
-        <summary>
-          <span>
-            <span class="nav-group-title">Integrations & Access</span>
-            <span class="nav-group-subtitle">Connections and secure APIs</span>
-          </span>
-        </summary>
-        <div class="nav-submenu">
-          <button class="nav-btn nav-nested" data-view="connectors" type="button">Connected Services</button>
-          <button class="nav-btn nav-nested" data-view="accounts" type="button">Email Providers</button>
-          <button class="nav-btn nav-nested" data-view="webhooks" type="button">Webhook Channels</button>
-          <button class="nav-btn nav-nested" data-view="api-keys" type="button">API Access</button>
-        </div>
-      </details>
-
-      <details class="nav-group" data-nav-role="advanced-admin">
-        <summary>
-          <span>
-            <span class="nav-group-title">Infrastructure <span class="nav-role-chip">Advanced</span></span>
-            <span class="nav-group-subtitle">Advanced workspace controls</span>
-          </span>
-        </summary>
-        <div class="nav-submenu">
-          <button class="nav-btn nav-nested" data-view="configs" type="button">Workspace Settings</button>
-          <button class="nav-btn nav-nested" data-view="maintenance" type="button">System Updates</button>
-          <button class="nav-btn nav-nested" data-view="deployments" type="button">Releases</button>
-          <button class="nav-btn nav-nested" data-view="capacity" type="button">System Usage</button>
-          <button class="nav-btn nav-nested" data-view="flags" type="button">Status Markers</button>
-        </div>
-      </details>
-
-      <details class="nav-group" data-nav-role="business-admin">
-        <summary>
-          <span>
-            <span class="nav-group-title">Resources & Planning</span>
-            <span class="nav-group-subtitle">Business context and records</span>
-          </span>
-        </summary>
-        <div class="nav-submenu">
-          <button class="nav-btn nav-nested" data-view="assets" type="button">Resources</button>
-          <button class="nav-btn nav-nested" data-view="vendors" type="button">Vendors</button>
-          <button class="nav-btn nav-nested" data-view="knowledge" type="button">Knowledge Base</button>
+          <button class="nav-btn nav-nested" data-view="licenses"     type="button">Licenses</button>
+          <button class="nav-btn nav-nested" data-view="budgets"      type="button">Budgets</button>
+          <button class="nav-btn nav-nested" data-view="webhooks"     type="button">Webhooks</button>
+          <button class="nav-btn nav-nested" data-view="api-keys"     type="button">API Access</button>
+          <button class="nav-btn nav-nested" data-view="configs"      type="button">Workspace Config</button>
+          <button class="nav-btn nav-nested" data-view="maintenance"  type="button">System Updates</button>
+          <button class="nav-btn nav-nested" data-view="deployments"  type="button">Releases</button>
+          <button class="nav-btn nav-nested" data-view="assets"       type="button">Resources</button>
+          <button class="nav-btn nav-nested" data-view="vendors"      type="button">Vendors</button>
+          <button class="nav-btn nav-nested" data-view="knowledge"    type="button">Knowledge Base</button>
+          <button class="nav-btn nav-nested" data-view="templates"    type="button">Templates</button>
         </div>
       </details>
 
@@ -237,11 +179,18 @@
 
     </nav>
 
-    <div class="sidebar-status" role="status" aria-live="polite">
-      <span class="status-dot" id="sidebarStatusDot" aria-hidden="true"></span>
-      <div>
-        <strong id="sideSyncState">Operational</strong>
-        <small>Sync every <span id="sideSyncInterval">20s</span></small>
+    <div class="sidebar-footer">
+      <!-- Theme switcher -->
+      <div class="theme-switcher" role="group" aria-label="Theme">
+        <button class="theme-btn active" type="button" data-theme-set="light"  aria-pressed="true"  title="Light theme">Light</button>
+        <button class="theme-btn"        type="button" data-theme-set="hybrid" aria-pressed="false" title="Hybrid theme">Hybrid</button>
+        <button class="theme-btn"        type="button" data-theme-set="dark"   aria-pressed="false" title="Dark theme">Dark</button>
+      </div>
+      <!-- Sync status -->
+      <div class="sidebar-footer-row" role="status" aria-live="polite">
+        <span class="status-dot" id="sidebarStatusDot" aria-hidden="true"></span>
+        <span id="sideSyncState" class="sidebar-version">Operational</span>
+        <span class="sidebar-version" style="margin-left:auto" id="sideSyncInterval">20s</span>
       </div>
     </div>
 

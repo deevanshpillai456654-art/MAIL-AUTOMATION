@@ -1,114 +1,438 @@
-/* INTEMO Design System — Linear Light Theme tokens */
+/* ═══════════════════════════════════════════════════════════════════════════
+   INTEMO Design System — Premium Enterprise Token System
+   Three themes: Light · Hybrid · Soft Dark Accent
+   Convention: --it-{category}-{variant}
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── base palette (light default) ─────────────────────────────────────────── */
-:root {
+/* ── THEME 1: Premium Light (default) ──────────────────────────────────────
+   Soft white surfaces · blue-tinted borders · elevated cards
+   ─────────────────────────────────────────────────────────────────────────── */
+:root,
+[data-theme="light"] {
   color-scheme: light;
 
-  /* backgrounds */
-  --aio-bg:       #F8FAFC;
-  --aio-panel:    #FFFFFF;
-  --aio-panel-2:  #F4F7FB;
+  /* Backgrounds */
+  --it-bg-base:        #F5F7FB;
+  --it-bg-raised:      #EDF1F8;
+  --it-bg-sunken:      #ECEEF3;
 
-  /* text */
-  --aio-text:     #0F172A;
-  --aio-muted:    #64748B;
+  /* Surfaces (cards, panels) */
+  --it-surface-base:   #FFFFFF;
+  --it-surface-2:      #F8FAFD;
+  --it-surface-3:      #F0F4FA;
+  --it-surface-overlay:rgba(255,255,255,0.92);
 
-  /* borders */
-  --aio-line:     #E2E8F0;
-  --aio-line-med: #CBD5E1;
+  /* Sidebar — light theme uses white sidebar */
+  --it-sidebar-bg:        #FFFFFF;
+  --it-sidebar-border:    #E8EDF6;
+  --it-sidebar-text:      #475569;
+  --it-sidebar-text-hi:   #0F172A;
+  --it-sidebar-muted:     #94A3B8;
+  --it-sidebar-active-bg: rgba(37,99,235,0.07);
+  --it-sidebar-active-border: #2563EB;
+  --it-sidebar-hover-bg:  rgba(15,23,42,0.04);
+  --it-sidebar-section-label: #94A3B8;
 
-  /* accent — blue only, no purple */
-  --aio-brand:    #2563EB;
-  --aio-brand-2:  #1D4ED8;
-  --aio-brand-ghost: rgba(37, 99, 235, 0.08);
+  /* Borders */
+  --it-border-base:    #E2E8F0;
+  --it-border-soft:    #EEF2FA;
+  --it-border-med:     #CBD5E1;
+  --it-border-strong:  #94A3B8;
 
-  /* semantic */
-  --aio-good:     #15803D;
-  --aio-warn:     #D97706;
-  --aio-bad:      #DC2626;
+  /* Text */
+  --it-text-base:      #0F172A;
+  --it-text-muted:     #64748B;
+  --it-text-dim:       #94A3B8;
+  --it-text-inverse:   #FFFFFF;
 
-  /* radius */
-  --aio-radius:   8px;
-  --aio-radius-md: 12px;
-  --aio-radius-lg: 16px;
+  /* Brand / Accent */
+  --it-accent:         #2563EB;
+  --it-accent-hover:   #1D4ED8;
+  --it-accent-active:  #1E40AF;
+  --it-accent-subtle:  rgba(37,99,235,0.07);
+  --it-accent-glow:    rgba(37,99,235,0.18);
+  --it-accent-border:  rgba(37,99,235,0.30);
 
-  /* shadow — minimal, Linear-inspired */
-  --aio-shadow:           0 1px 3px rgba(15, 23, 42, 0.06), 0 2px 8px rgba(15, 23, 42, 0.04);
-  --aio-shadow-md:        0 2px 8px rgba(15, 23, 42, 0.06), 0 4px 16px rgba(15, 23, 42, 0.05);
-  --aio-shadow-hover:     0 4px 14px rgba(15, 23, 42, 0.09), 0 8px 24px rgba(15, 23, 42, 0.06);
-  --aio-shadow-btn:       0 1px 2px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  --aio-shadow-btn-hover: 0 2px 5px rgba(15, 23, 42, 0.10), 0 4px 10px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.80);
-  --aio-shadow-btn-press: inset 0 1px 3px rgba(15, 23, 42, 0.10);
-  --aio-shadow-primary:   0 1px 3px rgba(37, 99, 235, 0.30), 0 3px 8px rgba(37, 99, 235, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  /* AI / Indigo — for AI features */
+  --it-ai:             #4F46E5;
+  --it-ai-hover:       #4338CA;
+  --it-ai-subtle:      rgba(79,70,229,0.07);
+  --it-ai-glow:        rgba(79,70,229,0.18);
+
+  /* Semantic */
+  --it-green:          #15803D;
+  --it-green-subtle:   rgba(21,128,61,0.09);
+  --it-green-border:   rgba(21,128,61,0.22);
+  --it-amber:          #B45309;
+  --it-amber-subtle:   rgba(180,83,9,0.09);
+  --it-amber-border:   rgba(180,83,9,0.22);
+  --it-red:            #DC2626;
+  --it-red-subtle:     rgba(220,38,38,0.08);
+  --it-red-border:     rgba(220,38,38,0.22);
+  --it-blue:           #0284C7;
+  --it-blue-subtle:    rgba(2,132,199,0.08);
+
+  /* 3D Shadow System — the depth hierarchy */
+  --it-shadow-xs:     0 1px 2px rgba(15,23,42,0.04);
+  --it-shadow-sm:     0 1px 3px rgba(15,23,42,0.06), 0 2px 8px rgba(15,23,42,0.04);
+  --it-shadow-md:     0 2px 8px rgba(15,23,42,0.07), 0 6px 20px rgba(15,23,42,0.05);
+  --it-shadow-lg:     0 4px 16px rgba(15,23,42,0.08), 0 12px 36px rgba(15,23,42,0.06);
+  --it-shadow-xl:     0 8px 32px rgba(15,23,42,0.10), 0 24px 64px rgba(15,23,42,0.07);
+  --it-shadow-hover:  0 4px 14px rgba(15,23,42,0.09), 0 10px 28px rgba(15,23,42,0.06);
+  --it-shadow-focus:  0 0 0 3px rgba(37,99,235,0.18);
+
+  /* 3D Card shadows */
+  --it-shadow-card:         0 1px 3px rgba(15,23,42,0.05), 0 2px 8px rgba(15,23,42,0.04);
+  --it-shadow-card-hover:   0 4px 14px rgba(15,23,42,0.09), 0 10px 28px rgba(15,23,42,0.06);
+  --it-shadow-card-active:  0 1px 2px rgba(15,23,42,0.04), inset 0 1px 2px rgba(15,23,42,0.05);
+  --it-shadow-sidebar:      1px 0 0 var(--it-sidebar-border);
+  --it-shadow-topbar:       0 1px 0 var(--it-border-base), 0 2px 8px rgba(15,23,42,0.03);
+  --it-shadow-dropdown:     0 8px 32px rgba(15,23,42,0.12), 0 2px 8px rgba(15,23,42,0.06), 0 0 0 1px rgba(15,23,42,0.06);
+  --it-shadow-modal:        0 20px 60px rgba(15,23,42,0.14), 0 4px 16px rgba(15,23,42,0.08), 0 0 0 1px rgba(15,23,42,0.06);
+
+  /* 3D Button shadows — the premium depth system */
+  --it-shadow-btn:
+    0 1px 2px rgba(15,23,42,0.08),
+    0 2px 4px rgba(15,23,42,0.05),
+    inset 0 1px 0 rgba(255,255,255,0.75);
+  --it-shadow-btn-hover:
+    0 2px 5px rgba(15,23,42,0.10),
+    0 5px 12px rgba(15,23,42,0.07),
+    inset 0 1px 0 rgba(255,255,255,0.80);
+  --it-shadow-btn-press:
+    inset 0 1px 3px rgba(15,23,42,0.12),
+    inset 0 0 1px rgba(15,23,42,0.06);
+  --it-shadow-btn-primary:
+    0 1px 3px rgba(37,99,235,0.32),
+    0 3px 10px rgba(37,99,235,0.18),
+    inset 0 1px 0 rgba(255,255,255,0.20);
+  --it-shadow-btn-primary-hover:
+    0 2px 6px rgba(37,99,235,0.42),
+    0 8px 20px rgba(37,99,235,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.22);
+  --it-shadow-btn-ai:
+    0 1px 3px rgba(79,70,229,0.30),
+    0 3px 10px rgba(79,70,229,0.16),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+
+  /* 3D Button gradients */
+  --it-grad-btn:           linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+  --it-grad-btn-hover:     linear-gradient(180deg, #FFFFFF 0%, #F2F5FA 100%);
+  --it-grad-btn-press:     linear-gradient(180deg, #F3F6FB 0%, #EDF1F8 100%);
+  --it-grad-btn-primary:   linear-gradient(180deg, #3B7AFF 0%, #2563EB 55%, #1F5ADE 100%);
+  --it-grad-btn-primary-h: linear-gradient(180deg, #4A84FF 0%, #2D70FF 55%, #2461E8 100%);
+  --it-grad-btn-ai:        linear-gradient(180deg, #6366F1 0%, #4F46E5 55%, #4338CA 100%);
+  --it-grad-btn-ai-h:      linear-gradient(180deg, #6F72F5 0%, #5855ED 55%, #4B44D4 100%);
+
+  /* Typography */
+  --it-font-sans: Inter, Geist, 'SF Pro Text', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --it-font-mono: ui-monospace, 'Cascadia Code', 'Fira Code', SFMono-Regular, Consolas, monospace;
+
+  /* Type scale */
+  --it-text-2xs: 10px;
+  --it-text-xs:  11px;
+  --it-text-sm:  12px;
+  --it-text-md:  13px;
+  --it-text-base:14px;
+  --it-text-lg:  15px;
+  --it-text-xl:  17px;
+  --it-text-2xl: 20px;
+  --it-text-3xl: 24px;
+  --it-text-4xl: 30px;
+
+  /* Spacing */
+  --it-sp-1:   4px;
+  --it-sp-2:   8px;
+  --it-sp-3:   12px;
+  --it-sp-4:   16px;
+  --it-sp-5:   20px;
+  --it-sp-6:   24px;
+  --it-sp-8:   32px;
+  --it-sp-10:  40px;
+  --it-sp-12:  48px;
+  --it-sp-16:  64px;
+
+  /* Radius */
+  --it-r-xs:   4px;
+  --it-r-sm:   6px;
+  --it-r-md:   8px;
+  --it-r-lg:   10px;
+  --it-r-xl:   12px;
+  --it-r-2xl:  16px;
+  --it-r-3xl:  20px;
+  --it-r-pill: 9999px;
+
+  /* Motion */
+  --it-dur-instant: 80ms;
+  --it-dur-fast:    130ms;
+  --it-dur-med:     200ms;
+  --it-dur-slow:    320ms;
+  --it-dur-xslow:   450ms;
+  --it-ease:        cubic-bezier(0.16, 1, 0.3, 1);
+  --it-ease-out:    cubic-bezier(0, 0, 0.2, 1);
+  --it-ease-in:     cubic-bezier(0.4, 0, 1, 1);
+  --it-ease-linear: linear;
+
+  /* Layout */
+  --it-sidebar-w:     216px;
+  --it-sidebar-w-sm:  64px;
+  --it-topbar-h:      52px;
+  --it-content-max:   1400px;
 }
 
-/* ── dark mode override ────────────────────────────────────────────────────── */
+
+/* ── THEME 2: Hybrid Enterprise ─────────────────────────────────────────────
+   Dark sidebar navigation · Light content area
+   Best for power users who want visual separation between nav and content
+   ─────────────────────────────────────────────────────────────────────────── */
+[data-theme="hybrid"] {
+  color-scheme: light;
+
+  /* Content area stays light */
+  --it-bg-base:        #F5F7FB;
+  --it-bg-raised:      #EDF1F8;
+  --it-surface-base:   #FFFFFF;
+  --it-surface-2:      #F8FAFD;
+  --it-surface-3:      #F0F4FA;
+
+  /* Sidebar goes dark navy */
+  --it-sidebar-bg:              #0C1628;
+  --it-sidebar-border:          rgba(255,255,255,0.07);
+  --it-sidebar-text:            #94A3B8;
+  --it-sidebar-text-hi:         #E2E8F0;
+  --it-sidebar-muted:           #475569;
+  --it-sidebar-active-bg:       rgba(37,99,235,0.22);
+  --it-sidebar-active-border:   #3B7AFF;
+  --it-sidebar-hover-bg:        rgba(255,255,255,0.06);
+  --it-sidebar-section-label:   #334155;
+
+  /* Sidebar shadow — subtle right-edge glow */
+  --it-shadow-sidebar:  1px 0 0 rgba(255,255,255,0.06), 4px 0 24px rgba(0,0,0,0.16);
+
+  /* Content area borders/shadows unchanged from light */
+  --it-border-base:    #E2E8F0;
+  --it-border-soft:    #EEF2FA;
+  --it-border-med:     #CBD5E1;
+  --it-text-base:      #0F172A;
+  --it-text-muted:     #64748B;
+  --it-text-dim:       #94A3B8;
+}
+
+
+/* ── THEME 3: Soft Dark Accent ──────────────────────────────────────────────
+   Full dark mode · Soft navy backgrounds · Blue accent system
+   Not a hard black UI — soft, layered, premium
+   ─────────────────────────────────────────────────────────────────────────── */
 [data-theme="dark"] {
   color-scheme: dark;
-  --aio-bg:       #07111F;
-  --aio-panel:    #0F172A;
-  --aio-panel-2:  #1E293B;
-  --aio-text:     #F8FAFC;
-  --aio-muted:    #94A3B8;
-  --aio-line:     rgba(148, 163, 184, 0.16);
-  --aio-line-med: rgba(148, 163, 184, 0.28);
+
+  /* Backgrounds — layered soft navy */
+  --it-bg-base:        #09111F;
+  --it-bg-raised:      #0F1A2E;
+  --it-bg-sunken:      #060E1A;
+
+  /* Surfaces */
+  --it-surface-base:   #0F1B2D;
+  --it-surface-2:      #152035;
+  --it-surface-3:      #1C2A3F;
+  --it-surface-overlay:rgba(15,27,45,0.94);
+
+  /* Sidebar — slightly lighter than bg */
+  --it-sidebar-bg:              #0C1828;
+  --it-sidebar-border:          rgba(255,255,255,0.07);
+  --it-sidebar-text:            #64748B;
+  --it-sidebar-text-hi:         #CBD5E1;
+  --it-sidebar-muted:           #334155;
+  --it-sidebar-active-bg:       rgba(37,99,235,0.18);
+  --it-sidebar-active-border:   #3B7AFF;
+  --it-sidebar-hover-bg:        rgba(255,255,255,0.05);
+  --it-sidebar-section-label:   #1E3050;
+  --it-shadow-sidebar:          1px 0 0 rgba(255,255,255,0.06);
+
+  /* Borders */
+  --it-border-base:    rgba(148,163,184,0.14);
+  --it-border-soft:    rgba(148,163,184,0.08);
+  --it-border-med:     rgba(148,163,184,0.22);
+  --it-border-strong:  rgba(148,163,184,0.36);
+
+  /* Text */
+  --it-text-base:      #E2E8F0;
+  --it-text-muted:     #64748B;
+  --it-text-dim:       #334155;
+  --it-text-inverse:   #0F172A;
+
+  /* Accent — slightly brighter in dark mode */
+  --it-accent:         #3B7AFF;
+  --it-accent-hover:   #4A84FF;
+  --it-accent-active:  #2D6EFF;
+  --it-accent-subtle:  rgba(59,122,255,0.14);
+  --it-accent-glow:    rgba(59,122,255,0.25);
+  --it-accent-border:  rgba(59,122,255,0.40);
+
+  /* AI / Indigo */
+  --it-ai:             #6366F1;
+  --it-ai-hover:       #7C7FF5;
+  --it-ai-subtle:      rgba(99,102,241,0.14);
+  --it-ai-glow:        rgba(99,102,241,0.25);
+
+  /* Semantic */
+  --it-green:          #22C55E;
+  --it-green-subtle:   rgba(34,197,94,0.12);
+  --it-green-border:   rgba(34,197,94,0.28);
+  --it-amber:          #F59E0B;
+  --it-amber-subtle:   rgba(245,158,11,0.12);
+  --it-amber-border:   rgba(245,158,11,0.28);
+  --it-red:            #F87171;
+  --it-red-subtle:     rgba(248,113,113,0.12);
+  --it-red-border:     rgba(248,113,113,0.28);
+
+  /* Dark 3D shadows — more prominent, blue-tinted */
+  --it-shadow-xs:     0 1px 2px rgba(0,0,0,0.20);
+  --it-shadow-sm:     0 1px 3px rgba(0,0,0,0.24), 0 2px 8px rgba(0,0,0,0.16);
+  --it-shadow-md:     0 2px 8px rgba(0,0,0,0.28), 0 6px 20px rgba(0,0,0,0.20);
+  --it-shadow-lg:     0 4px 16px rgba(0,0,0,0.32), 0 12px 36px rgba(0,0,0,0.22);
+  --it-shadow-xl:     0 8px 32px rgba(0,0,0,0.36), 0 24px 64px rgba(0,0,0,0.24);
+  --it-shadow-hover:  0 4px 14px rgba(0,0,0,0.30), 0 10px 28px rgba(0,0,0,0.22);
+  --it-shadow-focus:  0 0 0 3px rgba(59,122,255,0.28);
+
+  --it-shadow-card:         0 1px 3px rgba(0,0,0,0.20), 0 2px 8px rgba(0,0,0,0.14), 0 0 0 1px rgba(255,255,255,0.05);
+  --it-shadow-card-hover:   0 4px 14px rgba(0,0,0,0.28), 0 10px 28px rgba(0,0,0,0.20), 0 0 0 1px rgba(255,255,255,0.07);
+  --it-shadow-dropdown:     0 8px 32px rgba(0,0,0,0.36), 0 2px 8px rgba(0,0,0,0.24), 0 0 0 1px rgba(255,255,255,0.07);
+  --it-shadow-modal:        0 24px 64px rgba(0,0,0,0.48), 0 4px 16px rgba(0,0,0,0.28), 0 0 0 1px rgba(255,255,255,0.07);
+  --it-shadow-topbar:       0 1px 0 var(--it-border-base), 0 2px 8px rgba(0,0,0,0.16);
+
+  /* Dark 3D Button shadows */
+  --it-shadow-btn:
+    0 1px 2px rgba(0,0,0,0.28),
+    0 2px 4px rgba(0,0,0,0.18),
+    inset 0 1px 0 rgba(255,255,255,0.10);
+  --it-shadow-btn-hover:
+    0 2px 6px rgba(0,0,0,0.32),
+    0 5px 14px rgba(0,0,0,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.12);
+  --it-shadow-btn-press:
+    inset 0 1px 3px rgba(0,0,0,0.32),
+    inset 0 0 1px rgba(0,0,0,0.16);
+  --it-shadow-btn-primary:
+    0 1px 3px rgba(59,122,255,0.36),
+    0 3px 10px rgba(59,122,255,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.16);
+  --it-shadow-btn-primary-hover:
+    0 2px 6px rgba(59,122,255,0.46),
+    0 8px 22px rgba(59,122,255,0.28),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+  --it-shadow-btn-ai:
+    0 1px 3px rgba(99,102,241,0.34),
+    0 3px 10px rgba(99,102,241,0.20),
+    inset 0 1px 0 rgba(255,255,255,0.14);
+
+  /* Dark button gradients */
+  --it-grad-btn:           linear-gradient(180deg, #1C2A3F 0%, #152035 100%);
+  --it-grad-btn-hover:     linear-gradient(180deg, #1F3048 0%, #182540 100%);
+  --it-grad-btn-press:     linear-gradient(180deg, #0F1B2D 0%, #0C1828 100%);
+  --it-grad-btn-primary:   linear-gradient(180deg, #4A84FF 0%, #3B7AFF 55%, #2D6EFF 100%);
+  --it-grad-btn-primary-h: linear-gradient(180deg, #5A8FFF 0%, #4882FF 55%, #3A78FF 100%);
+  --it-grad-btn-ai:        linear-gradient(180deg, #7C7FF5 0%, #6366F1 55%, #5558EC 100%);
+  --it-grad-btn-ai-h:      linear-gradient(180deg, #8A8DF7 0%, #7173F3 55%, #6366EF 100%);
 }
 
-/* ── canonical AI34/INTEMO token layer ────────────────────────────────────── */
-:root {
-  /* typography */
-  --ai34-font-sans: Inter, Geist, 'SF Pro Text', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
-  --ai34-font-mono: ui-monospace, 'Cascadia Code', 'Fira Code', SFMono-Regular, Consolas, monospace;
 
-  /* spacing scale: 4/8/12/16/24/32/40/48 */
-  --ai34-space-1:  4px;
-  --ai34-space-2:  8px;
-  --ai34-space-3:  12px;
-  --ai34-space-4:  16px;
-  --ai34-space-6:  24px;
-  --ai34-space-8:  32px;
-  --ai34-space-10: 40px;
-  --ai34-space-12: 48px;
-
-  /* radius */
-  --ai34-radius-sm:   8px;
-  --ai34-radius-md:   12px;
-  --ai34-radius-lg:   16px;
-  --ai34-radius-xl:   20px;
-  --ai34-radius-pill: 999px;
-
-  /* colors */
-  --ai34-surface:      #FFFFFF;
-  --ai34-surface-2:    #F4F7FB;
-  --ai34-ink:          #0F172A;
-  --ai34-muted:        #64748B;
-  --ai34-brand:        #2563EB;
-  --ai34-brand-hover:  #1D4ED8;
-  --ai34-indigo:       #4F46E5;
-  --ai34-success:      #15803D;
-  --ai34-warning:      #D97706;
-  --ai34-danger:       #DC2626;
-
-  /* shadows */
-  --ai34-shadow-card:         0 1px 3px rgba(15, 23, 42, 0.06), 0 2px 8px rgba(15, 23, 42, 0.04);
-  --ai34-shadow-float:        0 4px 16px rgba(15, 23, 42, 0.08), 0 8px 32px rgba(15, 23, 42, 0.06);
-  --ai34-shadow-hover:        0 4px 14px rgba(15, 23, 42, 0.09), 0 8px 24px rgba(15, 23, 42, 0.06);
-  --ai34-shadow-btn:          0 1px 2px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  --ai34-shadow-btn-hover:    0 2px 5px rgba(15, 23, 42, 0.10), 0 4px 10px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.80);
-  --ai34-shadow-btn-press:    inset 0 1px 3px rgba(15, 23, 42, 0.10);
-  --ai34-shadow-btn-primary:  0 1px 3px rgba(37, 99, 235, 0.30), 0 3px 8px rgba(37, 99, 235, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.18);
-
-  /* motion */
-  --ai34-motion-fast: 130ms;
-  --ai34-motion-med:  200ms;
-  --ai34-motion-slow: 380ms;
-  --ai34-ease:        cubic-bezier(.2, .8, .2, 1);
-}
-
-/* ── dark overrides for canonical tokens ──────────────────────────────────── */
+/* ── Legacy alias layer — keeps existing --bg, --accent, etc. working ───────
+   Old enterprise-ui.css uses these. Map them to new tokens.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root,
+[data-theme="light"],
+[data-theme="hybrid"],
 [data-theme="dark"] {
-  --ai34-surface:    #0F172A;
-  --ai34-surface-2:  #1E293B;
-  --ai34-ink:        #F8FAFC;
-  --ai34-muted:      #94A3B8;
+  /* Existing var names → new tokens */
+  --bg:           var(--it-bg-base);
+  --surface:      var(--it-surface-base);
+  --panel:        var(--it-surface-base);
+  --panel-hover:  var(--it-surface-3);
+  --panel-high:   var(--it-accent-subtle);
+  --border:       var(--it-border-base);
+  --border-soft:  var(--it-border-soft);
+  --border-med:   var(--it-border-med);
+  --text:         var(--it-text-base);
+  --text-hi:      var(--it-text-base);
+  --text-lo:      var(--it-text-dim);
+  --text-muted:   var(--it-text-muted);
+  --accent:       var(--it-accent);
+  --accent-hover: var(--it-accent-hover);
+  --accent-subtle:var(--it-accent-subtle);
+  --accent-glow:  var(--it-accent-glow);
+  --green:        var(--it-green);
+  --green-subtle: var(--it-green-subtle);
+  --red:          var(--it-red);
+  --red-subtle:   var(--it-red-subtle);
+  --amber:        var(--it-amber);
+  --amber-subtle: var(--it-amber-subtle);
+  --shadow-sm:    var(--it-shadow-sm);
+  --shadow-md:    var(--it-shadow-md);
+  --shadow-lg:    var(--it-shadow-lg);
+  --shadow-card:  var(--it-shadow-card);
+  --shadow-card-hover: var(--it-shadow-card-hover);
+  --shadow-btn:        var(--it-shadow-btn);
+  --shadow-btn-hover:  var(--it-shadow-btn-hover);
+  --shadow-btn-press:  var(--it-shadow-btn-press);
+  --shadow-btn-primary:      var(--it-shadow-btn-primary);
+  --shadow-btn-primary-hover:var(--it-shadow-btn-primary-hover);
+  --shadow-topbar:     var(--it-shadow-topbar);
+  --shadow-dropdown:   var(--it-shadow-dropdown);
+  --ease:         var(--it-ease);
+  --dur-fast:     var(--it-dur-fast);
+  --dur-med:      var(--it-dur-med);
+  --dur-slow:     var(--it-dur-slow);
+  --sidebar-w:    var(--it-sidebar-w);
+  --topbar-h:     var(--it-topbar-h);
+  --r-sm:         var(--it-r-sm);
+  --r-md:         var(--it-r-md);
+  --r-lg:         var(--it-r-lg);
+  --r-xl:         var(--it-r-xl);
+  --r-2xl:        var(--it-r-2xl);
+  --r-full:       var(--it-r-pill);
+  --sp-1: var(--it-sp-1); --sp-2: var(--it-sp-2); --sp-3: var(--it-sp-3);
+  --sp-4: var(--it-sp-4); --sp-5: var(--it-sp-5); --sp-6: var(--it-sp-6);
+  --sp-8: var(--it-sp-8); --sp-10:var(--it-sp-10);--sp-12:var(--it-sp-12);
+
+  /* aio- and ai34- compat aliases */
+  --aio-bg:           var(--it-bg-base);
+  --aio-panel:        var(--it-surface-base);
+  --aio-panel-2:      var(--it-surface-3);
+  --aio-text:         var(--it-text-base);
+  --aio-muted:        var(--it-text-muted);
+  --aio-line:         var(--it-border-base);
+  --aio-line-med:     var(--it-border-med);
+  --aio-brand:        var(--it-accent);
+  --aio-brand-2:      var(--it-accent-hover);
+  --aio-brand-ghost:  var(--it-accent-subtle);
+  --aio-good:         var(--it-green);
+  --aio-warn:         var(--it-amber);
+  --aio-bad:          var(--it-red);
+  --aio-radius:       var(--it-r-md);
+  --aio-radius-md:    var(--it-r-xl);
+  --aio-radius-lg:    var(--it-r-2xl);
+  --aio-shadow:       var(--it-shadow-sm);
+  --aio-shadow-md:    var(--it-shadow-md);
+  --aio-shadow-hover: var(--it-shadow-hover);
+  --ai34-surface:     var(--it-surface-base);
+  --ai34-surface-2:   var(--it-surface-3);
+  --ai34-ink:         var(--it-text-base);
+  --ai34-muted:       var(--it-text-muted);
+  --ai34-brand:       var(--it-accent);
+  --ai34-brand-hover: var(--it-accent-hover);
+  --ai34-indigo:      var(--it-ai);
+  --ai34-success:     var(--it-green);
+  --ai34-warning:     var(--it-amber);
+  --ai34-danger:      var(--it-red);
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

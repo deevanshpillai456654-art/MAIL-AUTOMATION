@@ -2931,8 +2931,32 @@ ${section('Model Health', modelHealth)}
     }
   });
 
+  // -- Theme switcher ----------------------------------------------------------
+  function initThemeSwitcher() {
+    const THEME_KEY = 'intemo_theme';
+    const saved = localStorage.getItem(THEME_KEY) || 'light';
+    applyTheme(saved);
+    document.querySelectorAll('[data-theme-set]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const t = btn.dataset.themeSet;
+        applyTheme(t);
+        localStorage.setItem(THEME_KEY, t);
+      });
+    });
+  }
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.querySelectorAll('[data-theme-set]').forEach(btn => {
+      const on = btn.dataset.themeSet === theme;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-pressed', String(on));
+    });
+  }
+
   // -- Bindings ----------------------------------------------------------------
   function bind() {
+    initThemeSwitcher();
     $('sidebarOverlay')?.addEventListener('click', () => setSidebarOpen(false));
     $('accountForm')?.addEventListener('submit', saveAccount);
     $('accountForm')?.provider?.addEventListener('change', e => selectProvider(e.target.value, true));
