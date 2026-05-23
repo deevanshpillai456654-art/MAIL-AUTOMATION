@@ -1,13 +1,15 @@
 {
-  "name": "INTEMO | Email Organizer",
+  "name": "INTEMO — AI Email Operations",
   "short_name": "INTEMO",
+  "description": "Enterprise AI email security and operations platform",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#F8FAFC",
+  "background_color": "#F5F7FB",
   "theme_color": "#2563EB",
   "icons": [
-    {"src": "/dashboard/assets/apple-touch-icon.png", "sizes": "180x180", "type": "image/png"},
-    {"src": "/dashboard/assets/icon192.png", "sizes": "192x192", "type": "image/png"},
-    {"src": "/dashboard/assets/icon512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+    {"src": "/dashboard/assets/icon.svg",            "sizes": "any",       "type": "image/svg+xml"},
+    {"src": "/dashboard/assets/icon192.png",          "sizes": "192x192",   "type": "image/png"},
+    {"src": "/dashboard/assets/icon512.png",          "sizes": "512x512",   "type": "image/png", "purpose": "any maskable"},
+    {"src": "/dashboard/assets/apple-touch-icon.png", "sizes": "180x180",   "type": "image/png"}
   ]
 }

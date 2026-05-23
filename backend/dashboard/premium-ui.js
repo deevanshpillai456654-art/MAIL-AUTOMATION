@@ -1,4 +1,4 @@
-// AI34 premium frontend runtime: theme, command shortcuts, skeletons, AI assistant, accessible micro-interactions.
+// AI36 premium frontend runtime: command shortcuts, skeletons, AI assistant, accessible micro-interactions.
 (() => {
   'use strict';
 
@@ -27,31 +27,8 @@ window.setSafeHTML = function(el, html) {
 
   const $ = (id) => document.getElementById(id);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-  const storageKey = 'ai34-theme';
-  const theme = 'light';
-  function setTheme(value) {
-    const next = value === 'dark' ? 'dark' : 'light';
-    document.documentElement.dataset.theme = next;
-    document.body.dataset.theme = next;
-    localStorage.setItem(storageKey, next);
-    const btn = $('ai34ThemeToggle');
-    if (btn) {
-      btn.textContent = next === 'dark' ? '☾' : '☀';
-      btn.setAttribute('aria-label', next === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-    }
-  }
-  function enhanceTopbar() {
-    const topbar = document.querySelector('.topbar');
-    if (!topbar || $('ai34ThemeToggle')) return;
-    const button = document.createElement('button');
-    button.id = 'ai34ThemeToggle';
-    button.type = 'button';
-    button.className = 'top-action ai34-theme-toggle';
-    button.addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
-    const sync = $('syncPill');
-    topbar.insertBefore(button, sync || topbar.lastElementChild);
-    setTheme(document.documentElement.dataset.theme || theme);
-  }
+  const theme = 'light'; // default — enterprise-ui.js restores saved theme from localStorage
+
   function addHero() {
     const dashboard = $('view-dashboard');
     if (!dashboard || dashboard.querySelector('.ai34-hero')) return;
@@ -59,7 +36,7 @@ window.setSafeHTML = function(el, html) {
     hero.className = 'ai34-hero';
     window.setSafeHTML(
       hero,
-      `<div><span class="ai34-pill">✦ AI-native command center</span><h2>Operate every inbox from one premium workspace.</h2><p>Universal OAuth, app-password onboarding, AI sorting, automation, analytics, and sync diagnostics now share one calm desktop-class interface.</p><div class="ai34-hero-actions"><button class="btn primary" type="button" data-open-view="accounts">Connect provider</button><button class="btn" type="button" id="ai34OpenAssistant">Ask AI assistant</button><button class="btn" type="button" id="ai34OpenPalette">Open command palette</button></div><div class="ai34-trust-row"><span class="ai34-pill">OAuth-first</span><span class="ai34-pill">No password conflict</span><span class="ai34-pill">Offline-ready</span><span class="ai34-pill">WCAG focus states</span></div></div><aside class="ai34-pulse-card" aria-label="Live production pulse"><b>Workspace pulse</b><div class="ai34-orbit"><span><strong>Auth health</strong><em>Protected</em></span><span><strong>Sync recovery</strong><em>Online</em></span><span><strong>AI routing</strong><em>Ready</em></span><span><strong>Token vault</strong><em>Encrypted</em></span></div></aside>`
+      `<div><span class="ai34-pill">✦ AI-native command center</span><h2>Operate every inbox from one premium workspace.</h2><p>Universal OAuth, app-password onboarding, AI sorting, automation, analytics, and sync diagnostics now share one calm desktop-class interface.</p><div class="ai34-hero-actions"><button class="btn btn-primary" type="button" data-open-view="accounts">Connect provider</button><button class="btn" type="button" id="ai34OpenAssistant">Ask AI assistant</button><button class="btn" type="button" id="ai34OpenPalette">Open command palette</button></div><div class="ai34-trust-row"><span class="ai34-pill">OAuth-first</span><span class="ai34-pill">No password conflict</span><span class="ai34-pill">Offline-ready</span><span class="ai34-pill">WCAG focus states</span></div></div><aside class="ai34-pulse-card" aria-label="Live production pulse"><b>Workspace pulse</b><div class="ai34-orbit"><span><strong>Auth health</strong><em>Protected</em></span><span><strong>Sync recovery</strong><em>Online</em></span><span><strong>AI routing</strong><em>Ready</em></span><span><strong>Token vault</strong><em>Encrypted</em></span></div></aside>`
     );
     dashboard.insertBefore(hero, dashboard.firstElementChild);
   }
@@ -101,7 +78,6 @@ window.setSafeHTML = function(el, html) {
     btn.textContent = 'AI Assist';
     document.body.appendChild(btn);
 
-    // Determine admin mode: append ?mode=admin if user has the admin flag stored
     function openAssistant(issueId) {
       const base = '/assistant';
       const params = new URLSearchParams();
@@ -118,12 +94,9 @@ window.setSafeHTML = function(el, html) {
     $('ai34OpenPalette')?.addEventListener('click', () => $('commandPaletteBtn')?.click());
     document.addEventListener('keydown', (event) => {
       if (event.altKey && event.key.toLowerCase() === 'a') { event.preventDefault(); $('ai34AssistantButton')?.click(); }
-      if (event.altKey && event.key.toLowerCase() === 't') { event.preventDefault(); $('ai34ThemeToggle')?.click(); }
     });
   }
   function init() {
-    setTheme(theme);
-    enhanceTopbar();
     addHero();
     addOnboardingProgress();
     addEmptyStates();

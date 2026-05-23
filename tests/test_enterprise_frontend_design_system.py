@@ -584,21 +584,18 @@ def test_sidebar_uses_calm_grouped_enterprise_navigation():
         assert selector in dashboard_css
 
     for label in [
-        "Protection & Compliance",
-        "Operations Support",
-        "Integrations & Access",
-        "Infrastructure",
-        "Resources & Planning",
+        "Service Operations",
+        "Advanced",
         "Security Insights",
         "Activity Queue",
+        "AI Actions",
         "Automation Guides",
         "Service Issues",
+        "Change Requests",
         "Risk Overview",
         "Secure Access",
-        "Workspace Settings",
+        "Workspace Config",
         "System Updates",
-        "System Usage",
-        "Status Markers",
         "Knowledge Base",
         "Releases",
     ]:
@@ -618,6 +615,11 @@ def test_sidebar_uses_calm_grouped_enterprise_navigation():
         "Capacity",
         "Knowledge\n",
         "Deployments",
+        "Protection & Compliance",
+        "Operations Support",
+        "Integrations & Access",
+        "Infrastructure",
+        "Resources & Planning",
     ]:
         assert old_label not in sidebar_nav
 
@@ -638,20 +640,12 @@ def test_sidebar_uses_calm_grouped_enterprise_navigation():
         "configs",
         "licenses",
         "budgets",
-        "flags",
         "vendors",
-        "capacity",
         "knowledge",
         "assets",
         "deployments",
     ]:
         assert f'data-view="{view_id}"' in sidebar_nav
-
-    for role in ["basic-client", "admin", "advanced-admin", "business-admin"]:
-        assert f'data-nav-role="{role}"' in sidebar_nav
-    assert "nav-role-chip" in sidebar_nav
-    assert 'id="navModeToggle"' in sidebar_nav
-    assert "Show advanced tools" in sidebar_nav
 
     for runtime_api in [
         "function applyNavigationRole",

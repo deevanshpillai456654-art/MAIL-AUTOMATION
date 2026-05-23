@@ -788,3 +788,25 @@ code {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ── Options page helpers ────────────────────────────────────────────────── */
+
+.options-hero-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.panel-note {
+  font-size: 11px;
+  color: var(--e-muted);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.panel-footer-note {
+  font-size: 11px;
+  color: var(--e-muted);
+  margin: 14px 0 0;
+  line-height: 1.5;
+}

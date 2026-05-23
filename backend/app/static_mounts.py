@@ -48,6 +48,9 @@ def register_static_dashboard_routes(
 
     if dashboard_path.exists():
         app.mount("/dashboard", StaticFiles(directory=str(dashboard_path)), name="dashboard")
+    frontend_path = paths.project_root / "frontend"
+    if frontend_path.exists():
+        app.mount("/frontend", StaticFiles(directory=str(frontend_path)), name="frontend_design_system")
     if outlook_path.exists():
         app.mount("/outlook", StaticFiles(directory=str(outlook_path)), name="outlook_addin")
         icons_path = outlook_path / "icons"

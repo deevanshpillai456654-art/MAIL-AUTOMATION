@@ -9,13 +9,18 @@
 <body>
 <main class="options-wrap">
 
-  <!-- hero -->
+  <!-- Hero -->
   <section class="options-hero">
-    <div class="hero-brand">
-      <div class="logo" aria-hidden="true">IT</div>
+    <div class="options-hero-brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M3.5 9.5L7 13L14.5 5.5" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M7.5 9.5L11 13" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
       <div>
-        <h1>INTEMO Extension Settings</h1>
-        <p>Settings are stored locally in this browser. OAuth tokens and account credentials remain in the encrypted desktop app vault — never in the extension.</p>
+        <h1>INTEMO Settings</h1>
+        <p>Settings stored locally. Credentials remain in the encrypted desktop vault — never in the extension.</p>
       </div>
     </div>
     <span class="pill" id="extensionName">INTEMO</span>
@@ -23,7 +28,7 @@
 
   <div id="saveToast" class="save-toast hidden" role="status" aria-live="polite">Settings saved</div>
 
-  <section class="options-panel">
+  <div class="options-grid">
 
     <!-- LEFT COLUMN -->
     <div class="options-col">
@@ -31,24 +36,24 @@
       <!-- Connection -->
       <div class="panel">
         <h2>Local service connection</h2>
-        <p>Only <code>http://127.0.0.1</code> and <code>http://localhost</code> origins are permitted.</p>
+        <p class="panel-note">Only <code>http://127.0.0.1</code> and <code>http://localhost</code> origins are permitted.</p>
         <label for="origin">Service origin</label>
-        <div class="row">
-          <input aria-label="http://127.0.0.1:4597" id="origin" type="text" placeholder="http://127.0.0.1:4597" autocomplete="off">
+        <div class="form-row">
+          <input id="origin" type="text" placeholder="http://127.0.0.1:4597" autocomplete="off" aria-label="Service origin URL">
           <button type="button" id="testConnection" class="secondary">Test</button>
         </div>
         <label for="dashboardPath">Default page</label>
-        <select id="dashboardPath">
+        <select id="dashboardPath" aria-label="Default page to open">
           <option value="/dashboard">Dashboard</option>
           <option value="/security">Security panel</option>
           <option value="/setup">Setup</option>
           <option value="/admin">Admin</option>
         </select>
-        <div class="status">
-          <span id="statusDot" class="dot" aria-hidden="true"></span>
-          <div>
-            <strong id="statusText">Not tested</strong>
-            <div class="note" id="statusDetail">Save or test the connection before using overlays.</div>
+        <div class="status-card status-card-opts">
+          <div class="status-dot pending" id="statusDot" aria-hidden="true"></div>
+          <div class="status-body">
+            <div class="status-title" id="statusText">Not tested</div>
+            <div class="status-sub" id="statusDetail">Save or test the connection before using overlays.</div>
           </div>
         </div>
         <div class="actions">
@@ -66,35 +71,35 @@
             <b>Auto-discover local service</b>
             <span>Try multiple ports when the saved URL is offline.</span>
           </div>
-          <button type="button" class="toggle active" data-key="autoDiscover" aria-label="Auto discover"></button>
+          <button type="button" class="toggle active" data-key="autoDiscover" role="switch" aria-checked="true" aria-label="Auto discover"></button>
         </div>
         <div class="toggle-row">
           <div>
             <b>Auto-classify visible emails</b>
             <span>Classify Gmail and Outlook rows via the local service.</span>
           </div>
-          <button type="button" class="toggle active" data-key="autoClassify" aria-label="Auto classify"></button>
+          <button type="button" class="toggle active" data-key="autoClassify" role="switch" aria-checked="true" aria-label="Auto classify"></button>
         </div>
         <div class="toggle-row">
           <div>
             <b>Show category badges</b>
             <span>Display classification labels inside supported webmail pages.</span>
           </div>
-          <button type="button" class="toggle active" data-key="showBadges" aria-label="Show badges"></button>
+          <button type="button" class="toggle active" data-key="showBadges" role="switch" aria-checked="true" aria-label="Show badges"></button>
         </div>
         <div class="toggle-row">
           <div>
             <b>Compact badge style</b>
             <span>Show only a coloured dot instead of the full label.</span>
           </div>
-          <button type="button" class="toggle" data-key="compactBadges" aria-label="Compact badges"></button>
+          <button type="button" class="toggle" data-key="compactBadges" role="switch" aria-checked="false" aria-label="Compact badges"></button>
         </div>
         <div class="toggle-row">
           <div>
             <b>Show correction suggestions</b>
             <span>Offer quick correction actions on misclassified emails.</span>
           </div>
-          <button type="button" class="toggle active" data-key="showSuggestions" aria-label="Show suggestions"></button>
+          <button type="button" class="toggle active" data-key="showSuggestions" role="switch" aria-checked="true" aria-label="Show suggestions"></button>
         </div>
       </div>
 
@@ -111,31 +116,31 @@
             <b>Show threat badges</b>
             <span>Colour-coded risk badges: green / yellow / orange / red.</span>
           </div>
-          <button type="button" class="toggle active" data-key="showThreatBadges" aria-label="Threat badges"></button>
+          <button type="button" class="toggle active" data-key="showThreatBadges" role="switch" aria-checked="true" aria-label="Threat badges"></button>
         </div>
         <div class="toggle-row">
           <div>
             <b>Highlight scam email rows</b>
             <span>Tint high-risk rows with a red background stripe.</span>
           </div>
-          <button type="button" class="toggle active" data-key="highlightScamEmails" aria-label="Highlight scam rows"></button>
+          <button type="button" class="toggle active" data-key="highlightScamEmails" role="switch" aria-checked="true" aria-label="Highlight scam rows"></button>
         </div>
         <div class="toggle-row">
           <div>
             <b>Show quick-action toolbar</b>
             <span>Hover toolbar with Report / Mark Safe / Block / Details.</span>
           </div>
-          <button type="button" class="toggle active" data-key="showQuickActions" aria-label="Quick actions"></button>
+          <button type="button" class="toggle active" data-key="showQuickActions" role="switch" aria-checked="true" aria-label="Quick actions"></button>
         </div>
         <div class="toggle-row">
           <div>
             <b>Analyse sender domains</b>
             <span>Show threat score tooltip when hovering sender names.</span>
           </div>
-          <button type="button" class="toggle active" data-key="analyzeDomains" aria-label="Analyse domains"></button>
+          <button type="button" class="toggle active" data-key="analyzeDomains" role="switch" aria-checked="true" aria-label="Analyse domains"></button>
         </div>
         <label for="threatThreshold">Threat score threshold (0–100)</label>
-        <input id="threatThreshold" type="range" min="0" max="100" step="5" value="30" class="range-input">
+        <input id="threatThreshold" type="range" min="0" max="100" step="5" value="30" class="range-input" aria-label="Threat score threshold">
         <div class="range-labels">
           <span>All (0)</span>
           <span id="thresholdVal">30</span>
@@ -151,10 +156,10 @@
             <b>Browser notifications for scams</b>
             <span>Show a desktop alert when a high-risk email is detected.</span>
           </div>
-          <button type="button" class="toggle active" data-key="browserNotifications" aria-label="Browser notifications"></button>
+          <button type="button" class="toggle active" data-key="browserNotifications" role="switch" aria-checked="true" aria-label="Browser notifications"></button>
         </div>
         <label for="notificationThreshold">Minimum score to notify (0–100)</label>
-        <input id="notificationThreshold" type="range" min="0" max="100" step="5" value="56" class="range-input">
+        <input id="notificationThreshold" type="range" min="0" max="100" step="5" value="56" class="range-input" aria-label="Notification threshold">
         <div class="range-labels">
           <span>All</span>
           <span id="notifThresholdVal">56</span>
@@ -165,7 +170,7 @@
             <b>Send local telemetry</b>
             <span>Send extension health events only to your local INTEMO service.</span>
           </div>
-          <button type="button" class="toggle active" data-key="enableTelemetry" aria-label="Local telemetry"></button>
+          <button type="button" class="toggle active" data-key="enableTelemetry" role="switch" aria-checked="true" aria-label="Local telemetry"></button>
         </div>
       </div>
 
@@ -177,20 +182,21 @@
             <b>Keyboard shortcuts</b>
             <span><kbd>Ctrl+Shift+S</kbd> Security panel · <kbd>Ctrl+Shift+D</kbd> Dashboard</span>
           </div>
-          <button type="button" class="toggle active" data-key="keyboardShortcuts" aria-label="Keyboard shortcuts"></button>
+          <button type="button" class="toggle active" data-key="keyboardShortcuts" role="switch" aria-checked="true" aria-label="Keyboard shortcuts"></button>
         </div>
-        <label for="statsRefreshInterval">Stats refresh interval (seconds)</label>
-        <select id="statsRefreshInterval">
+        <label for="statsRefreshInterval">Stats refresh interval</label>
+        <select id="statsRefreshInterval" aria-label="Stats refresh interval">
           <option value="60">Every minute</option>
           <option value="120" selected>Every 2 minutes</option>
           <option value="300">Every 5 minutes</option>
           <option value="600">Every 10 minutes</option>
         </select>
-        <p class="footer">OAuth tokens, refresh tokens, and account credentials are never stored in the extension.</p>
+        <p class="panel-footer-note">OAuth tokens, refresh tokens, and account credentials are never stored in the extension.</p>
       </div>
 
     </div>
-  </section>
+  </div>
+
 </main>
 <script src="extension_runtime.js"></script>
 <script src="options.js"></script>
