@@ -130,6 +130,7 @@ def start_service_if_needed(base_url: str) -> subprocess.Popen | None:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        close_fds=True,
     )
     for _ in range(SERVICE_STARTUP_WAIT_SECONDS):
         if service_available(base_url, timeout=1.0):
@@ -179,6 +180,9 @@ def capture_screenshots(
                     viewport={"width": viewport.width, "height": viewport.height},
                     device_scale_factor=1,
                 )
+                # Set system_admin role before any page JS runs so role-gated nav items
+                # (command, admin) are visible during smoke capture.
+                context.add_init_script("localStorage.setItem('ai36NavRole', 'system_admin')")
                 try:
                     page = context.new_page()
                     page.goto(base_url, wait_until="domcontentloaded", timeout=timeout_ms)
