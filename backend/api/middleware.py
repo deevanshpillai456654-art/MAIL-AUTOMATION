@@ -485,7 +485,24 @@ class RequestSigningMiddleware(BaseHTTPMiddleware):
 
 
 class RequestTimeoutMiddleware(BaseHTTPMiddleware):
-    """Abort requests that exceed a configurable wall-clock timeout."""
+    """Abort requests that exceed a configurable wall-clock timeout.
+
+    The default applies to every route. AI assistant / classification /
+    OCR endpoints can legitimately take longer than the 30s default, so a
+    longer timeout applies to a small set of slow prefixes. Set
+    REQUEST_TIMEOUT_SECONDS to override the default; SLOW_ROUTE_PREFIXES
+    is an internal allow-list compiled from observed slow-paths.
+    """
+
+    # Paths that need a longer wall-clock budget (LLM / OCR / model load).
+    SLOW_PREFIXES = (
+        "/api/v1/ai",
+        "/api/v1/assistant",
+        "/api/v1/classify",
+        "/api/v1/ocr",
+        "/api/v1/learning",
+    )
+    SLOW_TIMEOUT_SECONDS = 120.0
 
     def __init__(self, app, timeout_seconds: float = 30.0):
         super().__init__(app)
@@ -494,17 +511,28 @@ class RequestTimeoutMiddleware(BaseHTTPMiddleware):
             self.timeout = float(configured) if configured else timeout_seconds
         except ValueError:
             self.timeout = timeout_seconds
+        slow_configured = os.environ.get("SLOW_REQUEST_TIMEOUT_SECONDS", "")
+        try:
+            self.slow_timeout = float(slow_configured) if slow_configured else self.SLOW_TIMEOUT_SECONDS
+        except ValueError:
+            self.slow_timeout = self.SLOW_TIMEOUT_SECONDS
+
+    def _timeout_for(self, path: str) -> float:
+        if any(path.startswith(p) for p in self.SLOW_PREFIXES):
+            return max(self.timeout, self.slow_timeout)
+        return self.timeout
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         if request.headers.get("upgrade", "").lower() == "websocket":
             return await call_next(request)
+        budget = self._timeout_for(request.url.path)
         try:
-            return await asyncio.wait_for(call_next(request), timeout=self.timeout)
+            return await asyncio.wait_for(call_next(request), timeout=budget)
         except asyncio.TimeoutError:
-            logger.warning("Request timeout (%.1fs) method=%s path=%s", self.timeout, request.method, request.url.path)
+            logger.warning("Request timeout (%.1fs) method=%s path=%s", budget, request.method, request.url.path)
             return JSONResponse(
                 status_code=504,
-                content={"error": "Gateway timeout", "message": f"Request exceeded the {self.timeout}s server limit."},
+                content={"error": "Gateway timeout", "message": f"Request exceeded the {budget}s server limit."},
             )
 
 

@@ -28,18 +28,36 @@ def _token_path() -> Path:
 
 
 def _load_or_create() -> str:
+    """Load the local API token, generating one atomically if absent.
+
+    Two workers cold-starting in parallel could both observe ``path.exists()``
+    as False and each generate + write a different token, the second winning
+    and orphaning the first worker's in-memory copy. Open the file with the
+    exclusive-create flag (``'xb'``) so only one writer can succeed; the
+    loser re-reads the winner's token.
+    """
     path = _token_path()
-    if path.exists():
-        token = path.read_text("utf-8").strip()
-        if len(token) >= 32:
+    for _ in range(2):
+        if path.exists():
+            try:
+                token = path.read_text("utf-8").strip()
+                if len(token) >= 32:
+                    return token
+            except OSError:
+                pass
+        token = secrets.token_hex(32)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(path, "xb") as fh:
+                fh.write(token.encode("utf-8"))
+            try:
+                os.chmod(path, 0o600)
+            except OSError:
+                pass
             return token
-    token = secrets.token_hex(32)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(token, "utf-8")
-    try:
-        os.chmod(path, 0o600)
-    except OSError:
-        pass
+        except FileExistsError:
+            # Lost the create race — another worker wrote first; loop re-reads.
+            continue
     return token
 
 
