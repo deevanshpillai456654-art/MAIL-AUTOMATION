@@ -23,6 +23,13 @@
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
   }
 
+  // renderEmptyState() and renderEmptyRow() now live in dashboard-utils.js
+  // (loaded before this file). They are global helpers so other dashboard
+  // scripts (premium-ui.js, scam-panel.js, future per-view modules) can call
+  // them without re-importing. Local IIFE access is via globalThis.* below.
+  const renderEmptyState = globalThis.renderEmptyState;
+  const renderEmptyRow = globalThis.renderEmptyRow;
+
   function applyDynamicVisuals(root = document) {
     root.querySelectorAll('[data-progress]').forEach(el => {
       const value = Math.max(0, Math.min(100, Number(el.dataset.progress) || 0));
@@ -392,6 +399,7 @@
       try { _cmdWs.close(); } catch (_) {}
       _cmdWs = null;
     }
+    _syncDashboardPageHeading(view);
     window.scrollTo({top:0, behavior:'smooth'});
   }
 
@@ -743,7 +751,13 @@
   function renderAccounts() {
     const list = $('accountList');
     if (!list) return;
-    if (!state.accounts.length) { list.innerHTML = '<div class="account-item"><div><b>No accounts connected</b><small>Add a mailbox above to start sync. Accounts are never removed automatically.</small></div><span class="badge warn">Action required</span></div>'; return; }
+    if (!state.accounts.length) {
+      renderEmptyState(list, {
+        title: 'No accounts connected',
+        hint: 'Add a mailbox above to start sync. Accounts are never removed automatically.',
+      });
+      return;
+    }
     list.innerHTML = state.accounts.map(a => {
       const meta = typeof a.metadata === 'string' ? safeJson(a.metadata, {}) : (a.metadata || {});
       const status = a.status || 'connected';
@@ -861,6 +875,78 @@
   }
 
   // -- Dashboard ---------------------------------------------------------------
+
+  function renderDashboardHero(data = {}) {
+    const greeting = $('dashGreeting');
+    const sub      = $('dashHeroSub');
+    if (!greeting && !sub) return;
+
+    const hour = new Date().getHours();
+    const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    if (greeting) greeting.textContent = timeGreeting;
+
+    const m = data.metrics || {};
+    const failedSyncs = m.failed_syncs ?? 0;
+    const unread      = m.unread       ?? 0;
+    const issues      = failedSyncs + (unread > 50 ? 1 : 0);
+
+    if (sub) {
+      if (issues === 0) {
+        sub.textContent = 'Everything is running smoothly.';
+        sub.className = 'dash-hero-sub dash-hero-sub--ok';
+      } else if (issues === 1) {
+        sub.textContent = '1 item needs your attention.';
+        sub.className = 'dash-hero-sub dash-hero-sub--warn';
+      } else {
+        sub.textContent = `${issues} items need your attention.`;
+        sub.className = 'dash-hero-sub dash-hero-sub--warn';
+      }
+    }
+  }
+
+  function renderDashAlertZone(data = {}) {
+    const zone  = $('dashAlertZone');
+    const list  = $('dashAlertList');
+    const count = $('dashAlertCount');
+    if (!zone || !list) return;
+
+    const m = data.metrics || {};
+    const notes = data.notifications || [];
+
+    const alerts = [];
+
+    if ((m.failed_syncs ?? 0) > 0) {
+      alerts.push({ level: 'bad',  title: `${m.failed_syncs} mailbox sync failed`, detail: 'Reconnection may be required.', action: 'accounts', actionLabel: 'View Accounts' });
+    }
+    if ((m.unread ?? 0) > 50) {
+      alerts.push({ level: 'warn', title: `${m.unread} unread emails`, detail: 'Inbox may need attention.', action: 'inbox', actionLabel: 'Open Inbox' });
+    }
+    notes.filter(n => n.level === 'bad' || n.level === 'warn').slice(0, 3).forEach(n => {
+      alerts.push({ level: n.level, title: n.title, detail: n.detail, action: null, actionLabel: null });
+    });
+
+    if (alerts.length === 0) {
+      zone.hidden = true;
+      return;
+    }
+
+    zone.hidden = false;
+    if (count) count.textContent = `${alerts.length} item${alerts.length === 1 ? '' : 's'} need${alerts.length === 1 ? 's' : ''} attention`;
+
+    list.innerHTML = alerts.map(a => `
+      <div class="dash-alert-item dash-alert-item--${esc(a.level)}" role="listitem">
+        <div class="dash-alert-item-body">
+          <strong>${esc(a.title)}</strong>
+          <span>${esc(a.detail)}</span>
+        </div>
+        ${a.action ? `<button class="btn sm" type="button" data-open-view="${esc(a.action)}">${esc(a.actionLabel)}</button>` : ''}
+      </div>`).join('');
+
+    list.querySelectorAll('[data-open-view]').forEach(btn => {
+      btn.addEventListener('click', () => showView(btn.dataset.openView));
+    });
+  }
+
   function renderMetrics(data = {}) {
     const m = data.metrics || {};
     const failedSyncs   = m.failed_syncs ?? 0;
@@ -869,10 +955,30 @@
     const automations   = m.automations  ?? state.rules.filter(r => r.enabled !== false).length;
     const inboxHealth   = m.inbox_health ?? '96%';
     const accounts      = m.accounts     ?? state.accounts.length;
+    const healthNum     = Number(String(inboxHealth).replace('%', '')) || 0;
 
+    // -- Premium KPI strip -------------------------------------------------------
+    const _kpi = (id, val) => { const el = $(id); if (el) el.textContent = val; };
+    const _delta = (id, cls) => { const el = $(id); if (el) { el.className = `card-kpi-delta ${cls}`; } };
+
+    _kpi('kpiAccounts', accounts);
+    _kpi('kpiHealth',   inboxHealth);
+    _kpi('kpiRules',    automations);
+    _kpi('kpiSyncVal',  failedSyncs > 0 ? failedSyncs : '✓');
+
+    _delta('kpiHealthDelta',
+      healthNum >= 90 ? 'up' : healthNum >= 70 ? 'neutral' : 'down');
+    const syncDelta = $('kpiSyncDelta');
+    if (syncDelta) syncDelta.textContent = failedSyncs > 0 ? `${failedSyncs} failed` : 'All synced';
+    _delta('kpiSyncDelta', failedSyncs > 0 ? 'down' : 'up');
+
+    const rulesDelta = $('kpiRulesDelta');
+    if (rulesDelta) rulesDelta.textContent = automations > 0 ? 'Rules enabled' : 'No rules active';
+    _delta('kpiRulesDelta', automations > 0 ? 'up' : 'neutral');
+
+    // -- Detailed stats list ---------------------------------------------------
     const items = [
-      { label: 'Connected Accounts', val: accounts,   sub: 'Persistent mailboxes',        cls: '' },
-      { label: 'Inbox Health',        val: inboxHealth, sub: 'Unread and failed sync score', cls: String(inboxHealth).replace('%','') >= 90 ? 'ok' : String(inboxHealth).replace('%','') >= 70 ? 'warn' : 'bad' },
+      { label: 'Inbox Health',        val: inboxHealth, sub: 'Unread and failed sync score', cls: healthNum >= 90 ? 'ok' : healthNum >= 70 ? 'warn' : 'bad' },
       { label: 'Unread Emails',       val: unread,     sub: 'Needs attention',              cls: unread > 10 ? 'warn' : '' },
       { label: 'Queued Emails',       val: queued,     sub: 'Awaiting processing',          cls: queued > 50 ? 'warn' : '' },
       { label: 'Failed Syncs',        val: failedSyncs, sub: 'Reconnect required',          cls: failedSyncs > 0 ? 'bad' : '' },
@@ -899,41 +1005,60 @@
 
   function renderActivity(data = {}) {
     const rows = data.activity || [{title:'Sync ready',detail:'Background sync is configured for active accounts',status:'Ready'},{title:'Rules controlled',detail:'Forwarding and categorization run only from saved rules',status:'Controlled'},{title:'AI ready',detail:'Classification and extraction are available',status:'Ready'}];
-    if ($('activityList')) $('activityList').innerHTML = rows.map(x =>
-      `<div class="activity-item" role="listitem"><div><b>${esc(x.title)}</b><small>${esc(x.detail)}</small></div><span class="badge ok">${esc(x.status)}</span></div>`
-    ).join('');
+    const activityEl = $('activityList');
+    if (activityEl) {
+      if (rows.length === 0) {
+        renderEmptyState(activityEl, { title: 'No recent activity', hint: 'Operations activity will appear here as it happens.' });
+      } else {
+        activityEl.innerHTML = rows.map(x =>
+          `<div class="activity-item" role="listitem"><div><b>${esc(x.title)}</b><small>${esc(x.detail)}</small></div><span class="badge ok">${esc(x.status)}</span></div>`
+        ).join('');
+      }
+    }
     const notes = data.notifications || [{title:'No critical alerts',detail:'Operations are running normally',level:'ok'}];
-    if ($('notificationList')) $('notificationList').innerHTML = notes.map(n =>
-      `<div class="notification-item" role="listitem"><div><b>${esc(n.title)}</b><small>${esc(n.detail)}</small></div><span class="badge ${n.level==='bad'?'bad':n.level==='warn'?'warn':'ok'}">${esc(n.level||'ok')}</span></div>`
-    ).join('');
+    const notifEl = $('notificationList');
+    if (notifEl) {
+      if (notes.length === 0) {
+        renderEmptyState(notifEl, { title: 'No notifications', hint: "You're all caught up." });
+      } else {
+        notifEl.innerHTML = notes.map(n =>
+          `<div class="notification-item" role="listitem"><div><b>${esc(n.title)}</b><small>${esc(n.detail)}</small></div><span class="badge ${n.level==='bad'?'bad':n.level==='warn'?'warn':'ok'}">${esc(n.level||'ok')}</span></div>`
+        ).join('');
+      }
+    }
   }
 
   async function loadDashboard() {
     const result = await api('/api/v1/operations/overview');
     const data = result.ok ? result.data : {};
-    renderMetrics(data); renderPerformance(data); renderActivity(data);
+    renderDashboardHero(data);
+    renderMetrics(data);
+    renderActivity(data);
+    renderDashAlertZone(data);
+    // Performance panel now hidden on dashboard; still render for compatibility
+    renderPerformance(data);
     const sync = data.sync || {};
     if ($('syncPillText')) $('syncPillText').textContent = sync.status || 'Ready';
     if ($('sideSyncInterval')) $('sideSyncInterval').textContent = `${sync.interval || 20}s`;
+    // Intel strip is hidden in new layout; still fetch for Command Center use
     _loadDashIntelStrip();
   }
 
   async function _loadDashIntelStrip() {
+    // Telemetry strip is moved to Command Center; hidden on dashboard.
+    // Keep fetch so Command Center can use cached data.
     const strip = $('dashIntelStrip');
-    if (!strip) return;
+    if (!strip || strip.hidden) return;
 
     const r = await api('/api/v1/telemetry/summary');
     if (!r.ok) return;
-
     const d = r.data;
     const scoreTone = s => s >= 80 ? 'ok' : s >= 60 ? 'accent' : s >= 40 ? 'warn' : 'danger';
     const metrics = d.metrics || [];
-
     const cards = [
       `<button class="telemetry-action-card" data-open-view="command" type="button">
         <div class="telemetry-card-value ${scoreTone(d.health_score)}">${d.health_score}</div>
-        <strong>Platform Health</strong>
-        <span>${esc(d.health_status)}</span>
+        <strong>Platform Health</strong><span>${esc(d.health_status)}</span>
       </button>`,
       ...metrics.map(m => {
         const tone = m.alert ? 'danger' : (m.trend === 'up' && !m.alert ? 'ok' : 'accent');
@@ -945,7 +1070,6 @@
         </button>`;
       }),
     ];
-
     strip.innerHTML = cards.join('');
     strip.querySelectorAll('[data-open-view]').forEach(btn => {
       btn.addEventListener('click', () => showView(btn.dataset.openView));
@@ -2180,9 +2304,17 @@
     const term   = ($('ruleSearch')?.value || '').toLowerCase();
     const status = $('ruleStatusFilter')?.value || '';
     const rows   = state.rules.filter(r => (!term || String(r.name).toLowerCase().includes(term)) && (!status || String(r.status||'Active').toLowerCase() === status.toLowerCase()));
-    if ($('ruleList')) $('ruleList').innerHTML = rows.length
-      ? rows.map(r => `<div class="rule-item" role="listitem" data-rule-id="${esc(r.id)}"><div><b>${esc(r.name)}</b><small>${esc(r.status||'Active')} - ${esc(r.mailbox_scope === 'selected' ? 'one mailbox' : 'all mailboxes')} - priority ${esc(r.priority||'Medium')} - executions ${esc(r.execution_count||0)}</small></div><div><button class="btn sm" data-simulate-rule-id="${esc(r.id)}" type="button">Test</button><button class="btn sm" type="button">Pause</button><button class="btn sm" type="button">Duplicate</button><button class="btn sm" type="button">Archive</button></div></div>`).join('')
-      : '<div class="rule-item"><div><b>No rules created yet. Create your first automation rule.</b><small>Sample rules are hidden until you load a pack.</small></div><span class="badge warn">Empty</span></div>';
+    const ruleListEl = $('ruleList');
+    if (ruleListEl) {
+      if (rows.length) {
+        ruleListEl.innerHTML = rows.map(r => `<div class="rule-item" role="listitem" data-rule-id="${esc(r.id)}"><div><b>${esc(r.name)}</b><small>${esc(r.status||'Active')} - ${esc(r.mailbox_scope === 'selected' ? 'one mailbox' : 'all mailboxes')} - priority ${esc(r.priority||'Medium')} - executions ${esc(r.execution_count||0)}</small></div><div><button class="btn sm" data-simulate-rule-id="${esc(r.id)}" type="button">Test</button><button class="btn sm" type="button">Pause</button><button class="btn sm" type="button">Duplicate</button><button class="btn sm" type="button">Archive</button></div></div>`).join('');
+      } else {
+        renderEmptyState(ruleListEl, {
+          title: 'No rules created yet',
+          hint: 'Create your first automation rule. Sample rules are hidden until you load a pack.',
+        });
+      }
+    }
     renderRuleDiagram();
   }
 
@@ -2778,16 +2910,48 @@ ${section('Model Health', modelHealth)}
     closeCommandPalette();
   }
 
+  // Role hierarchy order: each index grants all roles below it
+  const ROLE_HIERARCHY = ['user','manager','operations_admin','workspace_admin','system_admin'];
+
+  function roleLevel(role) {
+    const idx = ROLE_HIERARCHY.indexOf(role);
+    // Legacy role aliases
+    if (idx >= 0) return idx;
+    if (role === 'advanced-admin' || role === 'admin') return 4;
+    if (role === 'business-admin') return 2;
+    return 0; // basic-client and unknown = user level
+  }
+
   function applyNavigationRole(role = localStorage.getItem('ai36NavRole') || 'basic-client') {
+    const userLevel = roleLevel(role);
+    document.documentElement.dataset.userRole = role;
+
+    // Legacy data-nav-role system (backward compat)
     const nav = document.querySelector('.main-nav');
-    if (!nav) return;
-    nav.dataset.navRole = role;
-    nav.querySelectorAll('[data-nav-role]').forEach(item => {
-      const roles = String(item.dataset.navRole || '').split(/\s+/).filter(Boolean);
-      item.hidden = roles.length > 0 && !roles.includes(role);
+    if (nav) {
+      nav.dataset.navRole = role;
+      nav.querySelectorAll('[data-nav-role]').forEach(item => {
+        const roles = String(item.dataset.navRole || '').split(/\s+/).filter(Boolean);
+        item.hidden = roles.length > 0 && !roles.includes(role);
+      });
+    }
+
+    // New data-role-min system (sidebar groups, settings tabs, section labels)
+    document.querySelectorAll('[data-role-min]').forEach(el => {
+      const minRole = el.dataset.roleMin || 'user';
+      const minLevel = roleLevel(minRole);
+      const allowed = userLevel >= minLevel;
+      el.hidden = !allowed;
+      if (!allowed) el.setAttribute('aria-hidden', 'true');
+      else el.removeAttribute('aria-hidden');
     });
+
+    // Update role chip in sidebar
     const chip = $('navRoleChip');
-    if (chip) chip.textContent = role === 'advanced-admin' ? 'Advanced admin' : role === 'business-admin' ? 'Business admin' : role === 'admin' ? 'Admin' : 'Essentials';
+    if (chip) {
+      const labels = { user: 'User', manager: 'Manager', operations_admin: 'Ops Admin', workspace_admin: 'Workspace Admin', system_admin: 'System Admin', admin: 'Admin', 'advanced-admin': 'Admin', 'business-admin': 'Manager' };
+      chip.textContent = labels[role] || 'User';
+    }
   }
 
   function setNavigationRole(role) {
@@ -3065,7 +3229,10 @@ ${section('Model Health', modelHealth)}
     }
     const items = r.data.workflows || [];
     if (!items.length) {
-      list.innerHTML = `<div class="empty-state"><h3>No workflows yet</h3><p>Head to the <strong>Marketplace</strong> tab to activate a workflow template.</p></div>`;
+      renderEmptyState(list, {
+        title: 'No workflows yet',
+        hint: 'Head to the Marketplace tab to activate a workflow template.',
+      });
       return;
     }
     list.innerHTML = items.map(w => `
@@ -3162,7 +3329,7 @@ ${section('Model Health', modelHealth)}
     if (recoLabel) recoLabel.style.display = recoIds.size ? '' : 'none';
 
     if (!templates.length) {
-      grid.innerHTML = '<div class="empty-state"><h3>No templates available</h3></div>';
+      renderEmptyState(grid, { title: 'No templates available' });
       return;
     }
 
@@ -3221,7 +3388,10 @@ ${section('Model Health', modelHealth)}
     }
     const items = r.data.executions || [];
     if (!items.length) {
-      list.innerHTML = '<div class="empty-state"><h3>No executions yet</h3><p>Run a workflow to see its history here.</p></div>';
+      renderEmptyState(list, {
+        title: 'No executions yet',
+        hint: 'Run a workflow to see its history here.',
+      });
       return;
     }
     const STATUS_BADGE = { succeeded: 'ok', failed: 'bad', running: 'warn', pending: 'neutral' };
@@ -3290,7 +3460,10 @@ ${section('Model Health', modelHealth)}
 
     const rules = r.rules || [];
     if (!rules.length) {
-      listEl.innerHTML = `<div class="empty-state">No alert rules defined. Click <strong>+ Add Rule</strong> to monitor platform metrics and auto-trigger webhooks on threshold breaches.</div>`;
+      renderEmptyState(listEl, {
+        title: 'No alert rules defined',
+        hint: 'Click + Add Rule to monitor platform metrics and auto-trigger webhooks on threshold breaches.',
+      });
       return;
     }
 
@@ -3429,7 +3602,10 @@ ${section('Model Health', modelHealth)}
 
     const webhooks = whR.webhooks || [];
     if (!webhooks.length) {
-      listEl.innerHTML = `<div class="empty-state">No webhooks configured yet. Click <strong>+ Add Webhook</strong> to push platform events to Slack, PagerDuty or any HTTP endpoint.</div>`;
+      renderEmptyState(listEl, {
+        title: 'No webhooks configured yet',
+        hint: 'Click + Add Webhook to push platform events to Slack, PagerDuty or any HTTP endpoint.',
+      });
       return;
     }
 
@@ -3692,7 +3868,10 @@ ${section('Model Health', modelHealth)}
     const grid = $('agentGrid');
     if (grid) {
       if (!agents.length) {
-        grid.innerHTML = '<div class="empty-state"><h3>No agents registered</h3><p>The agent supervisor did not return any registered agents.</p></div>';
+        renderEmptyState(grid, {
+          title: 'No agents registered',
+          hint: 'The agent supervisor did not return any registered agents.',
+        });
       } else {
         grid.innerHTML = agents.map(agent => {
           const tone = agentRuntimeTone(agent);
@@ -3734,7 +3913,7 @@ ${section('Model Health', modelHealth)}
     const feed = $('agentActionFeed');
     if (!feed) return;
     if (!actions.length) {
-      feed.innerHTML = '<div class="empty-state"><p>No recent agent actions.</p></div>';
+      renderEmptyState(feed, { title: 'No recent agent actions' });
       return;
     }
     const toneForSeverity = { critical: 'bad', high: 'bad', medium: 'warn', low: 'neutral', info: 'neutral' };
@@ -5215,8 +5394,21 @@ ${section('Model Health', modelHealth)}
       _refreshNotifBadge();
     });
 
-    // Poll badge count every 30s
-    _notifPollTimer = setInterval(_refreshNotifBadge, 30_000);
+    // Poll badge count every 30s, paused when the tab is hidden.
+    const startNotifPoll = () => {
+      if (_notifPollTimer) return;
+      _notifPollTimer = setInterval(_refreshNotifBadge, 30_000);
+    };
+    const stopNotifPoll = () => {
+      if (!_notifPollTimer) return;
+      clearInterval(_notifPollTimer);
+      _notifPollTimer = null;
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') stopNotifPoll();
+      else { startNotifPoll(); _refreshNotifBadge(); }
+    });
+    if (document.visibilityState !== 'hidden') startNotifPoll();
     _refreshNotifBadge();
   }
 
@@ -5336,6 +5528,8 @@ ${section('Model Health', modelHealth)}
     applyNavigationRole(localStorage.getItem('ai36NavRole') || 'basic-client');
     updateOAuthSubmitState();
     bind();
+    // Render hero with no data immediately (shows greeting + "loading" state)
+    renderDashboardHero({});
     renderMetrics();
     renderPerformance();
     renderActivity();
@@ -5354,6 +5548,14 @@ ${section('Model Health', modelHealth)}
       setTimeout(() => refreshConnectorFeatureNavigation(), 1600);
     }
     _initNotificationCenter();
+    // Hide page heading section when on dashboard — hero replaces it
+    _syncDashboardPageHeading('dashboard');
+  }
+
+  function _syncDashboardPageHeading(view) {
+    const heading = document.querySelector('.page-heading');
+    if (!heading) return;
+    heading.hidden = view === 'dashboard';
   }
 
   // -- SLA Tracker ----------------------------------------------------------
@@ -5406,7 +5608,7 @@ ${section('Model Health', modelHealth)}
       const list = data.policies || [];
       _q('#slaPoliciesCount').textContent = `${list.length} polic${list.length === 1 ? 'y' : 'ies'}`;
       if (!list.length) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No SLA policies defined yet.</td></tr>';
+        renderEmptyRow(tbody, { colspan: 6, title: 'No SLA policies defined yet' });
         return;
       }
       tbody.innerHTML = list.map(p => {
@@ -5442,7 +5644,7 @@ ${section('Model Health', modelHealth)}
       const data = await _api(url);
       const list = data.breaches || [];
       if (!list.length) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">No breaches recorded.</td></tr>';
+        renderEmptyRow(tbody, { colspan: 5, title: 'No breaches recorded' });
         return;
       }
       const typeLabel = t => t === 'response'
@@ -5810,7 +6012,7 @@ ${section('Model Health', modelHealth)}
       const data = await _api(url);
       const list = data.keys || [];
       if (!list.length) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">No API keys yet.</td></tr>';
+        renderEmptyRow(tbody, { colspan: 8, title: 'No API keys yet', hint: 'Generate an API key to authorise external clients.' });
         return;
       }
       tbody.innerHTML = list.map(k => {
@@ -5900,6 +6102,7 @@ ${section('Model Health', modelHealth)}
       setTimeout(() => { _q('#akCopyBtn').textContent = 'Copy'; }, 2000);
     }).catch(() => {});
   }
+  _q('#akCopyBtn')?.addEventListener('click', _copyAkKey);
 
   async function _rotateAkKey(id, name) {
     if (!confirm(`Rotate API key "${name}"? The old key will stop working immediately.`)) return;
@@ -6402,7 +6605,7 @@ ${section('Model Health', modelHealth)}
     try {
       const data=await _api(`/slos?${params}`); const rows=data.slos||[];
       _q('#sloListCount').textContent=`${data.total} total`;
-      if(!rows.length){tbody.innerHTML='<tr><td colspan="8" class="ops-table-state">No SLOs found.</td></tr>';return;}
+      if(!rows.length){renderEmptyRow(tbody,{colspan:8,title:'No SLOs found'});return;}
       tbody.innerHTML=rows.map(r=>{
         const breachBadge=r.is_breaching===true?'<span class="badge bad">Breaching</span>':r.is_breaching===false?'<span class="badge ok">Healthy</span>':'<span class="ops-tone-warn">—</span>';
         const consumedPct=r.error_budget_consumed_pct!=null?r.error_budget_consumed_pct.toFixed(1)+'%':'—';
@@ -6536,7 +6739,7 @@ ${section('Model Health', modelHealth)}
       const data = await _api(`/changes?${params}`);
       const rows = data.changes || [];
       _q('#crListCount').textContent = `${data.total} total`;
-      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="ops-table-state">No changes found.</td></tr>'; }
+      if (!rows.length) { renderEmptyRow(tbody, { colspan: 7, title: 'No changes found' }); }
       else tbody.innerHTML = rows.map(r => `<tr class="ops-row-link" onclick="_openCrDetail('${r.id}')">
         <td><strong>${_esc(r.title)}</strong></td><td>${_esc(r.change_type||'')}</td>
         <td><span class="badge ${r.risk_level==='critical'?'bad':r.risk_level==='high'?'warn':'ok'}">${_esc(r.risk_level||'')}</span></td>
@@ -6690,7 +6893,7 @@ ${section('Model Health', modelHealth)}
     try {
       const data = await _api(`/risks?${params}`);
       const rows = data.risks || [];
-      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No risks found.</td></tr>'; return; }
+      if (!rows.length) { renderEmptyRow(tbody, { colspan: 6, title: 'No risks found' }); return; }
       tbody.innerHTML = rows.map(r => `<tr style="cursor:pointer;" onclick="_riskOpenDetail('${r.id}')">
         <td><strong>${_esc(r.title)}</strong></td><td>${_esc(r.category||'')}</td>
         <td><span class="badge ${r.risk_level==='critical'?'bad':r.risk_level==='high'?'warn':'ok'}">${_esc(r.risk_level||'')}</span></td>
@@ -6811,7 +7014,7 @@ ${section('Model Health', modelHealth)}
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data = await _api(`/certificates?${params}`); const rows = data.certificates || [];
-      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No certificates found.</td></tr>'; return; }
+      if (!rows.length) { renderEmptyRow(tbody, { colspan: 6, title: 'No certificates found' }); return; }
       tbody.innerHTML = rows.map(r => `<tr style="cursor:pointer;" onclick="_certOpenDetail('${r.id}')">
         <td><strong>${_esc(r.common_name||r.name||'')}</strong></td><td>${_esc(r.cert_type||'')}</td>
         <td><span class="badge ${r.status==='expired'?'bad':r.status==='expiring_soon'?'warn':'ok'}">${_esc(r.status||'')}</span></td>
@@ -6920,7 +7123,7 @@ ${section('Model Health', modelHealth)}
     tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data=await _api(`/configs?${params}`); const rows=data.configs||[];
-      if(!rows.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No configs found.</td></tr>';return;}
+      if(!rows.length){renderEmptyRow(tbody,{colspan:6,title:'No configs found'});return;}
       tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_cfgOpenDetail('${r.id}')">
         <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.config_type||'')}</td>
         <td>${_esc(r.environment||'')}</td><td><span class="badge">${_esc(r.status||'')}</span></td>
@@ -7027,7 +7230,7 @@ ${section('Model Health', modelHealth)}
     tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data=await _api(`/licenses?${params}`); const rows=data.licenses||[];
-      if(!rows.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No licenses found.</td></tr>';return;}
+      if(!rows.length){renderEmptyRow(tbody,{colspan:6,title:'No licenses found'});return;}
       tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_licOpenDetail('${r.id}')">
         <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.license_type||'')}</td>
         <td><span class="badge ${r.status==='expired'?'bad':r.status==='expiring_soon'?'warn':'ok'}">${_esc(r.status||'')}</span></td>
@@ -7144,7 +7347,7 @@ ${section('Model Health', modelHealth)}
     tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data=await _api(`/budgets?${params}`); const rows=data.budgets||[];
-      if(!rows.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No budgets found.</td></tr>';return;}
+      if(!rows.length){renderEmptyRow(tbody,{colspan:6,title:'No budgets found'});return;}
       tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_budOpenDetail('${r.id}')">
         <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.category||'')}</td>
         <td><span class="badge ${r.is_over_budget?'bad':'ok'}">${_esc(r.status||'')}</span></td>
@@ -7256,7 +7459,7 @@ ${section('Model Health', modelHealth)}
     tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data=await _api(`/flags?${params}`); const rows=data.flags||[];
-      if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">No flags found.</td></tr>';return;}
+      if(!rows.length){renderEmptyRow(tbody,{colspan:5,title:'No flags found'});return;}
       tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_flagOpenDetail('${r.id}')">
         <td><strong>${_esc(r.key||r.name||'')}</strong></td><td>${_esc(r.flag_type||'')}</td>
         <td><span class="badge">${_esc(r.status||'')}</span></td><td>${_esc(r.owner||'')}</td>
@@ -7382,7 +7585,7 @@ ${section('Model Health', modelHealth)}
     tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data=await _api(`/vendors?${params}`); const rows=data.vendors||[];
-      if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">No vendors found.</td></tr>';return;}
+      if(!rows.length){renderEmptyRow(tbody,{colspan:5,title:'No vendors found'});return;}
       tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_venOpenDetail('${r.id}')">
         <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.category||'')}</td>
         <td><span class="badge">${_esc(r.status||'')}</span></td>
@@ -7509,7 +7712,7 @@ ${section('Model Health', modelHealth)}
     tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data=await _api(`/capacity/resources?${params}`); const rows=data.resources||[];
-      if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">No resources found.</td></tr>';return;}
+      if(!rows.length){renderEmptyRow(tbody,{colspan:5,title:'No resources found'});return;}
       tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_capOpenDetail('${r.id}')">
         <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.resource_type||'')}</td>
         <td><span class="badge ${r.utilization_pct>90?'bad':r.utilization_pct>70?'warn':'ok'}">${r.utilization_pct!=null?r.utilization_pct.toFixed(1)+'%':'—'}</span></td>
@@ -7623,7 +7826,7 @@ ${section('Model Health', modelHealth)}
     tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data=await _api(`/kb/articles?${params}`); const rows=data.articles||[];
-      if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">No articles found.</td></tr>';return;}
+      if(!rows.length){renderEmptyRow(tbody,{colspan:5,title:'No articles found'});return;}
       tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_kbOpenDetail('${r.id}')">
         <td><strong>${_esc(r.title||'')}</strong></td><td>${_esc(r.category||'')}</td>
         <td><span class="badge">${_esc(r.status||'')}</span></td><td>${r.view_count||0}</td>
@@ -7736,7 +7939,7 @@ ${section('Model Health', modelHealth)}
     tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data=await _api(`/assets?${params}`); const rows=data.assets||[];
-      if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">No assets found.</td></tr>';return;}
+      if(!rows.length){renderEmptyRow(tbody,{colspan:5,title:'No assets found'});return;}
       tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_assetOpenDetail('${r.id}')">
         <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.asset_type||'')}</td>
         <td><span class="badge">${_esc(r.status||'')}</span></td><td>${_esc(r.environment||'')}</td>
@@ -7870,7 +8073,7 @@ ${section('Model Health', modelHealth)}
     try {
       const data=await _api(`/deployments?${params}`); const rows=data.deployments||[];
       _q('#depListCount').textContent=`${data.total} total`;
-      if(!rows.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No deployments found.</td></tr>';return;}
+      if(!rows.length){renderEmptyRow(tbody,{colspan:6,title:'No deployments found'});return;}
       tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_depOpenDetail('${r.id}')">
         <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.version||'')}</td>
         <td>${_esc(r.environment||'')}</td>
@@ -7974,7 +8177,7 @@ ${section('Model Health', modelHealth)}
     try {
       const data=await _api(`/services?${params}`); const rows=data.services||[];
       _q('#svcListCount').textContent=`${data.total} total`;
-      if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">No services found.</td></tr>';return;}
+      if(!rows.length){renderEmptyRow(tbody,{colspan:5,title:'No services found'});return;}
       tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_svcOpenDetail('${r.id}')">
         <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.tier||'')}</td>
         <td><span class="badge ${r.status==='down'?'bad':r.status==='degraded'?'warn':'ok'}">${_esc(r.status||'')}</span></td>
@@ -8076,7 +8279,7 @@ ${section('Model Health', modelHealth)}
     try {
       const data=await _api(`/problems?${params}`); const rows=data.problems||[];
       _q('#prListCount').textContent=`${data.total} total`;
-      if(!rows.length){tbody.innerHTML='<tr><td colspan="6" class="ops-table-state">No problems found.</td></tr>';return;}
+      if(!rows.length){renderEmptyRow(tbody,{colspan:6,title:'No problems found'});return;}
       tbody.innerHTML=rows.map(r=>`<tr class="ops-row-link" onclick="_openPrDetail('${r.id}')">
         <td><strong>${_esc(r.title||'')}</strong></td><td>${_esc(r.category||'')}</td>
         <td><span class="badge ${r.priority==='critical'?'bad':r.priority==='high'?'warn':'ok'}">${_esc(r.priority||'')}</span></td>

@@ -5,10 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>INTEMO - AI Email Operations</title>
   <link rel="manifest" href="/dashboard/pwa_manifest.json" />
+  <link rel="icon" href="/dashboard/assets/icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/dashboard/assets/icon192.png" sizes="192x192" type="image/png" />
   <link rel="apple-touch-icon" href="/dashboard/assets/apple-touch-icon.png" />
   <link rel="stylesheet" href="/dashboard/enterprise-ui.css?v=15" />
-  <link rel="stylesheet" href="/dashboard/hybrid-theme.css?v=1" />
-  <meta name="description" content="INTEMO - Enterprise AI Email Operations Platform" />
+  <link rel="stylesheet" href="/dashboard/hybrid-theme.css?v=6" />
+  <link rel="stylesheet" href="/frontend/design-system/icons.css" />
+  <meta name="description" content="INTEMO — AI Email Operations Platform" />
   <!-- light theme marker: #F6F8FB -->
 </head>
 <body>
@@ -21,22 +24,28 @@
   <!-- ================== SIDEBAR ================== -->
   <aside class="sidebar" id="sidebar" role="navigation" aria-label="Primary navigation">
 
+    <!-- Brand -->
     <div class="brand-block brand-block-branded">
-      <img class="brand-logo-img" src="/dashboard/assets/intemo-logo-mark.png" alt="INTEMO" width="522" height="141" />
-      <span class="brand-tagline">INTEGRATING MOBILITY</span>
-      <span class="brand-product-name">AI Email Operations</span>
+      <div class="brand-logo-wrap">
+        <img class="brand-logo-img" src="/dashboard/assets/intemo-logo-mark.png" alt="INTEMO" width="522" height="141" />
+      </div>
+      <div class="brand-text-block">
+        <span class="brand-text">INTEMO</span>
+        <span class="brand-tagline">INTEGRATING MOBILITY</span>
+        <span class="brand-product-name sr-only">AI Email Operations</span>
+        <span class="nav-role-chip" id="navRoleChip" aria-label="Current role">Operations</span>
+      </div>
     </div>
 
     <nav class="main-nav" aria-label="Application sections">
 
-      <div class="nav-section-label">Workspace</div>
+      <!-- ── CORE (daily-use, all roles) ─────────────────────────── -->
+      <div class="nav-section-label">Core</div>
 
       <button class="nav-btn active" data-view="dashboard" type="button" aria-current="page">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-          <rect x="2" y="2" width="7" height="7" rx="1.5"/>
-          <rect x="11" y="2" width="7" height="7" rx="1.5"/>
-          <rect x="2" y="11" width="7" height="7" rx="1.5"/>
-          <rect x="11" y="11" width="7" height="7" rx="1.5"/>
+          <rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/>
+          <rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5"/>
         </svg>
         Dashboard
       </button>
@@ -47,6 +56,7 @@
           <path d="m2 5 8 6 8-6"/>
         </svg>
         Inbox
+        <span class="nav-badge" id="inboxNavBadge" hidden aria-label="unread"></span>
       </button>
 
       <button class="nav-btn" data-view="ai" type="button">
@@ -54,18 +64,14 @@
           <circle cx="10" cy="10" r="3"/>
           <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4"/>
         </svg>
-        AI Processing
+        AI Assistant
       </button>
-
-      <div class="nav-section-label">Operations</div>
 
       <button class="nav-btn" data-view="automations" type="button">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-          <path d="M3 6h10M3 10h7M3 14h4"/>
-          <path d="M15 8l3 3-3 3"/>
-          <path d="M18 11H9"/>
+          <path d="M3 6h10M3 10h7M3 14h4"/><path d="M15 8l3 3-3 3"/><path d="M18 11H9"/>
         </svg>
-        Automations
+        Automation Rules
       </button>
 
       <button class="nav-btn" data-view="workflows" type="button">
@@ -85,33 +91,89 @@
         Agents
       </button>
 
-      <button class="nav-btn" data-view="connectors" type="button">
-        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-          <circle cx="5" cy="10" r="2.5"/>
-          <circle cx="15" cy="5" r="2.5"/>
-          <circle cx="15" cy="15" r="2.5"/>
-          <path d="M7.4 9l5.2-2.8M7.4 11l5.2 2.8"/>
-        </svg>
-        Connectors
-      </button>
+      <!-- ── PLATFORM (weekly-use, all roles) ────────────────────── -->
+      <div class="nav-section-label">Platform</div>
 
       <button class="nav-btn" data-view="reports" type="button">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-          <path d="M3 17V9M7 17V5M11 17V9M15 17V3"/>
-          <path d="M1 17h18"/>
+          <path d="M3 17V9M7 17V5M11 17V9M15 17V3"/><path d="M1 17h18"/>
         </svg>
         Analytics
       </button>
 
+      <button class="nav-btn" data-view="connectors" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <circle cx="5" cy="10" r="2.5"/><circle cx="15" cy="5" r="2.5"/><circle cx="15" cy="15" r="2.5"/>
+          <path d="M7.4 9l5.2-2.8M7.4 11l5.2 2.8"/>
+        </svg>
+        Integrations
+      </button>
+
       <button class="nav-btn" data-view="accounts" type="button">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-          <circle cx="10" cy="7" r="3.5"/>
-          <path d="M3 18a7 7 0 0 1 14 0"/>
+          <circle cx="10" cy="7" r="3.5"/><path d="M3 18a7 7 0 0 1 14 0"/>
         </svg>
         Accounts
       </button>
 
-      <button class="nav-btn" data-view="command" type="button">
+      <button class="nav-btn" data-view="templates" type="button">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <rect x="3" y="3" width="14" height="4" rx="1.2"/><rect x="3" y="10" width="6" height="7" rx="1.2"/>
+          <rect x="12" y="10" width="5" height="3" rx="1"/><rect x="12" y="15" width="5" height="2" rx="1"/>
+        </svg>
+        Templates
+      </button>
+
+      <!-- Installed connector shortcuts (dynamic) -->
+      <div class="installed-connector-nav" id="installedConnectorNav" aria-label="Installed integrations"></div>
+
+      <!-- ── ADMIN TOOLS (collapsed; role-gated: operations_admin+) ─
+           Contains secondary operational + governance + infra items.
+           command/admin/settings remain direct .main-nav children below. -->
+      <details class="nav-group nav-group-admin" id="adminToolsGroup" data-role-min="operations_admin">
+        <summary>
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+            <rect x="2" y="3" width="16" height="11" rx="2"/>
+            <path d="M6 17h8M10 14v3"/>
+            <circle cx="10" cy="8.5" r="2.5" fill="currentColor" fill-opacity=".15"/>
+            <path d="M10 6v5M7.5 8.5h5"/>
+          </svg>
+          <span class="nav-group-title">More Tools</span>
+          <svg class="nav-group-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M7 8l3 3 3-3"/>
+          </svg>
+        </summary>
+        <div class="nav-submenu">
+          <div class="nav-submenu-label nav-group-title">Service Operations</div>
+          <button class="nav-btn nav-nested" data-view="dispatches" type="button">Activity Queue</button>
+          <button class="nav-btn nav-nested" data-view="playbooks"  type="button">AI Actions</button>
+          <button class="nav-btn nav-nested" data-view="runbooks"   type="button">Automation Guides</button>
+          <button class="nav-btn nav-nested" data-view="sla"        type="button">Service Goals</button>
+          <button class="nav-btn nav-nested" data-view="oncall"     type="button">Team Availability</button>
+          <button class="nav-btn nav-nested" data-view="services"   type="button">Service Catalog</button>
+          <button class="nav-btn nav-nested" data-view="problems"   type="button">Service Issues</button>
+          <button class="nav-btn nav-nested" data-view="changes"    type="button">Change Requests</button>
+          <button class="nav-btn nav-nested" data-view="knowledge"  type="button">Knowledge Base</button>
+          <div class="nav-submenu-label nav-group-title" data-role-min="workspace_admin">Advanced</div>
+          <a class="nav-btn nav-nested nav-link" href="/security" data-role-min="workspace_admin">Security Insights</a>
+          <button class="nav-btn nav-nested" data-view="risks"        type="button" data-role-min="workspace_admin">Risk Overview</button>
+          <button class="nav-btn nav-nested" data-view="certificates" type="button" data-role-min="workspace_admin">Secure Access</button>
+          <button class="nav-btn nav-nested" data-view="licenses"     type="button" data-role-min="system_admin">Licenses</button>
+          <button class="nav-btn nav-nested" data-view="budgets"      type="button" data-role-min="system_admin">Budgets</button>
+          <button class="nav-btn nav-nested" data-view="vendors"      type="button" data-role-min="system_admin">Vendors</button>
+          <button class="nav-btn nav-nested" data-view="configs"      type="button" data-role-min="workspace_admin">Workspace Config</button>
+          <button class="nav-btn nav-nested" data-view="maintenance"  type="button" data-role-min="workspace_admin">System Updates</button>
+          <button class="nav-btn nav-nested" data-view="deployments"  type="button" data-role-min="workspace_admin">Releases</button>
+          <button class="nav-btn nav-nested" data-view="webhooks"     type="button" data-role-min="workspace_admin">Webhooks</button>
+          <button class="nav-btn nav-nested" data-view="api-keys"     type="button" data-role-min="workspace_admin">API Access</button>
+          <button class="nav-btn nav-nested" data-view="assets"       type="button" data-role-min="system_admin">Resources</button>
+        </div>
+      </details>
+
+      <!-- ── SYSTEM — direct .main-nav children (required by smoke tests) ── -->
+      <div class="nav-section-label" data-role-min="operations_admin">System</div>
+
+      <button class="nav-btn" data-view="command" type="button" data-role-min="operations_admin">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
           <rect x="2" y="3" width="16" height="11" rx="2"/>
           <path d="M6 17h8M10 14v3"/>
@@ -121,47 +183,7 @@
         Command Center
       </button>
 
-      <div class="installed-connector-nav" id="installedConnectorNav" aria-label="Installed connectors"></div>
-
-      <!-- Operations support — collapsed by default -->
-      <details class="nav-group">
-        <summary><span class="nav-group-title">Service Operations</span></summary>
-        <div class="nav-submenu">
-          <button class="nav-btn nav-nested" data-view="dispatches"  type="button">Activity Queue</button>
-          <button class="nav-btn nav-nested" data-view="playbooks"   type="button">AI Actions</button>
-          <button class="nav-btn nav-nested" data-view="runbooks"    type="button">Automation Guides</button>
-          <button class="nav-btn nav-nested" data-view="sla"         type="button">Service Goals</button>
-          <button class="nav-btn nav-nested" data-view="oncall"      type="button">Team Availability</button>
-          <button class="nav-btn nav-nested" data-view="services"    type="button">Service Catalog</button>
-          <button class="nav-btn nav-nested" data-view="problems"    type="button">Service Issues</button>
-          <button class="nav-btn nav-nested" data-view="changes"     type="button">Change Requests</button>
-        </div>
-      </details>
-
-      <!-- Advanced / admin tools — collapsed by default -->
-      <details class="nav-group">
-        <summary><span class="nav-group-title">Advanced</span></summary>
-        <div class="nav-submenu">
-          <a  class="nav-btn nav-nested nav-link" href="/security">Security Insights</a>
-          <button class="nav-btn nav-nested" data-view="risks"        type="button">Risk Overview</button>
-          <button class="nav-btn nav-nested" data-view="certificates" type="button">Secure Access</button>
-          <button class="nav-btn nav-nested" data-view="licenses"     type="button">Licenses</button>
-          <button class="nav-btn nav-nested" data-view="budgets"      type="button">Budgets</button>
-          <button class="nav-btn nav-nested" data-view="webhooks"     type="button">Webhooks</button>
-          <button class="nav-btn nav-nested" data-view="api-keys"     type="button">API Access</button>
-          <button class="nav-btn nav-nested" data-view="configs"      type="button">Workspace Config</button>
-          <button class="nav-btn nav-nested" data-view="maintenance"  type="button">System Updates</button>
-          <button class="nav-btn nav-nested" data-view="deployments"  type="button">Releases</button>
-          <button class="nav-btn nav-nested" data-view="assets"       type="button">Resources</button>
-          <button class="nav-btn nav-nested" data-view="vendors"      type="button">Vendors</button>
-          <button class="nav-btn nav-nested" data-view="knowledge"    type="button">Knowledge Base</button>
-          <button class="nav-btn nav-nested" data-view="templates"    type="button">Templates</button>
-        </div>
-      </details>
-
-      <div class="nav-section-label">System</div>
-
-      <button class="nav-btn" data-view="admin" type="button">
+      <button class="nav-btn" data-view="admin" type="button" data-role-min="operations_admin">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
           <path d="M10 2a2.3 2.3 0 0 1 1.7.8 6 6 0 0 0 .9 2.9l.5.8a2 2 0 0 1-.3 2.4l-.6.6a2 2 0 0 1-2.4.3l-.8-.5a6 6 0 0 0-2.9-.9A2.3 2.3 0 0 1 4 6.3V6a2 2 0 0 1 2-2 6 6 0 0 0 2.9-.9A2.3 2.3 0 0 1 10 2Z"/>
           <circle cx="10" cy="14" r="3"/>
@@ -179,18 +201,19 @@
 
     </nav>
 
+    <!-- Sidebar footer: theme switcher + sync status -->
     <div class="sidebar-footer">
-      <!-- Theme switcher -->
-      <div class="theme-switcher" role="group" aria-label="Theme">
-        <button class="theme-btn active" type="button" data-theme-set="light"  aria-pressed="true"  title="Light theme">Light</button>
-        <button class="theme-btn"        type="button" data-theme-set="hybrid" aria-pressed="false" title="Hybrid theme">Hybrid</button>
-        <button class="theme-btn"        type="button" data-theme-set="dark"   aria-pressed="false" title="Dark theme">Dark</button>
-      </div>
-      <!-- Sync status -->
-      <div class="sidebar-footer-row" role="status" aria-live="polite">
-        <span class="status-dot" id="sidebarStatusDot" aria-hidden="true"></span>
-        <span id="sideSyncState" class="sidebar-version">Operational</span>
-        <span class="sidebar-version" style="margin-left:auto" id="sideSyncInterval">20s</span>
+      <div class="sidebar-footer-meta">
+        <div class="theme-switcher" role="group" aria-label="Theme">
+          <button class="theme-btn active" type="button" data-theme-set="light"  aria-pressed="true"  title="Light theme">Light</button>
+          <button class="theme-btn"        type="button" data-theme-set="hybrid" aria-pressed="false" title="Hybrid theme">Hybrid</button>
+          <button class="theme-btn"        type="button" data-theme-set="dark"   aria-pressed="false" title="Dark theme">Dark</button>
+        </div>
+        <div class="sidebar-footer-row" role="status" aria-live="polite">
+          <span class="status-dot" id="sidebarStatusDot" aria-hidden="true"></span>
+          <span id="sideSyncState" class="sidebar-version">Operational</span>
+          <span class="sidebar-version sidebar-version--right" id="sideSyncInterval">20s</span>
+        </div>
       </div>
     </div>
 
@@ -199,7 +222,7 @@
   <!-- ================== MAIN ================== -->
   <main class="main" id="main-content">
 
-    <!-- Top bar -->
+    <!-- Top bar — minimal: search · cmd · sync · notifications · profile -->
     <header class="topbar" role="banner">
       <button class="icon-btn mobile-only" id="sidebarToggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="sidebar">
         <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -217,39 +240,35 @@
 
       <div class="topbar-spacer" aria-hidden="true"></div>
 
-      <button class="top-action" type="button" id="commandPaletteBtn" aria-label="Open command palette" aria-keyshortcuts="Meta+k">
-        <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 4H2M14 8H6M16 12H4M12 16H8"/></svg>
-        Commands
-      </button>
-      <button class="top-action" type="button" data-open-view="accounts" aria-label="Add account">
-        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
-        Account
-      </button>
-      <button class="top-action" type="button" data-open-view="automations" aria-label="Create new rule">
-        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h10M3 10h7M3 14h4"/><path d="M15 8l3 3-3 3"/><path d="M18 11H9"/></svg>
-        New Rule
-      </button>
-      <button class="top-action" type="button" data-open-view="reports" aria-label="View analytics">Reports</button>
-
-      <button class="top-action low-res-toggle" type="button" id="lowResToggleBtn" aria-label="Toggle Low Resource Mode" title="Toggle Low Resource Mode">
-        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 2v4M10 14v4M2 10h4M14 10h4M4.2 4.2l2.8 2.8M13 13l2.8 2.8M4.2 15.8l2.8-2.8M13 7l2.8-2.8"/></svg>
-        <span id="lowResLabel">Low Resource</span>
+      <!-- Command palette trigger -->
+      <button class="icon-btn topbar-cmd-btn" type="button" id="commandPaletteBtn" aria-label="Open command palette (Ctrl+K)" title="Command palette (Ctrl+K)">
+        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M18 4H2M14 8H6M16 12H4M12 16H8"/>
+        </svg>
       </button>
 
+      <!-- Sync status indicator -->
       <div class="sync-pill" id="syncPill" role="status" aria-live="polite" aria-label="Sync status">
         <span class="status-dot" id="syncDot" aria-hidden="true"></span>
         <span id="syncPillText">Ready</span>
       </div>
 
-      <button class="top-action notif-bell notification-button" type="button" id="notifBellBtn" aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
-        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+      <!-- Notifications bell -->
+      <button class="icon-btn notification-button" type="button" id="notifBellBtn" aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
+        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <path d="M10 2a6 6 0 0 1 6 6c0 3.5 1 5 2 6H2c1-1 2-2.5 2-6a6 6 0 0 1 6-6Z"/>
           <path d="M8 17a2 2 0 0 0 4 0"/>
         </svg>
         <span id="notifBadge" aria-label="unread notifications" class="notification-badge"></span>
       </button>
 
-      <button class="avatar-btn" type="button" data-open-view="admin" title="Admin panel" aria-label="Open admin panel">AD</button>
+      <!-- User profile / avatar -->
+      <button class="avatar-btn" type="button" id="userProfileBtn" data-open-view="settings" title="Profile &amp; settings" aria-label="Open profile and settings">AD</button>
+
+      <!-- Hidden low-resource toggle (accessible via admin/settings) -->
+      <button class="top-action low-res-toggle sr-only" type="button" id="lowResToggleBtn" aria-label="Toggle Low Resource Mode" title="Toggle Low Resource Mode" tabindex="-1">
+        <span id="lowResLabel">Low Resource</span>
+      </button>
     </header>
 
     <!-- -- Notification slide-out panel -- -->
@@ -290,132 +309,146 @@
         </div>
       </section>
 
-      <!-- ----------- DASHBOARD VIEW --------------------------- -->
+      <!-- ═══════════ DASHBOARD VIEW ═══════════════════════════════ -->
       <section class="view active" id="view-dashboard" aria-label="Dashboard">
 
-        <!-- -- Operational Intelligence Strip -- -->
-        <div id="dashIntelStrip" class="telemetry-strip"></div>
-
-        <div class="certification-banner" id="certificationCard" role="note">
-          <div>
-            <strong>
-              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 2l2.4 5 5.6.8-4 4 .9 5.6L10 15l-4.9 2.4.9-5.6-4-4 5.6-.8Z"/></svg>
-              Enterprise Governance
-            </strong>
-            <span>Production controls, deployment gates and runtime separation are certified by internal release checks.</span>
+        <!-- ── Zone 1: Smart Hero Greeting ───────────────────────────── -->
+        <div class="dash-hero" id="dashHero" aria-live="polite">
+          <div class="dash-hero-text">
+            <h1 class="dash-hero-greeting" id="dashGreeting">Good morning</h1>
+            <p class="dash-hero-sub" id="dashHeroSub">Everything is running smoothly.</p>
           </div>
-          <button class="btn sm" type="button" id="viewCertificationBtn">View Certification</button>
+          <div class="dash-hero-actions">
+            <button class="btn primary" type="button" data-open-view="inbox" aria-label="Open inbox">
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M2 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5Z"/><path d="m2 5 8 6 8-6"/></svg>
+              Open Inbox
+            </button>
+            <button class="btn" type="button" id="refreshBtn" aria-label="Refresh dashboard">
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4a8 8 0 1 1 0 12"/><path d="M4 4v5h5"/></svg>
+              Refresh
+            </button>
+          </div>
         </div>
 
-        <div class="dashboard-overview-grid">
+        <!-- ── Zone 2: KPI Strip (4 health metrics) ──────────────────── -->
+        <div class="kpi-strip" id="dashKpiStrip" aria-label="Platform health metrics">
 
-          <!-- LEFT: Quick Actions -->
-          <article class="panel" aria-labelledby="qa-heading">
-            <div class="panel-head">
-              <div>
-                <h2 id="qa-heading">Quick Actions</h2>
-                <p>Common workflows for daily operations.</p>
-              </div>
-            </div>
-            <div class="quick-actions" role="list">
+          <div class="card-kpi" id="kpi-accounts" role="article">
+            <div class="card-kpi-accent"></div>
+            <div class="card-kpi-label">Connected Accounts</div>
+            <div class="card-kpi-value" id="kpiAccounts">—</div>
+            <div class="card-kpi-delta neutral" id="kpiAccountsDelta">Mailboxes active</div>
+          </div>
 
-              <button class="action-card" data-open-view="accounts" type="button" role="listitem">
-                <div class="action-icon" aria-hidden="true">
-                  <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 4v12M4 10h12"/></svg>
-                </div>
-                <strong>Add Account</strong>
-                <span>Gmail, Outlook, Microsoft 365, Exchange, Yahoo, Zoho, Proton or custom IMAP.</span>
-              </button>
+          <div class="card-kpi" id="kpi-inbox" role="article">
+            <div class="card-kpi-accent card-kpi-accent--health"></div>
+            <div class="card-kpi-label">Inbox Health</div>
+            <div class="card-kpi-value" id="kpiHealth">—</div>
+            <div class="card-kpi-delta up" id="kpiHealthDelta">Overall score</div>
+          </div>
 
-              <button class="action-card" data-open-view="automations" type="button" role="listitem">
-                <div class="action-icon action-icon-blue" aria-hidden="true">
-                  <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h10M3 10h7M3 14h4"/><path d="M15 8l3 3-3 3"/><path d="M18 11H9"/></svg>
-                </div>
-                <strong>Create Rule</strong>
-                <span>Forward, categorize, assign, notify or summarize matched conversations.</span>
-              </button>
+          <div class="card-kpi" id="kpi-rules" role="article">
+            <div class="card-kpi-accent card-kpi-accent--ai"></div>
+            <div class="card-kpi-label">Active Automations</div>
+            <div class="card-kpi-value" id="kpiRules">—</div>
+            <div class="card-kpi-delta neutral" id="kpiRulesDelta">Rules running</div>
+          </div>
 
-              <button class="action-card" data-open-view="inbox" type="button" role="listitem">
-                <div class="action-icon action-icon-green" aria-hidden="true">
-                  <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5Z"/><path d="m2 5 8 6 8-6"/></svg>
-                </div>
-                <strong>Open Inbox</strong>
-                <span>Threaded conversations with AI summaries and workflow context.</span>
-              </button>
-
-              <button class="action-card" data-open-view="reports" type="button" role="listitem">
-                <div class="action-icon action-icon-purple" aria-hidden="true">
-                  <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17V9M7 17V5M11 17V9M15 17V3"/><path d="M1 17h18"/></svg>
-                </div>
-                <strong>View Analytics</strong>
-                <span>Executive KPIs, workflow success, forwarding and business trends.</span>
-              </button>
-
-              <button class="action-card" data-open-view="settings" data-settings-jump="updates" type="button" role="listitem">
-                <div class="action-icon action-icon-amber" aria-hidden="true">
-                  <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2v4M10 14v4M4.2 4.2l2.8 2.8M13 13l2.8 2.8M2 10h4M14 10h4M4.2 15.8l2.8-2.8M13 7l2.8-2.8"/></svg>
-                </div>
-                <strong>Install Update</strong>
-                <span>Validate ZIP patches, preview changes, backup and rollback safely.</span>
-              </button>
-
-              <button class="action-card" data-open-view="templates" type="button" role="listitem">
-                <div class="action-icon action-icon-cyan" aria-hidden="true">
-                  <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M3 8h14M8 8v9"/></svg>
-                </div>
-                <strong>Use Template</strong>
-                <span>Freight, RFQ, invoice, support and follow-up response templates.</span>
-              </button>
-
-            </div>
-          </article>
-
-          <!-- RIGHT: Live stats -->
-          <article class="panel" aria-labelledby="stats-heading">
-            <div class="panel-head">
-              <div>
-                <h2 id="stats-heading">Overview</h2>
-                <p>Live operational metrics.</p>
-              </div>
-            </div>
-            <div class="dash-stats-list" id="operationsMetrics" role="list" aria-label="Key metrics"></div>
-          </article>
+          <div class="card-kpi" id="kpi-sync" role="article">
+            <div class="card-kpi-accent card-kpi-accent--sync"></div>
+            <div class="card-kpi-label">Sync Status</div>
+            <div class="card-kpi-value" id="kpiSyncVal">—</div>
+            <div class="card-kpi-delta up" id="kpiSyncDelta">Last synced</div>
+          </div>
 
         </div>
 
-        <div class="dashboard-grid">
-          <article class="panel" aria-labelledby="perf-heading">
-            <div class="panel-head">
-              <div>
-                <h2 id="perf-heading">Performance</h2>
-                <p>Operational health indicators.</p>
-              </div>
-            </div>
-            <div class="progress-list" id="performanceList"></div>
-          </article>
+        <!-- ── Zone 3: Alerts (conditional — hidden when all clear) ──── -->
+        <div class="dash-alert-zone" id="dashAlertZone" hidden aria-label="Items requiring attention" role="region" aria-live="polite">
+          <div class="dash-alert-zone-head">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M10 3l8.1 14H1.9L10 3Z"/><path d="M10 9v4"/><circle cx="10" cy="15.5" r=".6" fill="currentColor"/>
+            </svg>
+            <strong id="dashAlertCount">0 items need attention</strong>
+          </div>
+          <div class="dash-alert-list" id="dashAlertList" role="list"></div>
+        </div>
 
-          <article class="panel" aria-labelledby="activity-heading">
+        <!-- ── Zone 4: Main dashboard body ───────────────────────────── -->
+        <div class="dash-body-grid">
+
+          <!-- LEFT: Recent activity stream -->
+          <article class="panel dash-activity-panel" aria-labelledby="activity-heading">
             <div class="panel-head">
               <div>
                 <h2 id="activity-heading">Recent Activity</h2>
-                <p>Latest sync, categorization and AI actions.</p>
+                <p>Latest sync, classification and automation actions.</p>
               </div>
+              <button class="btn sm" type="button" data-open-view="command" aria-label="View full activity log">View all</button>
             </div>
             <div class="activity-list" id="activityList" role="list" aria-label="Recent activity"></div>
           </article>
+
+          <!-- RIGHT: Quick actions + operational metrics -->
+          <div class="dash-right-col">
+
+            <article class="panel" aria-labelledby="qa-heading">
+              <div class="panel-head">
+                <div><h2 id="qa-heading">Quick Actions</h2></div>
+              </div>
+              <div class="quick-actions quick-actions--compact" role="list">
+
+                <button class="action-card action-card--compact" data-open-view="accounts" type="button" role="listitem">
+                  <div class="action-icon" aria-hidden="true">
+                    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 4v12M4 10h12"/></svg>
+                  </div>
+                  <div>
+                    <strong>Add Account</strong>
+                    <span>Connect a new mailbox</span>
+                  </div>
+                </button>
+
+                <button class="action-card action-card--compact" data-open-view="automations" type="button" role="listitem">
+                  <div class="action-icon action-icon-blue" aria-hidden="true">
+                    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h10M3 10h7M3 14h4"/><path d="M15 8l3 3-3 3"/><path d="M18 11H9"/></svg>
+                  </div>
+                  <div>
+                    <strong>Create Rule</strong>
+                    <span>Forward, classify or notify</span>
+                  </div>
+                </button>
+
+                <button class="action-card action-card--compact" data-open-view="reports" type="button" role="listitem">
+                  <div class="action-icon action-icon-blue" aria-hidden="true">
+                    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17V9M7 17V5M11 17V9M15 17V3"/><path d="M1 17h18"/></svg>
+                  </div>
+                  <div>
+                    <strong>View Analytics</strong>
+                    <span>KPIs and operational trends</span>
+                  </div>
+                </button>
+
+              </div>
+            </article>
+
+            <article class="panel" aria-labelledby="ops-metrics-heading">
+              <div class="panel-head">
+                <div>
+                  <h2 id="ops-metrics-heading">Platform Status</h2>
+                  <p>Live operational metrics</p>
+                </div>
+              </div>
+              <div class="dash-stats-list" id="operationsMetrics" role="list" aria-label="Platform metrics"></div>
+            </article>
+
+          </div>
         </div>
 
-        <div class="dashboard-grid">
-          <article class="panel" aria-labelledby="notif-heading">
-            <div class="panel-head">
-              <div>
-                <h2 id="notif-heading">Notifications</h2>
-                <p>Alerts that need operational attention.</p>
-              </div>
-            </div>
-            <div class="notification-list" id="notificationList" role="list" aria-label="Notifications"></div>
-          </article>
-        </div>
+        <!-- Hidden elements kept for JS compatibility -->
+        <div id="dashIntelStrip" hidden aria-hidden="true"></div>
+        <div id="certificationCard" hidden aria-hidden="true"></div>
+        <div class="notification-list" id="notificationList" hidden aria-hidden="true" role="list"></div>
+        <div class="progress-list" id="performanceList" hidden aria-hidden="true"></div>
 
       </section>
 
@@ -2139,7 +2172,7 @@
               <p class="dash-inline-112">Copy this key now - it will <strong>not</strong> be shown again.</p>
               <div class="ui-inline-actions">
                 <code id="akRevealKey" class="dash-inline-113"></code>
-                <button class="btn xs" type="button" id="akCopyBtn" onclick="_copyAkKey()">Copy</button>
+                <button class="btn xs" type="button" id="akCopyBtn">Copy</button>
               </div>
               <p id="akRevealWarning" class="dash-inline-114"></p>
             </div>
@@ -5050,19 +5083,59 @@
         </div>
       </section>
 
-      <!-- ----------- SETTINGS VIEW ------------------------------- -->
+      <!-- ═══════════ SETTINGS VIEW ════════════════════════════════ -->
       <section class="view" id="view-settings" aria-label="Settings">
         <div class="settings-layout">
           <nav class="settings-nav" aria-label="Settings sections">
-            <button class="settings-tab active" data-settings="general" type="button">General</button>
-            <button class="settings-tab" data-settings="accounts" type="button">Accounts</button>
-            <button class="settings-tab" data-settings="ai" type="button">AI</button>
-            <button class="settings-tab" data-settings="automations" type="button">Automations</button>
-            <button class="settings-tab" data-settings="notifications" type="button">Notifications</button>
-            <button class="settings-tab" data-settings="security" type="button">Security</button>
-            <button class="settings-tab" data-settings="integrations" type="button">Integrations</button>
-            <button class="settings-tab" data-settings="updates" type="button">Updates</button>
-            <button class="settings-tab" data-settings="advanced" type="button">Advanced</button>
+
+            <div class="settings-nav-group-label">Personal</div>
+            <button class="settings-tab active" data-settings="general" type="button">
+              <svg class="settings-tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10" cy="7" r="3.5"/><path d="M3 18a7 7 0 0 1 14 0"/></svg>
+              Profile &amp; Preferences
+            </button>
+            <button class="settings-tab" data-settings="notifications" type="button">
+              <svg class="settings-tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10 2a6 6 0 0 1 6 6c0 3.5 1 5 2 6H2c1-1 2-2.5 2-6a6 6 0 0 1 6-6Z"/><path d="M8 17a2 2 0 0 0 4 0"/></svg>
+              Notifications
+            </button>
+
+            <div class="settings-nav-group-label">Workspace</div>
+            <button class="settings-tab" data-settings="accounts" type="button">
+              <svg class="settings-tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/><rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5"/></svg>
+              Workspace Settings
+            </button>
+
+            <div class="settings-nav-group-label">Automation &amp; AI</div>
+            <button class="settings-tab" data-settings="ai" type="button">
+              <svg class="settings-tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10" cy="10" r="3"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4"/></svg>
+              AI Configuration
+            </button>
+            <button class="settings-tab" data-settings="automations" type="button">
+              <svg class="settings-tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 6h10M3 10h7M3 14h4"/><path d="M15 8l3 3-3 3"/><path d="M18 11H9"/></svg>
+              Automation Defaults
+            </button>
+
+            <div class="settings-nav-group-label">Connectors</div>
+            <button class="settings-tab" data-settings="integrations" type="button">
+              <svg class="settings-tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="5" cy="10" r="2.5"/><circle cx="15" cy="5" r="2.5"/><circle cx="15" cy="15" r="2.5"/><path d="M7.4 9l5.2-2.8M7.4 11l5.2 2.8"/></svg>
+              Integrations &amp; Webhooks
+            </button>
+
+            <div class="settings-nav-group-label">Security</div>
+            <button class="settings-tab" data-settings="security" type="button">
+              <svg class="settings-tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10 2l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8V5l7-3Z"/></svg>
+              Security &amp; Access
+            </button>
+
+            <div class="settings-nav-group-label" data-role-min="system_admin">System</div>
+            <button class="settings-tab" data-settings="updates" type="button" data-role-min="system_admin">
+              <svg class="settings-tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10 2v4M10 14v4M4.2 4.2l2.8 2.8M13 13l2.8 2.8M2 10h4M14 10h4M4.2 15.8l2.8-2.8M13 7l2.8-2.8"/></svg>
+              System &amp; Updates
+            </button>
+            <button class="settings-tab" data-settings="advanced" type="button" data-role-min="system_admin">
+              <svg class="settings-tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12"/></svg>
+              Advanced
+            </button>
+
           </nav>
           <article class="panel settings-panel" id="settingsContent" aria-live="polite"></article>
         </div>
@@ -5090,7 +5163,8 @@
 <!-- Toast container -->
 <div class="toast-wrap" id="toastWrap" role="region" aria-label="Notifications" aria-live="polite" aria-atomic="false"></div>
 
-<script src="/dashboard/enterprise-ui.js?v=15"></script>
+<script src="/dashboard/dashboard-utils.js"></script>
+<script src="/dashboard/enterprise-ui.js?v=16"></script>
 <script src="/dashboard/premium-ui.js"></script>
 </body>
 </html>
