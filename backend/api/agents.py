@@ -61,9 +61,9 @@ _WORKFLOWS_DB = str(Path(DATA_DIR) / "workflows.db")
 
 
 def _actions_db() -> sqlite3.Connection:
-    con = sqlite3.connect(_ACTIONS_DB, timeout=10, check_same_thread=False)
+    from backend.utils.sqlite_connection_guard import connect_with_defaults
+    con = connect_with_defaults(_ACTIONS_DB)
     con.row_factory = sqlite3.Row
-    con.execute("PRAGMA journal_mode=WAL")
     con.execute("""
         CREATE TABLE IF NOT EXISTS agent_actions (
             id          TEXT PRIMARY KEY,
@@ -83,7 +83,13 @@ def _actions_db() -> sqlite3.Connection:
     return con
 
 
+_AGENT_ACTIONS_RETENTION_DAYS = 30
+_AGENT_ACTIONS_PRUNE_EVERY = 200  # rows; bounded background prune cadence
+_agent_actions_prune_counter = 0
+
+
 def _persist_action(entry: Dict[str, Any]) -> None:
+    global _agent_actions_prune_counter
     try:
         con = _actions_db()
         con.execute(
@@ -102,6 +108,14 @@ def _persist_action(entry: Dict[str, Any]) -> None:
                 entry.get("created_at", datetime.now(timezone.utc).isoformat()),
             ),
         )
+        # Lazy retention prune: drop rows older than the retention window every
+        # _AGENT_ACTIONS_PRUNE_EVERY inserts. Keeps the table bounded without
+        # adding a separate scheduler.
+        _agent_actions_prune_counter += 1
+        if _agent_actions_prune_counter >= _AGENT_ACTIONS_PRUNE_EVERY:
+            _agent_actions_prune_counter = 0
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=_AGENT_ACTIONS_RETENTION_DAYS)).isoformat()
+            con.execute("DELETE FROM agent_actions WHERE created_at < ?", (cutoff,))
         con.commit()
         con.close()
     except Exception as exc:
@@ -201,8 +215,17 @@ class OperationalAgent:
 
     async def stop(self) -> None:
         self._running = False
-        if self._task:
-            self._task.cancel()
+        task = self._task
+        self._task = None
+        if task:
+            task.cancel()
+            # Bounded wait so a misbehaving run_cycle cannot deadlock shutdown.
+            try:
+                await asyncio.wait_for(task, timeout=5.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+            except Exception as exc:
+                logger.warning("Agent '%s' raised during shutdown: %s", self.agent_id, exc)
         logger.info("Agent '%s' stopped", self.agent_id)
         await self._emit_event("agent.stopped", {"agent": self.agent_id})
 
@@ -742,8 +765,17 @@ class AgentSupervisor:
 
     async def stop_all(self) -> None:
         self._started = False
-        if self._supervisor_task:
-            self._supervisor_task.cancel()
+        sup = self._supervisor_task
+        self._supervisor_task = None
+        if sup:
+            sup.cancel()
+            # Bounded await so a hung _health_watch can't deadlock shutdown.
+            try:
+                await asyncio.wait_for(sup, timeout=5.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+            except Exception as exc:
+                logger.warning("Supervisor task raised during shutdown: %s", exc)
         for agent in self._agents.values():
             await agent.stop()
 

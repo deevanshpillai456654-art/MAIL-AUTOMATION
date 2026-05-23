@@ -1,171 +1,150 @@
+"""FastAPI router registry with lazy imports.
+
+Each ``RouterSpec`` can be created in two forms:
+
+* **Eager**: ``RouterSpec("name", APIRouter())`` — used by tests that build
+  ad-hoc routers and assert behaviour.
+
+* **Lazy**: ``RouterSpec.lazy("name", "backend.api.module")`` — used by the
+  production ``API_ROUTER_SPECS`` tuple. The module is imported only when
+  ``register_api_routers`` decides the router is enabled. This honours
+  ``RuntimeControl.is_router_enabled`` *before* paying the import cost, which
+  is what makes the "Low Resource Mode" service toggle real instead of
+  cosmetic.
+
+``API_ROUTER_SPECS`` and ``RouterSpec.name`` semantics are unchanged, so
+existing tests that iterate the registry continue to work.
+"""
+
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Iterable
+import importlib
+from dataclasses import dataclass, field
+from typing import Iterable, Optional
 
 from fastapi import APIRouter, FastAPI
 
-from backend.api.absolute_enterprise_governance import router as absolute_enterprise_governance_router
-from backend.api.ai_assistant import router as ai_assistant_router
-from backend.api.ai_enterprise import router as ai_enterprise_router
-from backend.api.ai_gateway import router as ai_gateway_router
-from backend.api.connection import router as connection_router
-from backend.api.enterprise_accounts import router as enterprise_accounts_router
-from backend.api.enterprise_admin import router as enterprise_admin_router
-from backend.api.enterprise_analysis import router as enterprise_analysis_router
-from backend.api.enterprise_governance import router as enterprise_governance_router
-from backend.api.enterprise_refinement import router as enterprise_refinement_router
-from backend.api.enterprise_reports import router as enterprise_reports_router
-from backend.api.enterprise_templates import router as enterprise_templates_router
-from backend.api.enterprise_updates import router as enterprise_updates_router
-from backend.api.enterprise_operations import router as enterprise_operations_router
-from backend.api.export import router as export_router
-from backend.api.agents import router as agents_router
-from backend.api.event_bus import router as event_bus_router
-from backend.api.ocr import router as ocr_router
-from backend.api.operational_intelligence import router as intelligence_router
-from backend.api.platform_telemetry import router as telemetry_router
-from backend.api.reconciler import router as reconciler_router
-from backend.api.runtime_control import router as runtime_control_router
-from backend.api.workflow_scheduler import router as workflow_scheduler_router
-from backend.api.workflows import router as workflows_router
-from backend.api.frontend_runtime import router as frontend_runtime_router
-from backend.api.health import router as health_router
-from backend.api.human_approval import router as human_approval_router
-from backend.api.integrations import router as integrations_router
-from backend.api.learning import router as learning_router
-from backend.api.port import router as port_router
-from backend.api.production95 import router as production95_router
-from backend.api.routes import router as core_router
-from backend.api.rules import router as rules_router
-from backend.api.scheduler import router as scheduler_router
-from backend.api.security import router as security_router
-from backend.api.session import router as session_router
-from backend.api.system import router as system_router
-from backend.api.tally import router as tally_router
-from backend.api.threat_intelligence import router as threat_intelligence_router
-from backend.api.ws_alerts import router as ws_alerts_router
-from backend.api.alert_rules import router as alert_rules_router
-from backend.api.audit_log import router as audit_log_router
-from backend.api.incidents import router as incidents_router
-from backend.api.playbooks import router as playbooks_router
-from backend.api.scheduled_reports import router as scheduled_reports_router
-from backend.api.metric_snapshots import router as metric_snapshots_router
-from backend.api.notifications import router as notifications_router
-from backend.api.webhooks import router as webhooks_router
-from backend.api.sla import router as sla_router
-from backend.api.maintenance import router as maintenance_router
-from backend.api.api_keys import router as api_keys_router
-from backend.api.oncall import router as oncall_router
-from backend.api.runbooks import router as runbooks_router
-from backend.api.change_management import router as change_management_router
-from backend.api.problem_management import router as problem_management_router
-from backend.api.service_catalog import router as service_catalog_router
-from backend.api.deployments import router as deployments_router
-from backend.api.asset_management import router as asset_management_router
-from backend.api.knowledge_base import router as knowledge_base_router
-from backend.api.capacity_planning import router as capacity_planning_router
-from backend.api.vendor_management import router as vendor_management_router
-from backend.api.feature_flags import router as feature_flags_router
-from backend.api.budget_tracking import router as budget_tracking_router
-from backend.api.license_management import router as license_management_router
-from backend.api.config_management import router as config_management_router
-from backend.api.certificate_management import router as certificate_management_router
-from backend.api.risk_register import router as risk_register_router
-from backend.api.slo_management import router as slo_management_router
-from backend.auth.routes import router as oauth_router
 from backend.core.runtime_control import RuntimeControl, get_runtime_control
-from backend.utils.discovery import router as discovery_router
 
 
 @dataclass(frozen=True)
 class RouterSpec:
     name: str
-    router: APIRouter
+    router: Optional[APIRouter] = None
+    module_path: Optional[str] = None
+    attr: str = "router"
     prefix: str = "/api/v1"
 
+    def __post_init__(self):
+        if self.router is None and not self.module_path:
+            raise ValueError(
+                f"RouterSpec('{self.name}') requires either a router instance or a module_path"
+            )
 
+    @classmethod
+    def lazy(cls, name: str, module_path: str, *, attr: str = "router", prefix: str = "/api/v1") -> "RouterSpec":
+        return cls(name=name, router=None, module_path=module_path, attr=attr, prefix=prefix)
+
+    def load(self) -> APIRouter:
+        """Return the router instance, importing lazily if needed."""
+        if self.router is not None:
+            return self.router
+        module = importlib.import_module(self.module_path)  # type: ignore[arg-type]
+        router = getattr(module, self.attr, None)
+        if router is None:
+            raise AttributeError(
+                f"Module '{self.module_path}' has no attribute '{self.attr}' for RouterSpec('{self.name}')"
+            )
+        return router
+
+
+# Production registry. Listed lazily so that a disabled router (per runtime
+# profile) never triggers its import. The tuple length and ordering are stable
+# so that snapshot-style tests over ``API_ROUTER_SPECS`` keep passing.
 API_ROUTER_SPECS: tuple[RouterSpec, ...] = (
-    RouterSpec("core", core_router),
-    RouterSpec("oauth", oauth_router),
-    RouterSpec("runtime_control", runtime_control_router),
-    RouterSpec("ai_gateway", ai_gateway_router),
-    RouterSpec("integrations", integrations_router),
-    RouterSpec("enterprise_refinement", enterprise_refinement_router),
-    RouterSpec("enterprise_governance", enterprise_governance_router),
-    RouterSpec("absolute_enterprise_governance", absolute_enterprise_governance_router),
-    RouterSpec("rules", rules_router),
-    RouterSpec("export", export_router),
-    RouterSpec("ocr", ocr_router),
-    RouterSpec("workflows", workflows_router),
-    RouterSpec("events", event_bus_router),
-    RouterSpec("human_approval", human_approval_router),
-    RouterSpec("intelligence", intelligence_router),
-    RouterSpec("telemetry", telemetry_router),
-    RouterSpec("agents", agents_router),
-    RouterSpec("reconciler", reconciler_router),
-    RouterSpec("workflow_scheduler", workflow_scheduler_router),
-    RouterSpec("health", health_router),
-    RouterSpec("session", session_router),
-    RouterSpec("scheduler", scheduler_router),
-    RouterSpec("port", port_router),
-    RouterSpec("connection", connection_router),
-    RouterSpec("discovery", discovery_router),
-    RouterSpec("learning", learning_router),
-    RouterSpec("system", system_router),
-    RouterSpec("tally", tally_router),
-    RouterSpec("frontend_runtime", frontend_runtime_router),
-    RouterSpec("security", security_router),
-    RouterSpec("ai_enterprise", ai_enterprise_router),
-    RouterSpec("production95", production95_router),
-    RouterSpec("enterprise_accounts", enterprise_accounts_router),
-    RouterSpec("enterprise_analysis", enterprise_analysis_router),
-    RouterSpec("enterprise_templates", enterprise_templates_router),
-    RouterSpec("enterprise_reports", enterprise_reports_router),
-    RouterSpec("enterprise_admin", enterprise_admin_router),
-    RouterSpec("enterprise_updates", enterprise_updates_router),
-    RouterSpec("enterprise_operations", enterprise_operations_router),
-    RouterSpec("threat_intelligence", threat_intelligence_router),
-    RouterSpec("ws_alerts", ws_alerts_router),
-    RouterSpec("ai_assistant", ai_assistant_router),
-    RouterSpec("webhooks", webhooks_router),
-    RouterSpec("alert_rules", alert_rules_router),
-    RouterSpec("notifications", notifications_router),
-    RouterSpec("metric_snapshots", metric_snapshots_router),
-    RouterSpec("audit_log", audit_log_router),
-    RouterSpec("incidents", incidents_router),
-    RouterSpec("scheduled_reports", scheduled_reports_router),
-    RouterSpec("playbooks", playbooks_router),
-    RouterSpec("sla", sla_router),
-    RouterSpec("maintenance", maintenance_router),
-    RouterSpec("api_keys", api_keys_router),
-    RouterSpec("oncall", oncall_router),
-    RouterSpec("runbooks", runbooks_router),
-    RouterSpec("change_management", change_management_router),
-    RouterSpec("problem_management", problem_management_router),
-    RouterSpec("service_catalog", service_catalog_router),
-    RouterSpec("deployments", deployments_router),
-    RouterSpec("asset_management", asset_management_router),
-    RouterSpec("knowledge_base", knowledge_base_router),
-    RouterSpec("capacity_planning", capacity_planning_router),
-    RouterSpec("vendor_management", vendor_management_router),
-    RouterSpec("feature_flags", feature_flags_router),
-    RouterSpec("budget_tracking", budget_tracking_router),
-    RouterSpec("license_management", license_management_router),
-    RouterSpec("config_management", config_management_router),
-    RouterSpec("certificate_management", certificate_management_router),
-    RouterSpec("risk_register", risk_register_router),
-    RouterSpec("slo_management", slo_management_router),
+    RouterSpec.lazy("core", "backend.api.routes"),
+    RouterSpec.lazy("oauth", "backend.auth.routes"),
+    RouterSpec.lazy("runtime_control", "backend.api.runtime_control"),
+    RouterSpec.lazy("ai_gateway", "backend.api.ai_gateway"),
+    RouterSpec.lazy("integrations", "backend.api.integrations"),
+    RouterSpec.lazy("enterprise_refinement", "backend.api.enterprise_refinement"),
+    RouterSpec.lazy("enterprise_governance", "backend.api.enterprise_governance"),
+    RouterSpec.lazy("absolute_enterprise_governance", "backend.api.absolute_enterprise_governance"),
+    RouterSpec.lazy("rules", "backend.api.rules"),
+    RouterSpec.lazy("export", "backend.api.export"),
+    RouterSpec.lazy("ocr", "backend.api.ocr"),
+    RouterSpec.lazy("workflows", "backend.api.workflows"),
+    RouterSpec.lazy("events", "backend.api.event_bus"),
+    RouterSpec.lazy("human_approval", "backend.api.human_approval"),
+    RouterSpec.lazy("intelligence", "backend.api.operational_intelligence"),
+    RouterSpec.lazy("telemetry", "backend.api.platform_telemetry"),
+    RouterSpec.lazy("agents", "backend.api.agents"),
+    RouterSpec.lazy("reconciler", "backend.api.reconciler"),
+    RouterSpec.lazy("workflow_scheduler", "backend.api.workflow_scheduler"),
+    RouterSpec.lazy("health", "backend.api.health"),
+    RouterSpec.lazy("session", "backend.api.session"),
+    RouterSpec.lazy("scheduler", "backend.api.scheduler"),
+    RouterSpec.lazy("port", "backend.api.port"),
+    RouterSpec.lazy("connection", "backend.api.connection"),
+    RouterSpec.lazy("discovery", "backend.utils.discovery"),
+    RouterSpec.lazy("learning", "backend.api.learning"),
+    RouterSpec.lazy("system", "backend.api.system"),
+    RouterSpec.lazy("tally", "backend.api.tally"),
+    RouterSpec.lazy("frontend_runtime", "backend.api.frontend_runtime"),
+    RouterSpec.lazy("security", "backend.api.security"),
+    RouterSpec.lazy("ai_enterprise", "backend.api.ai_enterprise"),
+    RouterSpec.lazy("production95", "backend.api.production95"),
+    RouterSpec.lazy("enterprise_accounts", "backend.api.enterprise_accounts"),
+    RouterSpec.lazy("enterprise_analysis", "backend.api.enterprise_analysis"),
+    RouterSpec.lazy("enterprise_templates", "backend.api.enterprise_templates"),
+    RouterSpec.lazy("enterprise_reports", "backend.api.enterprise_reports"),
+    RouterSpec.lazy("enterprise_admin", "backend.api.enterprise_admin"),
+    RouterSpec.lazy("enterprise_updates", "backend.api.enterprise_updates"),
+    RouterSpec.lazy("enterprise_operations", "backend.api.enterprise_operations"),
+    RouterSpec.lazy("threat_intelligence", "backend.api.threat_intelligence"),
+    RouterSpec.lazy("ws_alerts", "backend.api.ws_alerts"),
+    RouterSpec.lazy("ai_assistant", "backend.api.ai_assistant"),
+    RouterSpec.lazy("webhooks", "backend.api.webhooks"),
+    RouterSpec.lazy("alert_rules", "backend.api.alert_rules"),
+    RouterSpec.lazy("notifications", "backend.api.notifications"),
+    RouterSpec.lazy("metric_snapshots", "backend.api.metric_snapshots"),
+    RouterSpec.lazy("audit_log", "backend.api.audit_log"),
+    RouterSpec.lazy("incidents", "backend.api.incidents"),
+    RouterSpec.lazy("scheduled_reports", "backend.api.scheduled_reports"),
+    RouterSpec.lazy("playbooks", "backend.api.playbooks"),
+    RouterSpec.lazy("sla", "backend.api.sla"),
+    RouterSpec.lazy("maintenance", "backend.api.maintenance"),
+    RouterSpec.lazy("api_keys", "backend.api.api_keys"),
+    RouterSpec.lazy("oncall", "backend.api.oncall"),
+    RouterSpec.lazy("runbooks", "backend.api.runbooks"),
+    RouterSpec.lazy("change_management", "backend.api.change_management"),
+    RouterSpec.lazy("problem_management", "backend.api.problem_management"),
+    RouterSpec.lazy("service_catalog", "backend.api.service_catalog"),
+    RouterSpec.lazy("deployments", "backend.api.deployments"),
+    RouterSpec.lazy("asset_management", "backend.api.asset_management"),
+    RouterSpec.lazy("knowledge_base", "backend.api.knowledge_base"),
+    RouterSpec.lazy("capacity_planning", "backend.api.capacity_planning"),
+    RouterSpec.lazy("vendor_management", "backend.api.vendor_management"),
+    RouterSpec.lazy("feature_flags", "backend.api.feature_flags"),
+    RouterSpec.lazy("budget_tracking", "backend.api.budget_tracking"),
+    RouterSpec.lazy("license_management", "backend.api.license_management"),
+    RouterSpec.lazy("config_management", "backend.api.config_management"),
+    RouterSpec.lazy("certificate_management", "backend.api.certificate_management"),
+    RouterSpec.lazy("risk_register", "backend.api.risk_register"),
+    RouterSpec.lazy("slo_management", "backend.api.slo_management"),
 )
 
 
-def register_api_routers(app: FastAPI, specs: Iterable[RouterSpec] = API_ROUTER_SPECS,
-                         runtime: RuntimeControl | None = None) -> None:
+def register_api_routers(
+    app: FastAPI,
+    specs: Iterable[RouterSpec] = API_ROUTER_SPECS,
+    runtime: RuntimeControl | None = None,
+) -> None:
     runtime = runtime or get_runtime_control()
     for spec in specs:
         if not runtime.is_router_enabled(spec.name):
             continue
-        app.include_router(spec.router, prefix=spec.prefix)
+        app.include_router(spec.load(), prefix=spec.prefix)
 
 
 __all__ = ["API_ROUTER_SPECS", "RouterSpec", "register_api_routers"]

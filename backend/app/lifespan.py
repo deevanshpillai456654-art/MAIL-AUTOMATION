@@ -124,6 +124,12 @@ def create_lifespan(project_root: Path, logger: logging.Logger | None = None):
             bus = get_event_bus()
             bus.subscribe("threat.detected",  _on_threat_detected)
             bus.subscribe("email.received",    _on_email_received)
+            # Record subscriptions so shutdown can drop them (prevents closure
+            # leak if the bus is restarted in-process — e.g. test fixtures).
+            app.state.event_bus_subscriptions = [
+                ("threat.detected", _on_threat_detected),
+                ("email.received", _on_email_received),
+            ]
             app_logger.info("Event-driven workflow activation subscriptions registered")
         except Exception as e:
             app_logger.warning("Event-driven workflow activation setup failed: %s", e)
@@ -177,7 +183,13 @@ def create_lifespan(project_root: Path, logger: logging.Logger | None = None):
 
         try:
             from backend.api.event_bus import get_event_bus
-            await get_event_bus().stop()
+            bus = get_event_bus()
+            for event_type, callback in getattr(app.state, "event_bus_subscriptions", []) or []:
+                try:
+                    bus.unsubscribe(event_type, callback)
+                except Exception:
+                    pass
+            await bus.stop()
         except Exception as e:
             app_logger.warning("Event bus shutdown failed: %s", e)
 

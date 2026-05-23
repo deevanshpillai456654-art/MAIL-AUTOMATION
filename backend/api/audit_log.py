@@ -1,10 +1,23 @@
 """
-Audit Log
-=========
+Audit Log (operational)
+=======================
 Universal, tamper-evident audit trail of all significant platform events.
 Subscribes to the event bus wildcard ("*") and persists every event as an
 audit entry.  Internal callers can also write entries directly via
 write_audit_entry() — useful for admin actions that don't go through the bus.
+
+NOTE — there are two "audit" modules in this repo with different roles:
+
+* THIS module (``backend.api.audit_log``) is the **operational audit log**:
+  durable SQLite store, paginated router for compliance and admin views,
+  90-day retention. Used for compliance evidence and operations review.
+
+* ``backend.security.audit`` is the **security event buffer**: fast in-memory
+  ring of middleware security events (origin violation, signing failure)
+  with an optional JSONL sink for SOC/forensic consumption.
+
+They are intentionally separate: this one is durable/queryable, the other
+is fast/local.
 
 Retention: 90 days, max 10 000 entries (oldest trimmed beyond the cap).
 
@@ -85,7 +98,8 @@ def _init_db() -> None:
 
 
 def _conn() -> sqlite3.Connection:
-    return sqlite3.connect(_DB_PATH, timeout=10)
+    from backend.utils.sqlite_connection_guard import connect_with_defaults
+    return connect_with_defaults(_DB_PATH)
 
 
 def _now() -> str:

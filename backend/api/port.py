@@ -23,7 +23,7 @@ port_manager = PortManager()
 class PortConfig(BaseModel):
     preferred_port: Optional[int] = 4597
     port_range_min: Optional[int] = 4597
-    port_range_max: Optional[int] = 4600
+    port_range_max: Optional[int] = 4610
 
 
 class PortResponse(BaseModel):
@@ -85,7 +85,7 @@ async def get_port_config():
 @router.post("/port/config")
 async def set_port_config(config: PortConfig):
     port_manager.preferred_port = config.preferred_port or 4597
-    port_manager.port_range = (config.port_range_min or 4597, config.port_range_max or 4600)
+    port_manager.port_range = (config.port_range_min or 4597, config.port_range_max or 4610)
 
     return {
         "status": "success",

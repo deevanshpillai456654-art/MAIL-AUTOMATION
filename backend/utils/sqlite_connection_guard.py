@@ -83,4 +83,36 @@ def tracked_connection_count() -> int:
         return len(_CONNECTIONS)
 
 
+def connect_with_defaults(database: Any, *, timeout: float = 10.0) -> sqlite3.Connection:
+    """Open a tracked sqlite connection with the project's standard PRAGMAs applied.
+
+    Pulls PRAGMAs from ``backend.config.DB_PRAGMAS`` so every site stays in
+    sync without redeclaring journal_mode/synchronous/busy_timeout/foreign_keys.
+    Falls back to safe defaults if the config module is unavailable (e.g. very
+    early bootstrap before config has been imported).
+    """
+    conn = sqlite3.connect(database, timeout=timeout, check_same_thread=False)
+    try:
+        try:
+            from backend import config as _config
+            pragmas = dict(getattr(_config, "DB_PRAGMAS", {}) or {})
+        except Exception:
+            pragmas = {
+                "journal_mode": "WAL",
+                "synchronous": "NORMAL",
+                "busy_timeout": "30000",
+                "foreign_keys": "ON",
+            }
+        for key, value in pragmas.items():
+            try:
+                conn.execute(f"PRAGMA {key}={value}")
+            except sqlite3.DatabaseError:
+                # PRAGMA may be rejected on a fresh DB; not fatal.
+                pass
+    except Exception:
+        # Never let PRAGMA setup leak — caller still gets a usable connection.
+        pass
+    return conn
+
+
 atexit.register(close_all_tracked_connections)

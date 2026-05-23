@@ -74,6 +74,12 @@ def _copy_tree_missing(src: Path, dst: Path) -> None:
 def _migrate_legacy_runtime_data(data_dir: Path, log_dir: Path, model_dir: Path) -> None:
     if _is_truthy(os.environ.get("AIO_DISABLE_DATA_MIGRATION")):
         return
+    # One-shot migration: a sentinel file in data_dir records that the legacy
+    # scan has run successfully. Every subsequent boot skips the ~15 Path.exists
+    # checks across stale legacy layouts (local-service/, service/, backend/data/...).
+    sentinel = data_dir / ".legacy_migration_done"
+    if sentinel.exists():
+        return
     app = _app_dir()
     service_dir = app / "backend"
     legacy_roots = []
@@ -105,6 +111,11 @@ def _migrate_legacy_runtime_data(data_dir: Path, log_dir: Path, model_dir: Path)
         if legacy_model.exists():
             _copy_tree_missing(legacy_model, model_dir)
             break
+    try:
+        sentinel.write_text("ok\n", encoding="utf-8")
+    except OSError:
+        # Non-fatal: future boots will retry the migration.
+        pass
 
 
 def _get_int_env(name: str, default: int, minimum: int = None, maximum: int = None) -> int:
@@ -206,8 +217,11 @@ EMAIL_PROVIDERS = [
 
 # ── Port management ───────────────────────────────────────────────────────────
 
+# Widened fallback window: prior 4597-4600 (4 ports) made conflicts likely on
+# developer machines running multiple INTEMO instances or with other services
+# already on 4597/4598/4599/4600.
 PORT_RANGE_MIN = 4597
-PORT_RANGE_MAX = 4600
+PORT_RANGE_MAX = 4610
 
 # ── Security ──────────────────────────────────────────────────────────────────
 

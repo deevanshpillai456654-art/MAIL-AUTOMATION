@@ -113,7 +113,8 @@ _init_db()
 
 
 def _conn() -> sqlite3.Connection:
-    return sqlite3.connect(_DB_PATH, timeout=10)
+    from backend.utils.sqlite_connection_guard import connect_with_defaults
+    return connect_with_defaults(_DB_PATH)
 
 
 def _now() -> str:

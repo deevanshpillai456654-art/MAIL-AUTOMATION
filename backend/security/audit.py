@@ -1,4 +1,20 @@
-"""Structured security audit buffer and optional JSONL sink."""
+"""Structured security audit buffer and optional JSONL sink.
+
+NOTE — there are two "audit" modules in this repo with different roles:
+
+* THIS module (``backend.security.audit``) records **security events**
+  (origin-validation rejections, request-signing failures, blocked referers,
+  rate-limit warnings). Bounded in-memory ring buffer (500 entries by default)
+  with an optional JSONL sink for SOC/forensic consumption. Called via
+  ``record_security_event(...)`` from the middleware stack.
+
+* ``backend.api.audit_log`` is the **operational audit log** — a
+  persistent SQLite store that subscribes to the event bus and serves a
+  paginated/filterable router for compliance and admin views.
+
+They are intentionally separate: security buffer is fast/local/SOC-oriented,
+operational audit log is durable/queryable/compliance-oriented.
+"""
 from __future__ import annotations
 
 import json

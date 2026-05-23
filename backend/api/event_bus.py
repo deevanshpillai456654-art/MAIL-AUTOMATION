@@ -183,6 +183,19 @@ class OperationalEventBus:
         """Register an in-process callback. Use '*' to receive all events."""
         self._subscribers.setdefault(event_type, []).append(callback)
 
+    def unsubscribe(self, event_type: str, callback: Callable) -> bool:
+        """Remove a previously-registered callback. Returns True if removed."""
+        subs = self._subscribers.get(event_type)
+        if not subs:
+            return False
+        try:
+            subs.remove(callback)
+        except ValueError:
+            return False
+        if not subs:
+            self._subscribers.pop(event_type, None)
+        return True
+
     async def publish(
         self,
         event_type: str,
