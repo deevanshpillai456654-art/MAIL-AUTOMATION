@@ -2713,3 +2713,33 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadInstalled();
   setInterval(loadDashboard, 30000);
 });
+
+// ── Functions moved from inline <script> in index.html so the page can run
+//    under a strict CSP (script-src 'self' nonce-...). Each function is
+//    referenced by an inline event handler (onclick / onchange / oninput) in
+//    index.html and must remain on the global window for those calls to
+//    resolve. The inline-handler migration to data-action delegation is a
+//    follow-up task; for now this extraction alone is a no-op refactor.
+function showTab(btn, tabId) {
+  btn.closest('.section').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  btn.closest('.section').querySelectorAll('[id^="tab"]').forEach(t => t.classList.add('hidden'));
+  const el = document.getElementById(tabId);
+  if (el) el.classList.remove('hidden');
+}
+function filterInstalledTable(q) {
+  document.querySelectorAll('#installedTbody tr').forEach(tr => {
+    const show = !q || tr.textContent.toLowerCase().includes(q.toLowerCase());
+    tr.classList.toggle('hidden', !show);
+  });
+}
+function filterEventType(type) { document.getElementById('pubEventType').value = type; }
+async function publishEvent() {
+  const type = document.getElementById('pubEventType')?.value?.trim();
+  let payload = {};
+  try { payload = JSON.parse(document.getElementById('pubEventPayload')?.value || '{}'); } catch {}
+  if (!type) { toast('Event type required', 'error'); return; }
+  const res = await apiFetch('/events/publish', { method:'POST', body:JSON.stringify({ event_type:type, source_connector_id:'admin', tenant_id:_tenantId, payload }) });
+  if (res.ok) toast(`Event "${type}" published`, 'success');
+  else toast('Publish failed: ' + res.error, 'error');
+}

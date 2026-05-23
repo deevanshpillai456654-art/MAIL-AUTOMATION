@@ -666,31 +666,6 @@
 
 <div class="toast-container" id="toastContainer"></div>
 
-<script>
-function showTab(btn, tabId) {
-  btn.closest('.section').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  btn.closest('.section').querySelectorAll('[id^="tab"]').forEach(t => t.classList.add('hidden'));
-  const el = document.getElementById(tabId);
-  if (el) el.classList.remove('hidden');
-}
-function filterInstalledTable(q) {
-  document.querySelectorAll('#installedTbody tr').forEach(tr => {
-    const show = !q || tr.textContent.toLowerCase().includes(q.toLowerCase());
-    tr.classList.toggle('hidden', !show);
-  });
-}
-function filterEventType(type) { document.getElementById('pubEventType').value = type; }
-async function publishEvent() {
-  const type = document.getElementById('pubEventType')?.value?.trim();
-  let payload = {};
-  try { payload = JSON.parse(document.getElementById('pubEventPayload')?.value || '{}'); } catch {}
-  if (!type) { toast('Event type required', 'error'); return; }
-  const res = await apiFetch('/events/publish', { method:'POST', body:JSON.stringify({ event_type:type, source_connector_id:'admin', tenant_id:_tenantId, payload }) });
-  if (res.ok) toast(`Event "${type}" published`, 'success');
-  else toast('Publish failed: ' + res.error, 'error');
-}
-</script>
 <script src="/connectors-panel/app.js"></script>
 </body>
 </html>

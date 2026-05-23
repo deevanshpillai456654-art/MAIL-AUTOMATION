@@ -185,7 +185,6 @@ The `/platform` layer provides connector/plugin foundations without rewriting th
 ├── backend/                  # FastAPI app, auth, sync, AI, rules, security, storage, realtime, dashboard
 ├── frontend/                 # Frontend component/design/theme/layout foundations
 ├── extensions/               # Chrome, Edge, Brave, Firefox, Opera, Safari extension sources
-├── gmail-extension/          # Gmail extension files
 ├── outlook-addin/            # Outlook add-in files
 ├── desktop/electron/         # Electron desktop wrapper
 ├── platform/                 # Connector/plugin/logistics operations layer
@@ -349,15 +348,21 @@ If the app is being prepared for a public GitHub repo, do a secret scan before t
 
 ## Validation and QA files included in the package
 
-The ZIP includes these QA/validation documents:
+The ZIP includes these QA/validation documents under `docs/audits/` (auto-generated files
+are written there by `scripts/validate_ai36_production_cleanup.py`):
 
-- `AI36_FRONTEND_FIX_VALIDATION_REPORT.md`
-- `AI36_FRONTEND_WARNING_FIX_REPORT.md`
-- `AI36_MISSING_FILE_REPORT.md`
-- `AI36_PACKAGE_MANIFEST.json`
-- `ASSISTANT_ARCHITECTURE_REPORT.md`
-- `SCALABILITY_REPORT.md`
-- `SECURITY_HARDENING_REPORT.md`
+- `docs/audits/AI36_FRONTEND_FIX_VALIDATION_REPORT.md` (auto-generated)
+- `docs/audits/AI36_FRONTEND_WARNING_FIX_REPORT.md`
+- `docs/audits/AI36_MISSING_FILE_REPORT.md`
+- `docs/audits/AI36_PACKAGE_MANIFEST.json`
+- `docs/audits/sbom.json` (point-in-time component snapshot)
+- `docs/audits/dependency-manifest.json`
+- `docs/audits/runtime-manifest.json`
+- `docs/audits/ASSISTANT_ARCHITECTURE_REPORT.md`
+- `docs/audits/SCALABILITY_REPORT.md`
+- `docs/audits/SECURITY_HARDENING_REPORT.md`
+- `docs/audits/ENTERPRISE_OPERATIONS_HARDENING_REPORT.md`
+- `docs/audits/AI36_PENDING_WORKLIST.md`
 
 Use those files as internal evidence and release-check documents. Re-run tests on the target machine before publishing a production release.
 
