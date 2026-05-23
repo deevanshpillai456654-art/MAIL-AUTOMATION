@@ -106,13 +106,25 @@ def request_has_valid_local_auth(request: Request) -> bool:
     )
 
 
+def _cookie_secure_flag() -> bool:
+    """Return True when the session cookie should be marked Secure.
+
+    Defaults to False because the local-first desktop service binds to
+    127.0.0.1 with no HTTPS. Any deployment fronted by HTTPS (reverse
+    proxy / cloud surface) should set AIO_COOKIE_SECURE=1 so the cookie
+    is only ever transmitted over TLS.
+    """
+    raw = os.environ.get("AIO_COOKIE_SECURE", "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
 def set_local_session_cookie(response: Response) -> None:
     """Issue an HttpOnly same-origin browser session for the local API."""
     response.set_cookie(
         LOCAL_SESSION_COOKIE,
         get_local_token(),
         httponly=True,
-        secure=False,
+        secure=_cookie_secure_flag(),
         samesite="strict",
         path="/",
     )
