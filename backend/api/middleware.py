@@ -96,6 +96,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     """
 
     _SWEEP_INTERVAL = 300
+    # Hard cap on bucket dict size — guards against unbounded memory growth
+    # between sweeps if a botnet hits the API from many distinct source IPs.
+    _MAX_BUCKETS = 10_000
 
     def __init__(self, app, max_requests: int = 100, window_seconds: int = 60):
         super().__init__(app)
@@ -110,6 +113,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         for ip in idle:
             del self._buckets[ip]
         self._last_sweep = now
+
+    def _evict_oldest_if_over_cap(self) -> None:
+        # Force-evict the bucket whose newest sample is oldest. Cheap O(n) scan;
+        # only runs in the rare case of an attack-shaped IP fan-out.
+        if len(self._buckets) < self._MAX_BUCKETS:
+            return
+        oldest_ip = None
+        oldest_ts = float("inf")
+        for ip, dq in self._buckets.items():
+            ts = dq[-1] if dq else 0.0
+            if ts < oldest_ts:
+                oldest_ts = ts
+                oldest_ip = ip
+        if oldest_ip is not None:
+            del self._buckets[oldest_ip]
 
     @staticmethod
     def _resolve_client_ip(request: Request) -> str:
@@ -138,6 +156,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             self._sweep(now)
 
         if client_ip not in self._buckets:
+            self._evict_oldest_if_over_cap()
             self._buckets[client_ip] = deque()
         bucket = self._buckets[client_ip]
 
@@ -160,9 +179,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-# Paths served by static file mounts that contain inline scripts — keep unsafe-inline
-# for these so the SPA continues to work while server-rendered pages use nonces.
-_STATIC_SPA_PREFIXES = ("/connectors-panel", "/dashboard", "/outlook", "/icons")
+# Paths served by static file mounts that STILL contain inline scripts — keep
+# 'unsafe-inline' for these only. The main /dashboard SPA and /outlook taskpane
+# were cleaned in W9 and now run under the strict nonce-based CSP.
+# /icons is static images (no JS context), but harmless to keep on the list.
+_STATIC_SPA_PREFIXES = ("/connectors-panel", "/icons")
 
 # Paths that are intentionally embedded as iframes by same-origin pages.
 # These must NOT receive X-Frame-Options: DENY or frame-ancestors 'none'.
@@ -278,70 +299,30 @@ class OriginValidationMiddleware(BaseHTTPMiddleware):
 
 
 class LocalAPIAuthMiddleware(BaseHTTPMiddleware):
-    """Require the local API credential for sensitive local-control surfaces."""
+    """Require the local API credential for sensitive local-control surfaces.
 
-    PROTECTED_PREFIXES = (
-        "/api/v1/accounts",
-        "/api/v1/admin",
-        "/api/v1/ai",
-        "/api/v1/analysis",
-        "/api/v1/api-keys",
-        "/api/v1/assistant",
-        "/api/v1/auth",
-        "/api/v1/cache",
-        "/api/v1/categories",
-        "/api/v1/classify",
-        "/api/v1/crm",
-        "/api/v1/data",
-        "/api/v1/discovery",
-        "/api/v1/email",
-        "/api/v1/emails",
-        "/api/v1/enterprise",
-        "/api/v1/events",
-        "/api/v1/extension",
-        "/api/v1/export",
-        "/api/v1/feedback",
-        "/api/v1/governance",
-        "/api/v1/health/",
-        "/api/v1/import",
-        "/api/v1/inbox",
-        "/api/v1/learning",
-        "/api/v1/mailbox",
-        "/api/v1/metrics",
-        "/api/v1/notifications",
-        "/api/v1/ocr",
-        "/api/v1/operations",
-        "/api/v1/orchestrator",
-        "/api/v1/port",
-        "/api/v1/production",
-        "/api/v1/provider-config",
-        "/api/v1/providers",
-        "/api/v1/queue",
-        "/api/v1/readiness",
-        "/api/v1/reports",
-        "/api/v1/rules",
-        "/api/v1/runtime",
-        "/api/v1/scheduled-reports",
-        "/api/v1/scheduler",
-        "/api/v1/scam-filter",
-        "/api/v1/search",
-        "/api/v1/security",
-        "/api/v1/settings",
-        "/api/v1/smart-views",
-        "/api/v1/stats",
-        "/api/v1/sync",
-        "/api/v1/system",
-        "/api/v1/tally",
-        "/api/v1/templates",
-        "/api/v1/threat",
-        "/api/v1/updates",
-        "/api/connector-panel",
+    Policy is DEFAULT-DENY within ``/api/v1/`` and ``/api/connector-panel/``:
+    any path under those prefixes requires the local API token unless it
+    appears in ``PUBLIC_EXACT_PATHS`` or matches one of ``PUBLIC_PREFIXES``.
+    Paths outside the API surface (``/dashboard``, ``/docs``, ``/setup``,
+    ``/favicon.ico``, ``/`` …) are unaffected.
+
+    Default-deny is defense in depth — individual routers ALSO use
+    ``Depends(require_local_auth)`` on their endpoints. The middleware catches
+    any router that forgets to add the dependency.
+    """
+
+    AUTH_SURFACE_PREFIXES = (
+        "/api/v1/",
+        "/api/connector-panel/",
     )
+
     PUBLIC_EXACT_PATHS = {
         "/api/v1/health",
         "/api/v1/session/bootstrap",
         "/api/connector-panel/session",
     }
+
     PUBLIC_PREFIXES = (
         "/api/v1/oauth/",
         "/api/v1/frontend/telemetry",
@@ -355,7 +336,7 @@ class LocalAPIAuthMiddleware(BaseHTTPMiddleware):
             return False
         if any(path.startswith(prefix) for prefix in self.PUBLIC_PREFIXES):
             return False
-        return any(path.startswith(prefix) for prefix in self.PROTECTED_PREFIXES)
+        return any(path.startswith(prefix) for prefix in self.AUTH_SURFACE_PREFIXES)
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         if not self._requires_auth(request.url.path):

@@ -39,11 +39,17 @@ def test_security_local_runtime_endpoint_and_setup_page_expose_check_flow(monkey
     client = TestClient(app)
     client.post("/api/v1/session/bootstrap", headers={"X-Local-Token": get_local_token()})
     response = client.get("/api/v1/security/local-runtime")
-    html = (Path(__file__).resolve().parents[1] / "backend" / "dashboard" / "setup.html").read_text(encoding="utf-8")
+    dashboard_dir = Path(__file__).resolve().parents[1] / "backend" / "dashboard"
+    html = (dashboard_dir / "setup.html").read_text(encoding="utf-8")
+    # Inline boot script was extracted to setup.js in W9 so the page can run
+    # under a strict nonce CSP without 'unsafe-inline'. The hardening UI markers
+    # remain in the HTML; the wiring code lives in the external script.
+    js = (dashboard_dir / "setup.js").read_text(encoding="utf-8")
 
     assert response.status_code == 200
     assert response.json()["local_only"]["passed"] is True
     assert "securityHardeningTag" in html
-    assert "loadHardeningStatus" in html
-    assert "/security/local-runtime" in html
-    assert "Windows Firewall" in html
+    assert '<script src="/dashboard/setup.js"></script>' in html
+    assert "loadHardeningStatus" in js
+    assert "/security/local-runtime" in js
+    assert "Windows Firewall" in js

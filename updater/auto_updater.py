@@ -238,17 +238,27 @@ class AutoUpdater:
         return ctx
 
     def _verify_manifest_signature(self, manifest: Dict) -> bool:
-        """Verify Ed25519 signature over manifest contents."""
-        if not _UPDATE_SIGNING_PUBKEY_B64:
-            self.log("Update signing key not configured — signature check skipped", "WARNING")
-            return True
+        """Verify Ed25519 signature over manifest contents.
+
+        Fail-closed: when the signing key is not configured we refuse every
+        update. Set _UPDATE_SIGNING_PUBKEY_B64 (or AIO_UPDATE_SIGNING_PUBKEY env
+        var) before shipping. Override for offline/internal builds with
+        AIO_UPDATE_ALLOW_UNSIGNED=1.
+        """
+        pubkey_b64 = _UPDATE_SIGNING_PUBKEY_B64 or os.environ.get("AIO_UPDATE_SIGNING_PUBKEY", "").strip() or None
+        if not pubkey_b64:
+            if os.environ.get("AIO_UPDATE_ALLOW_UNSIGNED") == "1":
+                self.log("Update signing key not configured AND AIO_UPDATE_ALLOW_UNSIGNED=1 — accepting unsigned manifest", "WARNING")
+                return True
+            self.log("Update signing key not configured — refusing update (set AIO_UPDATE_SIGNING_PUBKEY or AIO_UPDATE_ALLOW_UNSIGNED=1 for offline builds)", "ERROR")
+            return False
         sig_b64 = manifest.get("signature")
         if not sig_b64:
             self.log("Manifest missing 'signature' field — refusing update", "ERROR")
             return False
         try:
             from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-            pub_bytes = base64.b64decode(_UPDATE_SIGNING_PUBKEY_B64)
+            pub_bytes = base64.b64decode(pubkey_b64)
             pubkey = Ed25519PublicKey.from_public_bytes(pub_bytes)
             unsigned = {k: v for k, v in manifest.items() if k != "signature"}
             msg = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()

@@ -1,6 +1,6 @@
 """OAuth state validation and replay protection."""
 from __future__ import annotations
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 from backend.db.database import Database
 
@@ -14,7 +14,9 @@ class OAuthStateValidator:
             raise ValueError("OAuth state must be high entropy")
         if not redirect_uri.startswith("http://127.0.0.1") and not redirect_uri.startswith("http://localhost"):
             raise ValueError("OAuth redirect URI must be local for this desktop service")
-        expires_at = (datetime.now() + timedelta(seconds=ttl_seconds)).isoformat()
+        # UTC-aware: system clock changes / DST shouldn't shorten or extend the
+        # OAuth state TTL.
+        expires_at = (datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)).isoformat()
         return self.db.create_oauth_state(provider, state, code_verifier, redirect_uri, expires_at)
 
     def consume(self, provider: str, state: str) -> Optional[Dict]:
@@ -23,6 +25,7 @@ class OAuthStateValidator:
         return self.db.consume_oauth_state(provider, state)
 
     def cleanup(self) -> int:
-        before = len(self.db.fetch_all("SELECT id FROM oauth_states WHERE consumed_at IS NULL OR expires_at <= ?", (datetime.now().isoformat(),)))
+        cutoff = datetime.now(timezone.utc).isoformat()
+        before = len(self.db.fetch_all("SELECT id FROM oauth_states WHERE consumed_at IS NULL OR expires_at <= ?", (cutoff,)))
         self.db.cleanup_oauth_states()
         return before
