@@ -1,4 +1,4 @@
-﻿((function() {
+(function () {
   'use strict';
   if (window.__INTEMO_CONTENT_LOADED__) return;
   window.__INTEMO_CONTENT_LOADED__ = true;
@@ -399,6 +399,7 @@
     const data = rowData(row);
     if (!data) return;
 
+    // Wire domain hover (no await — just attaches event listeners)
     if (settings.analyzeDomains) {
       const senderEl = row.querySelector(
         '.zF,.yW span[email],.sender,[data-sender],[class*="personName"],[class*="sender"]'
@@ -485,4 +486,4 @@
   });
 
   schedule();
-}))();
+})();

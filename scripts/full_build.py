@@ -184,19 +184,7 @@ class FullBuildSystem:
     def copy_extensions(self):
         """Copy browser extensions"""
         print("\n[7/15] Packaging extensions...")
-        
-        gmail_src = self.project_root / "gmail-extension"
-        gmail_dst = self.build_dir / "extensions" / "gmail"
-        
-        if gmail_src.exists():
-            for item in gmail_src.rglob("*"):
-                if item.is_file():
-                    rel = item.relative_to(gmail_src)
-                    dest_file = gmail_dst / rel
-                    dest_file.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(item, dest_file)
-            print(f"    OK: Gmail extension packaged")
-        
+
         outlook_src = self.project_root / "outlook-addin"
         outlook_dst = self.build_dir / "extensions" / "outlook"
         

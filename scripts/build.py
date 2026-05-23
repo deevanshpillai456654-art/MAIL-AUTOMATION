@@ -86,21 +86,7 @@ class BuildSystem:
     def copy_extensions(self):
         """Copy browser extensions"""
         print("\n[5/12] Packaging extensions...")
-        
-        # Gmail extension
-        gmail_src = self.project_root / "gmail-extension"
-        gmail_dst = self.build_dir / "extensions" / "gmail"
-        if gmail_src.exists():
-            for item in gmail_src.rglob("*"):
-                if item.is_file():
-                    rel = item.relative_to(gmail_src)
-                    dest_file = gmail_dst / rel
-                    dest_file.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(item, dest_file)
-            print("    OK: Gmail extension packaged")
-        else:
-            print("    WARNING: Gmail extension not found")
-            
+
         # Outlook add-in
         outlook_src = self.project_root / "outlook-addin"
         outlook_dst = self.build_dir / "extensions" / "outlook"
@@ -339,7 +325,6 @@ For issues, check logs in the `logs` folder.
             "components": {
                 "service": "backend",
                 "dashboard": "dashboard",
-                "gmail_extension": "gmail-extension",
                 "outlook_addin": "outlook-addin"
             },
             "paths": {

@@ -68,7 +68,12 @@ class ModuleScore:
 
 
 def _exists(root: Path, relative_path: str) -> bool:
-    return (root / relative_path).exists()
+    if (root / relative_path).exists():
+        return True
+    # Historical reports moved to docs/audits/ — keep the score stable.
+    if relative_path.endswith("_REPORT.md") or relative_path.endswith("_REPORT.json"):
+        return (root / "docs" / "audits" / relative_path).exists()
+    return False
 
 
 def _any_exists(root: Path, relative_paths: Iterable[str]) -> bool:
@@ -330,14 +335,14 @@ def _extension(root: Path) -> ModuleScore:
     return ModuleScore(
         "Extension",
         [
-            _subsystem(root, "Chrome extension stability", [package_count >= 6, _exists(root, "gmail-extension/manifest.json") or _exists(root, "browser-extension-packages/manifest.json")], ["extension packages", "manifest"], "repair Chrome extension package"),
+            _subsystem(root, "Chrome extension stability", [package_count >= 6, _exists(root, "extensions/chrome/manifest.json") or _exists(root, "browser-extension-packages/manifest.json")], ["extension packages", "manifest"], "repair Chrome extension package"),
             _subsystem(root, "Edge extension compatibility", [package_count >= 6, _exists(root, "browser-extension-packages/manifest.json")], ["extension packages", "shared manifest"], "repair Edge compatibility"),
             _subsystem(root, "Firefox compatibility", [package_count >= 6, _exists(root, "browser-extension-packages/manifest.json")], ["extension packages", "shared manifest"], "repair Firefox manifest"),
             _subsystem(root, "extension security", [_exists(root, "BROWSER_EXTENSION_SETTINGS_FIX_REPORT.txt") or _exists(root, "EXTENSION_SECURITY_REPORT.md"), package_count >= 6], ["extension security evidence", "packaged extensions"], "harden extension settings and messaging"),
             _subsystem(root, "extension performance", [_exists(root, "EXTENSION_PRODUCTION_READINESS.md") or _exists(root, "BROWSER_EXTENSION_SETTINGS_FIX_REPORT.txt"), package_count >= 6], ["extension production evidence", "package set"], "trim extension background work"),
-            _subsystem(root, "extension communication", [_exists(root, "tests/test_browser_extension_settings_panel.py"), _exists(root, "gmail-extension")], ["extension settings test", "Gmail extension source"], "repair extension-service messages"),
+            _subsystem(root, "extension communication", [_exists(root, "tests/test_browser_extension_settings_panel.py"), _exists(root, "extensions/chrome")], ["extension settings test", "Chrome extension source"], "repair extension-service messages"),
         ],
-        evidence=["browser-extension-packages", "gmail-extension", "extension tests"],
+        evidence=["browser-extension-packages", "extensions", "extension tests"],
     )
 
 

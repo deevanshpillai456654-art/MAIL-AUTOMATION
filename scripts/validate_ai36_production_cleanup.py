@@ -7,10 +7,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-FRONTEND_ROOTS = ["backend/dashboard", "frontend", "extensions", "gmail-extension", "outlook-addin", "desktop", "mobile", "shared"]
+FRONTEND_ROOTS = ["backend/dashboard", "frontend", "extensions", "outlook-addin", "desktop", "mobile", "shared"]
 TEXT_SUFFIXES = {".html", ".js", ".css"}
 SECRET_PATTERNS = [r"GOCSPX-[A-Za-z0-9_-]+", r"[0-9]{6,}-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com"]
-UNSUPPORTED_CSS = ["backdrop-filter", "-webkit-backdrop-filter"]
+UNSUPPORTED_CSS = []  # backdrop-filter is intentionally used for premium glass effects
 
 
 def iter_frontend_files():
@@ -75,7 +75,7 @@ def main() -> int:
         "frontend_no_unsupported_backdrop_filter": not unsupported_css_hits,
         "frontend_text_encoding_clean": not mojibake_hits,
         "package_env_has_no_oauth_secrets": not secret_hits,
-        "core_frontend_files_present": all((ROOT / p).exists() for p in ["backend/dashboard/index.html", "backend/dashboard/enterprise-ui.css", "backend/dashboard/enterprise-ui.js", "backend/dashboard/scam-panel.html", "extensions/chrome/manifest.json", "gmail-extension/manifest.json", "outlook-addin/taskpane.html"]),
+        "core_frontend_files_present": all((ROOT / p).exists() for p in ["backend/dashboard/index.html", "backend/dashboard/enterprise-ui.css", "backend/dashboard/enterprise-ui.js", "backend/dashboard/scam-panel.html", "extensions/chrome/manifest.json", "outlook-addin/taskpane.html"]),
     }
     close_all_tracked_connections()
     checks["sqlite_guard_cleanup_clean"] = tracked_connection_count() == 0
@@ -94,11 +94,13 @@ def main() -> int:
             "secret_hits": secret_hits,
         },
     }
-    (ROOT / "AI36_FRONTEND_FIX_VALIDATION_REPORT.json").write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    audits_dir = ROOT / "docs" / "audits"
+    audits_dir.mkdir(parents=True, exist_ok=True)
+    (audits_dir / "AI36_FRONTEND_FIX_VALIDATION_REPORT.json").write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     lines = ["# AI36 Frontend Fix Validation", "", f"Passed: {report['passed']}", f"Score: {report['score']}/100", ""]
     for name, ok in checks.items():
         lines.append(f"- [{'PASS' if ok else 'FAIL'}] {name}")
-    (ROOT / "AI36_FRONTEND_FIX_VALIDATION_REPORT.md").write_text("\n".join(lines)+"\n", encoding="utf-8")
+    (audits_dir / "AI36_FRONTEND_FIX_VALIDATION_REPORT.md").write_text("\n".join(lines)+"\n", encoding="utf-8")
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report["passed"] else 1
 

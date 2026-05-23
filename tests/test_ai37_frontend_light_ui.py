@@ -7,7 +7,6 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD = ROOT / "backend" / "dashboard"
-GMAIL_EXTENSION = ROOT / "gmail-extension"
 
 
 class _AssetReferenceParser(HTMLParser):
@@ -132,8 +131,6 @@ def test_named_frontend_pages_reference_existing_local_assets():
     for page in [
         DASHBOARD / "index.html",
         DASHBOARD / "scam-panel.html",
-        GMAIL_EXTENSION / "popup.html",
-        GMAIL_EXTENSION / "options.html",
     ]:
         parser = _AssetReferenceParser()
         parser.feed(page.read_text(encoding="utf-8"))
@@ -193,21 +190,6 @@ def test_scam_panel_uses_external_runtime_script():
     assert '<script src="/dashboard/scam-panel.js"></script>' in html
     assert (DASHBOARD / "scam-panel.js").is_file()
     assert "<script>\n'use strict';" not in html
-
-
-def test_gmail_stylesheet_has_no_unsupported_backdrop_filter():
-    css = (GMAIL_EXTENSION / "styles.css").read_text(encoding="utf-8")
-
-    assert "backdrop-filter" not in css
-    assert "-webkit-backdrop-filter" not in css
-
-
-def test_gmail_options_page_has_browser_api_fallback_for_local_preview():
-    js = (GMAIL_EXTENSION / "options.js").read_text(encoding="utf-8")
-
-    assert "fallbackExtensionStore" in js
-    assert "function browserApi()" in js
-    assert "globalThis.browser || globalThis.chrome || fallbackBrowserApi" in js
 
 
 def test_sidebar_logo_uses_clean_mark_with_text_tagline():

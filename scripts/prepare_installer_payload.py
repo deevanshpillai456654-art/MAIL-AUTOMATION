@@ -54,7 +54,6 @@ RUNTIME_DIRS = [
 COPY_MAP = [
     ("backend", "service"),
     ("dashboard", "dashboard"),
-    ("gmail-extension", "gmail-extension"),
     ("outlook-addin", "outlook-addin"),
     ("extensions", "extensions"),
     ("browser-extension-packages", "browser-extension-packages"),
@@ -321,7 +320,6 @@ def validate_payload() -> None:
         PAYLOAD / "service" / "requirements.txt",
         PAYLOAD / "service" / "run.py",
         PAYLOAD / "dashboard" / "index.html",
-        PAYLOAD / "gmail-extension" / "manifest.json",
         PAYLOAD / "outlook-addin" / "manifest.xml",
         PAYLOAD / "extensions" / "chrome" / "manifest.json",
         PAYLOAD / "start.bat",

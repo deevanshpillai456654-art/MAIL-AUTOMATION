@@ -19,7 +19,6 @@ EXTENSIONS = {
     "brave": ROOT / "extensions" / "brave",
     "opera": ROOT / "extensions" / "opera",
     "safari": ROOT / "extensions" / "safari",
-    "gmail-chrome": ROOT / "gmail-extension",
 }
 
 REQUIRED_MANIFEST_KEYS = {"manifest_version", "name", "version"}

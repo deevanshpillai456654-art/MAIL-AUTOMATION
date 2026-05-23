@@ -38,10 +38,8 @@ def create_simple_png(width, height, color_rgb):
 
 def main():
     base_path = os.path.dirname(os.path.dirname(__file__))
-    gmail_icons = os.path.join(base_path, "gmail-extension", "icons")
     outlook_icons = os.path.join(base_path, "outlook-addin", "icons")
 
-    os.makedirs(gmail_icons, exist_ok=True)
     os.makedirs(outlook_icons, exist_ok=True)
 
     color = (102, 126, 234)
@@ -50,11 +48,6 @@ def main():
 
     for size in sizes:
         png_data = create_simple_png(size, size, color)
-
-        gmail_path = os.path.join(gmail_icons, f"icon{size}.png")
-        with open(gmail_path, "wb") as f:
-            f.write(png_data)
-        print(f"Created: {gmail_path}")
 
         outlook_path = os.path.join(outlook_icons, f"icon{size}.png")
         with open(outlook_path, "wb") as f:

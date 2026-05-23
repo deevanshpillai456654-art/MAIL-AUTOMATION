@@ -54,8 +54,6 @@ def js_syntax() -> dict:
     candidates = [
         ROOT / "dashboard" / "production-readiness.js",
         ROOT / "dashboard" / "ai-command-center.js",
-        ROOT / "gmail-extension" / "background.js",
-        ROOT / "gmail-extension" / "popup.js",
         ROOT / "desktop" / "electron" / "main.js",
         ROOT / "desktop" / "electron" / "preload.js",
     ]
@@ -98,7 +96,7 @@ def main() -> int:
     phases.append(write_phase(5, "Frontend", [{"name": "dashboard_exists", "passed": (ROOT / "backend" / "dashboard" / "index.html").exists()}, js_syntax()]))
     phases.append(write_phase(6, "Backend API", [run_cmd("backend_import", [sys.executable, "-c", "from backend.main import app; print(app.title)"], 60)]))
     phases.append(write_phase(7, "Database Storage", [run_cmd("offline_first_run_db", [sys.executable, "-c", "import tempfile; from pathlib import Path; from backend.core.offline_first_run import initialize_offline_first_run; d=Path(tempfile.mkdtemp()); r=initialize_offline_first_run(d, Path.cwd()); assert (d/'data'/'emails.db').exists(); print(r['status'])"], 60)]))
-    phases.append(write_phase(8, "Extensions", [{"name": "extension_packages_present", "passed": len(list((ROOT / "browser-extension-packages").glob("*v14.0.1B.zip"))) >= 7}, {"name": "gmail_manifest_present", "passed": (ROOT / "gmail-extension" / "manifest.json").exists()}]))
+    phases.append(write_phase(8, "Extensions", [{"name": "extension_packages_present", "passed": len(list((ROOT / "browser-extension-packages").glob("*v14.0.1B.zip"))) >= 6}, {"name": "chrome_manifest_present", "passed": (ROOT / "extensions" / "chrome" / "manifest.json").exists()}]))
     phases.append(write_phase(9, "Cross Platform", [{"name": "windows_scripts_present", "passed": (ROOT / "build_installer.bat").exists()}, {"name": "linux_scripts_present", "passed": (ROOT / "scripts" / "bootstrap.sh").exists()}, {"name": "macos_docs_present", "passed": (ROOT / "MACOS_SETUP_GUIDE.md").exists() or (ROOT / "docs" / "offline" / "MACOS_SETUP_GUIDE.md").exists()}]))
     phases.append(write_phase(10, "Offline Installer", [run_cmd("offline_installer_validator", [sys.executable, "tools/offline_installer_validator.py"], 120)]))
     phases.append(write_phase(11, "Build Runtime", [run_cmd("runtime_probe", [sys.executable, "tools/offline_installer_validator.py"], 120)]))
