@@ -1,0 +1,56 @@
+{
+  "base_url": "http://127.0.0.1:4597/dashboard",
+  "generated_at": "2026-05-15T14:52:34Z",
+  "screenshots": [
+    {
+      "path": "desktop-1440x900/dashboard.png",
+      "view": "dashboard",
+      "viewport": "desktop 1440x900"
+    },
+    {
+      "path": "desktop-1440x900/accounts.png",
+      "view": "accounts",
+      "viewport": "desktop 1440x900"
+    },
+    {
+      "path": "desktop-1440x900/inbox.png",
+      "view": "inbox",
+      "viewport": "desktop 1440x900"
+    },
+    {
+      "path": "desktop-1440x900/scam.png",
+      "view": "scam",
+      "viewport": "desktop 1440x900"
+    },
+    {
+      "path": "desktop-1440x900/ai.png",
+      "view": "ai",
+      "viewport": "desktop 1440x900"
+    },
+    {
+      "path": "desktop-1440x900/automations.png",
+      "view": "automations",
+      "viewport": "desktop 1440x900"
+    },
+    {
+      "path": "desktop-1440x900/templates.png",
+      "view": "templates",
+      "viewport": "desktop 1440x900"
+    },
+    {
+      "path": "desktop-1440x900/reports.png",
+      "view": "reports",
+      "viewport": "desktop 1440x900"
+    },
+    {
+      "path": "desktop-1440x900/admin.png",
+      "view": "admin",
+      "viewport": "desktop 1440x900"
+    },
+    {
+      "path": "desktop-1440x900/settings.png",
+      "view": "settings",
+      "viewport": "desktop 1440x900"
+    }
+  ]
+}
