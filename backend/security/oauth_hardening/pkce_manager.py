@@ -12,13 +12,13 @@ Strict PKCE enforcement with S256 method:
 
 import base64
 import hashlib
-import secrets
-import time
-import re
-import threading
 import logging
-from typing import Optional, Dict, Tuple
-from dataclasses import dataclass, field
+import re
+import secrets
+import threading
+import time
+from dataclasses import dataclass
+from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger("pkce.manager")
 

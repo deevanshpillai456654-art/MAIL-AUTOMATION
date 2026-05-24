@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>MailPilot – Enterprise Operations Platform</title>
+<title>INTEMO - Connector Operations</title>
 <link rel="stylesheet" href="/connectors-panel/styles.css" />
 </head>
 <body>
@@ -11,16 +11,13 @@
 
   <!-- ── Sidebar ─────────────────────────────────────────────────────────── -->
   <nav class="sidebar" id="sidebar">
-    <div class="sidebar-logo" onclick="document.getElementById('sidebar').classList.toggle('collapsed')">
-      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none">
-        <rect width="28" height="28" rx="7" fill="rgba(37,99,235,0.12)"/>
-        <path d="M7 14h14M14 7v14M10 10l8 8M18 10l-8 8" stroke="#2563EB" stroke-width="1.8" stroke-linecap="round"/>
-      </svg>
+    <button class="sidebar-logo" type="button" onclick="document.getElementById('sidebar').classList.toggle('collapsed')" aria-label="Collapse connector navigation">
+      <img class="sidebar-brand-logo" src="/dashboard/assets/intemo-logo-mark.png" alt="INTEMO" width="522" height="141" />
       <div>
-        <div class="sidebar-logo-text">MailPilot</div>
-        <div class="sidebar-logo-sub">Enterprise OS</div>
+        <div class="sidebar-logo-text">INTEMO</div>
+        <div class="sidebar-logo-sub">Connector Operations</div>
       </div>
-    </div>
+    </button>
 
     <div class="sidebar-scroll">
 
@@ -182,7 +179,7 @@
     </div>
 
     <div class="sidebar-footer">
-      <div class="sidebar-footer-name">MailPilot Enterprise OS</div>
+      <div class="sidebar-footer-name">INTEMO Connector Operations</div>
       <div class="sidebar-footer-ver">v2.0.0</div>
     </div>
   </nav>
@@ -650,11 +647,11 @@
           <div class="card">
             <div class="card-header"><span class="card-title">About</span></div>
             <div class="about-text">
-              <div><strong class="text-default">MailPilot Enterprise OS</strong></div>
+              <div><strong class="text-default">INTEMO Connector Operations</strong></div>
               <div>Version: 2.0.0</div>
               <div>Modules: ERP · CRM · Tracking · Workflows · Support</div>
               <div>API prefix: /api/connector-panel</div>
-              <div class="mt-12"><a href="#" onclick="showSection('marketplace')" class="about-link">Marketplace →</a> · <a href="#" onclick="apiFetch('/health').then(r=>toast(r.ok?'API online':'API offline',r.ok?'success':'error'))" class="about-link">Test API →</a></div>
+              <div class="mt-12"><button class="about-link about-link-button" type="button" onclick="showSection('marketplace')">Marketplace -></button> · <button class="about-link about-link-button" type="button" onclick="apiFetch('/health').then(r=>toast(r.ok?'API online':'API offline',r.ok?'success':'error'))">Test API -></button></div>
             </div>
           </div>
         </div>

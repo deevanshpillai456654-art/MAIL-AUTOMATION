@@ -9,6 +9,13 @@ black>=23.0.0
 flake8>=6.0.0
 mypy>=1.4.0
 isort>=5.12.0
+ruff>=0.15.0           # security/correctness linter; config in ruff.toml
+bandit>=1.9.0          # SAST; honored # nosec annotations
+pip-audit>=2.10.0      # CVE scanner for installed deps
+
+# E2E test drivers (run via pytest; do not bring frontend tooling into backend)
+playwright>=1.60.0     # browser automation; run `python -m playwright install` after pip
+selenium>=4.44.0       # browser automation (fallback / IE-edge legacy)
 
 # Type stubs
 types-requests>=2.31.0

@@ -28,13 +28,11 @@ Endpoints:
 """
 from __future__ import annotations
 
-import json
 import logging
-import math
 import sqlite3
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 
@@ -590,7 +588,6 @@ class IntelligenceEngine:
         # Already-active workflows to exclude duplicates
         active_templates: set = set()
         try:
-            import sqlite3 as _sq
             con = _open(_WORKFLOWS_DB)
             if con:
                 rows = con.execute(

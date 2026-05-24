@@ -2,6 +2,7 @@
 Shared types and constants for AI Email Organizer
 """
 
+import os
 from enum import Enum
 
 
@@ -77,10 +78,11 @@ CONFIDENCE_THRESHOLDS = {
     "low": 0.70,
 }
 
+_api_port = int(os.environ.get("API_PORT", "4597"))
 API_CONFIG = {
     "host": "127.0.0.1",
-    "port": 4597,
-    "base_url": "http://127.0.0.1:4597",
+    "port": _api_port,
+    "base_url": f"http://127.0.0.1:{_api_port}",
 }
 
 GMAIL_SCOPES = [

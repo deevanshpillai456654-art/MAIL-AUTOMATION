@@ -1,11 +1,11 @@
 """SQLite-backed persistent job queue for local-first recovery-safe tasks."""
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import time
 import uuid
-import hashlib
 from pathlib import Path
 from threading import RLock
 from typing import Any, Dict, Optional

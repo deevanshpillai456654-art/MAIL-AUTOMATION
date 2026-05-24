@@ -10,17 +10,15 @@ Centralized log processing:
 - Log analysis
 """
 
-import os
-import re
 import json
-import time
 import logging
+import re
 import threading
-from typing import Any, Dict, List, Optional
-from pathlib import Path
-from dataclasses import dataclass, field
+import time
 from collections import deque
+from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("log.processor")
 
@@ -47,18 +45,18 @@ class LogProcessor:
     """
     Centralized log processor.
     """
-    
+
     def __init__(self, max_entries: int = 10000):
         self.max_entries = max_entries
         self._entries: deque = deque(maxlen=max_entries)
         self._lock = threading.Lock()
-        
+
         # Filters
         self._level_filter = LogLevel.INFO
         self._pattern_filter: Optional[re.Pattern] = None
-        
+
         logger.info("LogProcessor initialized")
-    
+
     def add_entry(
         self,
         level: str,
@@ -70,7 +68,7 @@ class LogProcessor:
         # Apply filters
         if self._pattern_filter and not self._pattern_filter.search(message):
             return
-        
+
         entry = LogEntry(
             timestamp=time.time(),
             level=level,
@@ -78,18 +76,18 @@ class LogProcessor:
             message=message,
             extra=extra or {}
         )
-        
+
         with self._lock:
             self._entries.append(entry)
-    
+
     def set_level_filter(self, level: LogLevel):
         """Set level filter"""
         self._level_filter = level
-    
+
     def set_pattern_filter(self, pattern: str):
         """Set pattern filter"""
         self._pattern_filter = re.compile(pattern)
-    
+
     def get_entries(
         self,
         level: str = None,
@@ -99,29 +97,29 @@ class LogProcessor:
         """Get filtered entries"""
         with self._lock:
             entries = list(self._entries)
-        
+
         if level:
             entries = [e for e in entries if e.level == level]
-        
+
         if logger_name:
             entries = [e for e in entries if e.logger == logger_name]
-        
+
         return entries[-limit:]
-    
+
     def get_stats(self) -> Dict:
         """Get log stats"""
         with self._lock:
             entries = list(self._entries)
-        
+
         by_level = {}
         for e in entries:
             by_level[e.level] = by_level.get(e.level, 0) + 1
-        
+
         return {
             "total": len(entries),
             "by_level": by_level
         }
-    
+
     def export_json(self, path: str) -> bool:
         """Export logs to JSON"""
         try:
@@ -145,23 +143,23 @@ class StructuredLogger:
     """
     Structured logger wrapper.
     """
-    
+
     def __init__(self, name: str, processor: LogProcessor = None):
         self.name = name
         self.processor = processor or _log_processor
-    
+
     def debug(self, message: str, **extra):
         self.processor.add_entry("DEBUG", self.name, message, extra)
-    
+
     def info(self, message: str, **extra):
         self.processor.add_entry("INFO", self.name, message, extra)
-    
+
     def warning(self, message: str, **extra):
         self.processor.add_entry("WARNING", self.name, message, extra)
-    
+
     def error(self, message: str, **extra):
         self.processor.add_entry("ERROR", self.name, message, extra)
-    
+
     def critical(self, message: str, **extra):
         self.processor.add_entry("CRITICAL", self.name, message, extra)
 

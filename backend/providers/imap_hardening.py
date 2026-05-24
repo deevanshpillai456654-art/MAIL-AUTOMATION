@@ -18,19 +18,20 @@ Features:
 - Sync state journal
 """
 import os
+
 __path__ = [os.path.join(os.path.dirname(__file__), "imap_hardening")]
 
-import time
-import threading
+import json
 import logging
 import sqlite3
-import json
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Callable, Set
-from dataclasses import dataclass, field
-from enum import Enum
+import time
 from collections import deque
 from contextlib import contextmanager
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Set
+
 from backend import config
 
 logger = logging.getLogger("imap.hardening")
@@ -101,16 +102,16 @@ class UIDRecord:
 
 class IMAPSyncJournal:
     """IMAP sync state journal"""
-    
+
     def __init__(self, db_path: str = None):
         self.db_path = db_path or (Path(config.DATA_DIR) / "imap_sync.db")
         self._init_db()
-    
+
     def _init_db(self):
         """Initialize sync journal database"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
-        
+
         # Sync checkpoints
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS sync_checkpoints (
@@ -125,7 +126,7 @@ class IMAPSyncJournal:
                 UNIQUE(account_id, folder)
             )
         """)
-        
+
         # UID tracking
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS uid_tracking (
@@ -141,7 +142,7 @@ class IMAPSyncJournal:
                 UNIQUE(account_id, folder, uid)
             )
         """)
-        
+
         # Drift events
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS drift_events (
@@ -155,7 +156,7 @@ class IMAPSyncJournal:
                 resolved INTEGER DEFAULT 0
             )
         """)
-        
+
         # Message reconciliation
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS message_reconciliation (
@@ -169,7 +170,7 @@ class IMAPSyncJournal:
                 reconciled_at REAL
             )
         """)
-        
+
         # Gmail label mappings
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS gmail_labels (
@@ -180,10 +181,10 @@ class IMAPSyncJournal:
                 PRIMARY KEY(account_id, message_uid)
             )
         """)
-        
+
         conn.commit()
         conn.close()
-    
+
     @contextmanager
     def _get_conn(self):
         conn = sqlite3.connect(str(self.db_path))
@@ -192,7 +193,7 @@ class IMAPSyncJournal:
             yield conn
         finally:
             conn.close()
-    
+
     def save_checkpoint(self, checkpoint: SyncCheckpoint):
         """Save sync checkpoint"""
         with self._get_conn() as conn:
@@ -212,7 +213,7 @@ class IMAPSyncJournal:
                 checkpoint.created_at
             ))
             conn.commit()
-    
+
     def get_checkpoint(self, account_id: int, folder: str) -> Optional[SyncCheckpoint]:
         """Get sync checkpoint"""
         with self._get_conn() as conn:
@@ -234,8 +235,8 @@ class IMAPSyncJournal:
                     created_at=row["created_at"]
                 )
         return None
-    
-    def record_uid(self, account_id: int, folder: str, uid: int, 
+
+    def record_uid(self, account_id: int, folder: str, uid: int,
                    message_id: str, checksum: str):
         """Record UID for tracking"""
         with self._get_conn() as conn:
@@ -246,7 +247,7 @@ class IMAPSyncJournal:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (account_id, folder, uid, message_id, checksum, 0, 0, time.time()))
             conn.commit()
-    
+
     def get_known_uids(self, account_id: int, folder: str) -> Dict[int, UIDRecord]:
         """Get known UIDs for folder"""
         uids = {}
@@ -266,7 +267,7 @@ class IMAPSyncJournal:
                     last_seen=row["last_seen"]
                 )
         return uids
-    
+
     def mark_uid_seen(self, account_id: int, folder: str, uid: int):
         """Mark UID as seen"""
         with self._get_conn() as conn:
@@ -276,7 +277,7 @@ class IMAPSyncJournal:
                 WHERE account_id = ? AND folder = ? AND uid = ?
             """, (time.time(), account_id, folder, uid))
             conn.commit()
-    
+
     def log_drift(self, event: DriftEvent):
         """Log drift event"""
         with self._get_conn() as conn:
@@ -294,7 +295,7 @@ class IMAPSyncJournal:
                 event.timestamp
             ))
             conn.commit()
-    
+
     def get_pending_drifts(self, account_id: int) -> List[DriftEvent]:
         """Get unresolved drift events"""
         drifts = []
@@ -316,7 +317,7 @@ class IMAPSyncJournal:
                     resolved=bool(row["resolved"])
                 ))
         return drifts
-    
+
     def resolve_drift(self, account_id: int, folder: str, drift_type: DriftType):
         """Mark drift as resolved"""
         with self._get_conn() as conn:
@@ -326,7 +327,7 @@ class IMAPSyncJournal:
                 WHERE account_id = ? AND folder = ? AND drift_type = ?
             """, (account_id, folder, drift_type.value))
             conn.commit()
-    
+
     def reconcile_message(self, account_id: int, uid: str, message_id: str,
                          subject: str, status: str, folder: str):
         """Record message reconciliation"""
@@ -338,7 +339,7 @@ class IMAPSyncJournal:
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (account_id, uid, message_id, subject, status, folder, time.time()))
             conn.commit()
-    
+
     def get_reconciliation_status(self, account_id: int) -> Dict[str, int]:
         """Get reconciliation status counts"""
         status = {"new": 0, "existing": 0, "modified": 0, "deleted": 0}
@@ -353,7 +354,7 @@ class IMAPSyncJournal:
                 if row["status"] in status:
                     status[row["status"]] = row["count"]
         return status
-    
+
     def save_gmail_labels(self, account_id: int, message_uid: str, labels: List[str]):
         """Save Gmail labels"""
         with self._get_conn() as conn:
@@ -364,7 +365,7 @@ class IMAPSyncJournal:
                 VALUES (?, ?, ?, ?)
             """, (account_id, message_uid, json.dumps(labels), time.time()))
             conn.commit()
-    
+
     def get_gmail_labels(self, account_id: int, message_uid: str) -> List[str]:
         """Get Gmail labels"""
         with self._get_conn() as conn:
@@ -383,27 +384,27 @@ class AdvancedIMAPHardener:
     """
     Advanced IMAP hardening with full resilience.
     """
-    
+
     def __init__(self):
         self.journal = IMAPSyncJournal()
-        
+
         # Drift detection thresholds
         self.uid_rollover_threshold = 1000  # Allow for UID rollover
         self.drift_warning_count = 5
-        
+
         # Adaptive polling
         self._poll_history: deque = deque(maxlen=100)
         self._base_poll_interval = 30
         self._min_poll_interval = 10
         self._max_poll_interval = 300
-        
+
         # Callbacks
         self.on_drift: Optional[Callable] = None
         self.on_rollover: Optional[Callable] = None
         self.on_reconciliation: Optional[Callable] = None
-        
+
         logger.info("Advanced IMAP Hardener initialized")
-    
+
     def check_uid_rollover(self, account_id: int, folder: str,
                           old_uid_validity: int, new_uid_validity: int,
                           old_uid_next: int, new_uid_next: int) -> bool:
@@ -411,7 +412,7 @@ class AdvancedIMAPHardener:
         if old_uid_validity != new_uid_validity:
             # UID validity changed - this is a rollover
             logger.warning(f"UID rollover detected for {folder}: {old_uid_validity} -> {new_uid_validity}")
-            
+
             event = DriftEvent(
                 account_id=account_id,
                 folder=folder,
@@ -420,19 +421,19 @@ class AdvancedIMAPHardener:
                 new_value=new_uid_validity
             )
             self.journal.log_drift(event)
-            
+
             if self.on_rollover:
                 self.on_rollover(account_id, folder, old_uid_validity, new_uid_validity)
-            
+
             return True
-        
+
         return False
-    
+
     def check_folder_drift(self, account_id: int, folder: str,
                            old_count: int, new_count: int) -> Optional[DriftEvent]:
         """Check for folder message count drift"""
         drift = abs(new_count - old_count)
-        
+
         if drift > self.drift_warning_count:
             event = DriftEvent(
                 account_id=account_id,
@@ -442,55 +443,55 @@ class AdvancedIMAPHardener:
                 new_value=new_count
             )
             self.journal.log_drift(event)
-            
+
             if self.on_drift:
                 self.on_drift(event)
-            
+
             return event
-        
+
         return None
-    
+
     def detect_deleted_messages(self, account_id: int, folder: str,
                                server_uids: Set[int]) -> List[int]:
         """Detect deleted messages by comparing UIDs"""
         known_uids = self.journal.get_known_uids(account_id, folder)
-        
+
         deleted = []
         for uid in known_uids:
             if uid not in server_uids:
                 deleted.append(uid)
-        
+
         return deleted
-    
+
     def detect_new_messages(self, account_id: int, folder: str,
                            server_uids: Set[int]) -> List[int]:
         """Detect new messages by comparing UIDs"""
         known_uids = self.journal.get_known_uids(account_id, folder)
-        
+
         new = []
         for uid in server_uids:
             if uid not in known_uids:
                 new.append(uid)
-        
+
         return new
-    
+
     def reconcile_messages(self, account_id: int, folder: str,
                           fetched_messages: List[Dict]) -> List[MessageReconciliation]:
         """Reconcile fetched messages with known state"""
         known_uids = self.journal.get_known_uids(account_id, folder)
         reconciliations = []
-        
+
         for msg in fetched_messages:
             uid = msg.get("uid")
             message_id = msg.get("message_id", "")
             subject = msg.get("subject", "")
-            
+
             # Calculate checksum for change detection
             checksum = f"{message_id}:{subject}"
-            
+
             if uid is None:
                 continue
-            
+
             if uid not in known_uids:
                 # New message
                 status = "new"
@@ -503,7 +504,7 @@ class AdvancedIMAPHardener:
                     self.journal.record_uid(account_id, folder, uid, message_id, checksum)
                 else:
                     status = "existing"
-            
+
             reconciliation = MessageReconciliation(
                 message_uid=str(uid),
                 message_id=message_id,
@@ -512,26 +513,26 @@ class AdvancedIMAPHardener:
                 folder=folder
             )
             reconciliations.append(reconciliation)
-            
+
             self.journal.reconcile_message(
                 account_id, str(uid), message_id, subject, status, folder
             )
-        
+
         if self.on_reconciliation:
             self.on_reconciliation(reconciliations)
-        
+
         return reconciliations
-    
+
     def get_adaptive_poll_interval(self) -> int:
         """Get adaptive poll interval based on recent activity"""
         if not self._poll_history:
             return self._base_poll_interval
-        
+
         recent = list(self._poll_history)[-10:]
-        
+
         # Calculate average new messages
         avg_new = sum(r.get("new_messages", 0) for r in recent) / len(recent)
-        
+
         # Adjust interval based on activity
         if avg_new > 10:
             return self._min_poll_interval
@@ -541,19 +542,19 @@ class AdvancedIMAPHardener:
             return self._base_poll_interval * 2
         else:
             return min(self._max_poll_interval, self._base_poll_interval * 3)
-    
+
     def record_poll_result(self, new_messages: int):
         """Record poll result for adaptive interval"""
         self._poll_history.append({
             "timestamp": time.time(),
             "new_messages": new_messages
         })
-    
+
     def get_sync_health(self, account_id: int) -> Dict:
         """Get sync health metrics"""
         drifts = self.journal.get_pending_drifts(account_id)
         reconciliation = self.journal.get_reconciliation_status(account_id)
-        
+
         return {
             "pending_drifts": len(drifts),
             "drift_types": [d.drift_type.value for d in drifts],
@@ -561,14 +562,14 @@ class AdvancedIMAPHardener:
             "adaptive_poll_interval": self.get_adaptive_poll_interval(),
             "poll_history_size": len(self._poll_history)
         }
-    
+
     def create_checkpoint(self, account_id: int, folder: str, last_uid: int,
                          uid_validity: int, sync_state: SyncState,
                          messages_synced: int) -> str:
         """Create sync checkpoint"""
         import secrets
         checkpoint_id = f"chk_{secrets.token_hex(8)}"
-        
+
         checkpoint = SyncCheckpoint(
             checkpoint_id=checkpoint_id,
             account_id=account_id,
@@ -578,16 +579,16 @@ class AdvancedIMAPHardener:
             sync_state=sync_state,
             messages_synced=messages_synced
         )
-        
+
         self.journal.save_checkpoint(checkpoint)
-        
+
         logger.debug(f"Checkpoint created: {checkpoint_id} for {folder}")
         return checkpoint_id
-    
+
     def get_resume_point(self, account_id: int, folder: str) -> Optional[Dict]:
         """Get resume point for interrupted sync"""
         checkpoint = self.journal.get_checkpoint(account_id, folder)
-        
+
         if checkpoint:
             return {
                 "last_uid": checkpoint.last_uid,
@@ -595,7 +596,7 @@ class AdvancedIMAPHardener:
                 "messages_synced": checkpoint.messages_synced,
                 "sync_state": checkpoint.sync_state.value
             }
-        
+
         return None
 
 

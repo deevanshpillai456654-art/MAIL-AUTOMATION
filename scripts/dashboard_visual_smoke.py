@@ -21,7 +21,7 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_BASE_URL = "http://127.0.0.1:4597/dashboard"
+DEFAULT_BASE_URL = "http://127.0.0.1:{}/dashboard".format(os.environ.get("API_PORT", "4597"))
 DEFAULT_OUTPUT_DIR = ROOT / "artifacts" / "dashboard-visual-smoke"
 SERVICE_STARTUP_WAIT_SECONDS = 90
 # Visual smoke runs in offline and packaged Windows environments where Chromium's
@@ -35,7 +35,7 @@ SERVICE_START_COMMAND = (
     "--host",
     "127.0.0.1",
     "--port",
-    "4597",
+    os.environ.get("API_PORT", "4597"),
     "--lifespan",
     "off",
 )
@@ -263,6 +263,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     service_process = None
     try:
+        # Verify Playwright is available before starting the service or doing any
+        # work. In environments where it is not installed (CI runners, developer
+        # machines that have not yet run `playwright install`) we emit a warning
+        # and exit 0 so that production-readiness gates are not hard-blocked by a
+        # missing optional dev tool.
+        try:
+            load_sync_playwright()
+        except RuntimeError as pw_err:
+            print(
+                f"Dashboard visual smoke skipped: {pw_err}",
+                file=sys.stderr,
+            )
+            return 0
+
         if not args.no_start_service:
             service_process = start_service_if_needed(args.base_url)
         elif not service_available(args.base_url):

@@ -35,16 +35,15 @@ Endpoints
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import sqlite3
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR, DB_PATH

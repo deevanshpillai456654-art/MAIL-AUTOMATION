@@ -1,9 +1,8 @@
-import re
-import json
 import logging
-from typing import Dict, List, Tuple, Optional
+import re
 from datetime import datetime
-from functools import lru_cache
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 
 from backend.core.scam_filter import ScamFilter
@@ -230,7 +229,7 @@ class RulesEngine:
             self._compiled_patterns[category] = [
                 re.compile(pattern, re.IGNORECASE) for pattern in patterns
             ]
-        
+
         self._compiled_sender = {}
         for category, patterns in self.SENDER_PATTERNS.items():
             self._compiled_sender[category] = [
@@ -246,7 +245,7 @@ class RulesEngine:
 
         try:
             text = f"{subject} {sender} {sender_email} {body}".lower()
-            
+
             if not text.strip():
                 return None, 0.0
 
@@ -276,7 +275,7 @@ class RulesEngine:
                     return category, confidence
 
             return None, 0.0
-            
+
         except Exception as e:
             logger.error(f"RulesEngine classification error: {e}")
             return None, 0.0
@@ -350,7 +349,7 @@ class MLClassifier:
                 return category, confidence
 
             return "Personal", 0.40
-            
+
         except Exception as e:
             logger.error(f"ML classification error: {e}")
             return "Personal", 0.40
@@ -395,7 +394,7 @@ class PriorityScorer:
                 return "Low"
 
             return "Medium"
-            
+
         except Exception as e:
             logger.error(f"Priority scoring error: {e}")
             return "Medium"
@@ -471,7 +470,7 @@ class EmailClassifier:
                 "timestamp": datetime.now().isoformat(),
                 "source": "rules_engine" if confidence >= 0.70 else "ml_classifier",
             }
-            
+
         except Exception as e:
             self._stats["errors"] += 1
             logger.error(f"Classification error: {e}")
@@ -488,7 +487,7 @@ class EmailClassifier:
             if sender:
                 if sender not in self._learned_categories:
                     self._learned_categories[sender] = {}
-                
+
                 # Track correction
                 if actual_category not in self._learned_categories[sender]:
                     self._learned_categories[sender][actual_category] = 0

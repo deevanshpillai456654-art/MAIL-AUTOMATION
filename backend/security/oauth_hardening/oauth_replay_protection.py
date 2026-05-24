@@ -11,17 +11,15 @@ Authorization code replay prevention:
 - Browser fingerprint validation
 """
 
-import base64
-import hmac
 import hashlib
-import secrets
-import time
-import threading
+import hmac
 import logging
-import re
-from typing import Optional, Dict, Tuple
+import secrets
+import threading
+import time
 from dataclasses import dataclass
-from urllib.parse import urlparse, urlunparse
+from typing import Dict, Optional, Tuple
+from urllib.parse import urlparse
 
 logger = logging.getLogger("oauth.replay")
 
@@ -223,7 +221,7 @@ class OAuthReplayProtection:
                 return False, "redirect_uri_mismatch"
 
             if self._bind_ip and ip_address and record.ip_address:
-                if ip_address != record.ip_address:
+                if not secrets.compare_digest(ip_address, record.ip_address):
                     logger.warning(f"IP mismatch: {code_hash[:8]}...")
                     return False, "ip_mismatch"
 

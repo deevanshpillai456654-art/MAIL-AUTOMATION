@@ -18,14 +18,11 @@ import logging
 import os
 import re
 import secrets
-import subprocess
 import threading
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Optional, Callable
 from enum import Enum
+from typing import Callable, Dict, List, Optional
 
 logger = logging.getLogger("ci_cd.security")
 
@@ -105,7 +102,7 @@ class DependencyChecker:
     - License compliance
     - Outdated dependency detection
     """
-    
+
     KNOWN_VULNERABILITIES = {
         "Pillow": ["CVE-2022-22817", "CVE-2021-25289"],
         "requests": ["CVE-2023-32681"],
@@ -117,40 +114,40 @@ class DependencyChecker:
         "cryptography": ["CVE-2023-38325"],
         "numpy": ["CVE-2024-21413"],
     }
-    
+
     def __init__(self):
         self._lock = threading.RLock()
         self._scanned_packages: Dict[str, Dict] = {}
-        
+
     def scan_requirements(self, requirements_path: str) -> List[Vulnerability]:
         """Scan requirements.txt for vulnerabilities"""
         vulnerabilities = []
-        
+
         try:
             with open(requirements_path, 'r') as f:
                 for line in f:
                     line = line.strip()
                     if not line or line.startswith('#'):
                         continue
-                    
+
                     # Parse package==version
                     match = re.match(r'^([a-zA-Z0-9_-]+)==([0-9.]+)$', line)
                     if match:
                         package = match.group(1)
                         version = match.group(2)
-                        
+
                         vulns = self._check_package_vulnerabilities(package, version)
                         vulnerabilities.extend(vulns)
-                        
+
         except FileNotFoundError:
             logger.warning(f"Requirements file not found: {requirements_path}")
-            
+
         return vulnerabilities
-    
+
     def _check_package_vulnerabilities(self, package: str, version: str) -> List[Vulnerability]:
         """Check a package for known vulnerabilities"""
         vulnerabilities = []
-        
+
         if package in self.KNOWN_VULNERABILITIES:
             for cve in self.KNOWN_VULNERABILITIES[package]:
                 vuln = Vulnerability(
@@ -163,9 +160,9 @@ class DependencyChecker:
                     cve=cve
                 )
                 vulnerabilities.append(vuln)
-                
+
         return vulnerabilities
-    
+
     def check_outdated(self, package: str, current_version: str, latest_version: str) -> bool:
         """Check if package is outdated"""
         try:
@@ -187,7 +184,7 @@ class SecretsDetector:
     - Credential heuristics
     - Binary secrets scanning
     """
-    
+
     SECRET_PATTERNS = {
         "AWS_ACCESS_KEY": (r"AKIA[0-9A-Z]{16}", SecurityLevel.CRITICAL),
         "AWS_SECRET_KEY": (r"(?i)aws(.{0,20})?['\"][0-9a-zA-Z\/+]{40}['\"]", SecurityLevel.CRITICAL),
@@ -200,47 +197,47 @@ class SecretsDetector:
         "JWT_SECRET": (r"(?i)jwt(.{0,10})?['\"][^'\"]{32,}['\"]", SecurityLevel.HIGH),
         "OAUTH_SECRET": (r"(?i)oauth(.{0,10})?['\"][^'\"]{32,}['\"]", SecurityLevel.HIGH),
     }
-    
+
     def __init__(self):
         self._findings: List[Dict] = []
-        
+
     def scan_file(self, file_path: str) -> List[Dict]:
         """Scan a file for secrets"""
         findings = []
-        
+
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
                 findings = self._scan_content(content, file_path)
-                
+
         except Exception as e:
             logger.warning(f"Failed to scan file {file_path}: {e}")
-            
+
         return findings
-    
+
     def scan_directory(self, directory: str, extensions: List[str] = None) -> List[Dict]:
         """Scan directory for secrets"""
         if extensions is None:
             extensions = ['.py', '.js', '.json', '.yaml', '.yml', '.env', '.txt']
-            
+
         findings = []
-        
+
         for root, dirs, files in os.walk(directory):
             # Skip common exclude directories
             dirs[:] = [d for d in dirs if d not in ('.git', 'node_modules', '__pycache__', 'dist', 'build')]
-            
+
             for file in files:
                 if any(file.endswith(ext) for ext in extensions):
                     file_path = os.path.join(root, file)
                     file_findings = self.scan_file(file_path)
                     findings.extend(file_findings)
-                    
+
         return findings
-    
+
     def _scan_content(self, content: str, source: str) -> List[Dict]:
         """Scan content for secrets"""
         findings = []
-        
+
         for name, (pattern, severity) in self.SECRET_PATTERNS.items():
             for match in re.finditer(pattern, content):
                 findings.append({
@@ -251,7 +248,7 @@ class SecretsDetector:
                     "matched": match.group()[:20] + "...",
                     "timestamp": time.time()
                 })
-                
+
         return findings
 
 
@@ -265,20 +262,20 @@ class ArtifactSigner:
     - Build attestations
     - Integrity verification
     """
-    
+
     def __init__(self, secret_key: Optional[str] = None):
         self._secret_key = secret_key or secrets.token_urlsafe(32)
         self._signatures: Dict[str, BuildArtifact] = {}
-        
+
     def sign_artifact(self, artifact_path: str, build_id: str) -> BuildArtifact:
         """Sign a build artifact"""
         # Calculate checksum
         checksum = self._calculate_checksum(artifact_path)
-        
+
         # Create signature
         message = f"{artifact_path}:{checksum}:{build_id}"
         signature = hmac_new(self._secret_key.encode(), message.encode()).hex()
-        
+
         artifact = BuildArtifact(
             artifact_id=secrets.token_hex(16),
             filename=artifact_path,
@@ -288,36 +285,36 @@ class ArtifactSigner:
             signed_at=time.time(),
             build_id=build_id
         )
-        
+
         self._signatures[artifact_path] = artifact
-        
+
         return artifact
-    
+
     def verify_artifact(self, artifact_path: str, artifact: BuildArtifact) -> bool:
         """Verify artifact integrity"""
         if not artifact.signature:
             return False
-            
+
         current_checksum = self._calculate_checksum(artifact_path)
         if current_checksum != artifact.checksum:
             return False
-            
+
         message = f"{artifact_path}:{artifact.checksum}:{artifact.build_id}"
         expected = hmac_new(self._secret_key.encode(), message.encode()).hex()
-        
+
         return constant_time_compare(artifact.signature, expected)
-    
+
     def _calculate_checksum(self, file_path: str) -> str:
         """Calculate SHA-256 checksum"""
         sha256 = hashlib.sha256()
-        
+
         try:
             with open(file_path, 'rb') as f:
                 for chunk in iter(lambda: f.read(8192), b''):
                     sha256.update(chunk)
         except Exception:
             return ""
-            
+
         return sha256.hexdigest()
 
 
@@ -331,21 +328,21 @@ class SBOMGenerator:
     - Dependency tree
     - License tracking
     """
-    
+
     def __init__(self):
         self._sbom: List[SBOMEntry] = []
-        
+
     def generate_from_requirements(self, requirements_path: str) -> List[SBOMEntry]:
         """Generate SBOM from requirements.txt"""
         entries = []
-        
+
         try:
             with open(requirements_path, 'r') as f:
                 for line in f:
                     line = line.strip()
                     if not line or line.startswith('#'):
                         continue
-                        
+
                     match = re.match(r'^([a-zA-Z0-9_-]+)==([0-9.]+)$', line)
                     if match:
                         entry = SBOMEntry(
@@ -354,13 +351,13 @@ class SBOMGenerator:
                             purl=f"pkg:pypi/{match.group(1)}@{match.group(2)}"
                         )
                         entries.append(entry)
-                        
+
         except FileNotFoundError:
             logger.warning(f"Requirements not found: {requirements_path}")
-            
+
         self._sbom = entries
         return entries
-    
+
     def export_cyclone_dx(self, output_path: str) -> Dict:
         """Export SBOM in CycloneDX format"""
         sbom = {
@@ -380,13 +377,13 @@ class SBOMGenerator:
                 for entry in self._sbom
             ]
         }
-        
+
         try:
             with open(output_path, 'w') as f:
                 json.dump(sbom, f, indent=2)
         except Exception as e:
             logger.warning(f"Failed to write SBOM: {e}")
-            
+
         return sbom
 
 
@@ -402,27 +399,27 @@ class CICDSecurityPipeline:
     - SBOM generation
     - Runtime verification
     """
-    
+
     def __init__(self):
         self.dependency_checker = DependencyChecker()
         self.secrets_detector = SecretsDetector()
         self.artifact_signer = ArtifactSigner()
         self.sbom_generator = SBOMGenerator()
-        
+
         self._builds: Dict[str, BuildIntegrity] = {}
         self._lock = threading.RLock()
-        
+
         # Security thresholds
         self.critical_threshold = 0
         self.high_threshold = 3
-        
+
         # Callbacks
         self.on_vulnerability_found: Optional[Callable] = None
         self.on_secrets_found: Optional[Callable] = None
         self.on_build_failed: Optional[Callable] = None
-        
+
         logger.info("CI/CD Security Pipeline initialized")
-    
+
     def run_security_scan(
         self,
         directory: str,
@@ -443,27 +440,27 @@ class CICDSecurityPipeline:
                 build_command=build_command,
                 environment_hash=self._get_environment_hash()
             )
-            
+
             # 1. Dependency scan
             vulnerabilities = self.dependency_checker.scan_requirements(requirements_path)
             integrity.vulnerabilities = vulnerabilities
-            
+
             # 2. Secrets scan
             secrets_findings = self.secrets_detector.scan_directory(directory)
             if secrets_findings:
                 integrity.warnings.append(f"Found {len(secrets_findings)} potential secrets")
-                
+
                 if self.on_secrets_found:
                     self.on_secrets_found(secrets_findings)
-            
+
             # 3. Generate SBOM
             sbom = self.sbom_generator.generate_from_requirements(requirements_path)
             integrity.sbom = sbom
-            
+
             # 4. Check thresholds
             critical_count = sum(1 for v in vulnerabilities if v.severity == SecurityLevel.CRITICAL)
             high_count = sum(1 for v in vulnerabilities if v.severity == SecurityLevel.HIGH)
-            
+
             if critical_count > self.critical_threshold:
                 integrity.passed = False
                 integrity.warnings.append(f"Critical vulnerabilities found: {critical_count}")
@@ -472,55 +469,55 @@ class CICDSecurityPipeline:
                 integrity.warnings.append(f"High vulnerabilities found: {high_count}")
             else:
                 integrity.passed = True
-            
+
             # 5. Trigger callbacks
             if not integrity.passed:
                 if self.on_build_failed:
                     self.on_build_failed(integrity)
-            
+
             if vulnerabilities and self.on_vulnerability_found:
                 self.on_vulnerability_found(vulnerabilities)
-            
+
             self._builds[build_id] = integrity
-            
+
             logger.info(f"Security scan completed: {'PASSED' if integrity.passed else 'FAILED'} ({build_id})")
-            
+
             return integrity
-    
+
     def sign_artifact(self, artifact_path: str, build_id: str) -> BuildArtifact:
         """Sign an artifact"""
         return self.artifact_signer.sign_artifact(artifact_path, build_id)
-    
+
     def verify_artifact(self, artifact_path: str, build_id: str) -> bool:
         """Verify artifact integrity"""
         build = self._builds.get(build_id)
         if not build:
             return False
-            
+
         artifact = next((a for a in build.artifacts if a.filename == artifact_path), None)
         if not artifact:
             return False
-            
+
         return self.artifact_signer.verify_artifact(artifact_path, artifact)
-    
+
     def _get_environment_hash(self) -> str:
         """Get environment configuration hash"""
         env_vars = json.dumps(dict(os.environ), sort_keys=True)
         return hashlib.sha256(env_vars.encode()).hexdigest()[:16]
-    
+
     def get_build(self, build_id: str) -> Optional[BuildIntegrity]:
         """Get build integrity record"""
         return self._builds.get(build_id)
-    
+
     def get_stats(self) -> Dict:
         """Get pipeline statistics"""
         total_builds = len(self._builds)
         passed = sum(1 for b in self._builds.values() if b.passed)
-        
+
         all_vulns = []
         for build in self._builds.values():
             all_vulns.extend(build.vulnerabilities)
-            
+
         return {
             "total_builds": total_builds,
             "passed_builds": passed,
@@ -542,11 +539,11 @@ def constant_time_compare(a: str, b: str) -> bool:
     """Constant-time string comparison"""
     if len(a) != len(b):
         return False
-        
+
     result = 0
     for x, y in zip(a, b):
         result |= ord(x) ^ ord(y)
-        
+
     return result == 0
 
 

@@ -18,9 +18,9 @@ import asyncio
 import json
 import logging
 import sqlite3
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends
 
@@ -183,8 +183,9 @@ class WorkflowScheduler:
         wf_id = wf["id"]
         name  = wf["name"]
         try:
-            from backend.api.workflows import _engine, _conn, _now
             import uuid
+
+            from backend.api.workflows import _conn, _engine, _now
 
             exec_id = str(uuid.uuid4())
             steps   = wf["steps"]

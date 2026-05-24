@@ -1,4 +1,4 @@
-/* ═══════════════════════════════════════════════════════════════════════════
+﻿/* ═══════════════════════════════════════════════════════════════════════════
    INTEMO AI Assistant — Linear Light Theme
    Visual Guided Troubleshooting & Admin Panel
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -202,7 +202,7 @@ svg { display: block; }
   background: var(--surface-2); border: 1px solid var(--border);
   font-size: 12px;
 }
-.stat-pill strong { display: block; font-size: 18px; color: var(--blue); font-weight: 700; letter-spacing: -.02em; }
+.stat-pill strong { display: block; font-size: 18px; color: var(--blue); font-weight: 700; letter-spacing: 0; }
 .home-hero .hero-icon {
   width: 72px; height: 72px; background: var(--blue-ghost);
   border-radius: 12px; display: flex; align-items: center; justify-content: center;

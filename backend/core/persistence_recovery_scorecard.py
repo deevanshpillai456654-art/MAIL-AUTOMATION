@@ -7,15 +7,14 @@ sending any user data outside the machine.
 """
 from __future__ import annotations
 
-import json
 import os
 import sqlite3
-import time
-from cryptography.fernet import Fernet
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping
+
+from cryptography.fernet import Fernet
 
 from backend import config
 from backend.core.analytics_engine import LocalAnalyticsEngine

@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from backend.db.database import Database
 from backend.core.provider_capability_registry import ProviderCapabilityRegistry
+from backend.db.database import Database
 
 
 @dataclass

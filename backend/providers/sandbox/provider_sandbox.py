@@ -10,19 +10,17 @@ Enterprise sandboxing:
 - Memory limit enforcement per provider
 """
 
-import time
-import threading
 import logging
-import traceback
-import uuid
-import signal
-import sys
 import os
-import resource
-import psutil
+import signal
+import threading
+import time
+import uuid
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Any, Callable, List
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
+
+import psutil
 
 logger = logging.getLogger("provider.sandbox")
 
@@ -265,7 +263,7 @@ class ProviderSandbox:
         if config.enable_memory_limit:
             if result.memory_used_mb > config.max_memory_mb:
                 result.success = False
-                result.error = f"Memory limit exceeded"
+                result.error = "Memory limit exceeded"
                 result.sandbox_state = SandboxState.MEMORY_EXCEEDED
 
         return result

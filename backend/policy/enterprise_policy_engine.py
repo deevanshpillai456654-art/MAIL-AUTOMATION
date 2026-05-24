@@ -20,23 +20,20 @@ Key requirements:
 - Retention must be automated
 """
 
+import fnmatch
+import json
+import logging
 import os
 import re
-import time
-import json
-import hashlib
-import logging
-import threading
-import sqlite3
 import secrets
-import fnmatch
-from pathlib import Path
-from datetime import datetime, timedelta
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Set, Callable, Tuple
-from enum import Enum
-from collections import deque
+import sqlite3
+import threading
+import time
 from contextlib import contextmanager
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("enterprise.policy")
 

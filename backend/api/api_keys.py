@@ -232,8 +232,9 @@ async def list_keys(
             params + [limit, offset],
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     keys = []
     for row in rows:
         k = dict(zip(_KEY_COLS, row))
@@ -262,8 +263,9 @@ async def create_key(body: KeyCreate, _auth=Depends(require_local_auth)):
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     try:
         from backend.api.audit_log import write_audit_entry
         write_audit_entry(
@@ -302,8 +304,9 @@ async def key_stats(_auth=Depends(require_local_auth)):
             "ORDER BY use_count DESC LIMIT 5"
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total":       total,
         "enabled":     enabled,
@@ -325,8 +328,9 @@ async def get_key(key_id: str, _auth=Depends(require_local_auth)):
             f"SELECT {','.join(_KEY_COLS)} FROM api_keys WHERE id=?", (key_id,)
         ).fetchone()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if not row:
         raise HTTPException(404, "API key not found")
     k = dict(zip(_KEY_COLS, row))
@@ -363,8 +367,9 @@ async def patch_key(key_id: str, body: KeyPatch, _auth=Depends(require_local_aut
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True}
 
 
@@ -375,8 +380,9 @@ async def delete_key(key_id: str, _auth=Depends(require_local_auth)):
         con.execute("DELETE FROM api_keys WHERE id=?", (key_id,))
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 @router.post("/{key_id}/rotate", status_code=201,
@@ -388,8 +394,9 @@ async def rotate_key(key_id: str, _auth=Depends(require_local_auth)):
             f"SELECT {','.join(_KEY_COLS)} FROM api_keys WHERE id=?", (key_id,)
         ).fetchone()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if not row:
         raise HTTPException(404, "API key not found")
     old = dict(zip(_KEY_COLS, row))
@@ -404,8 +411,9 @@ async def rotate_key(key_id: str, _auth=Depends(require_local_auth)):
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     try:
         from backend.api.audit_log import write_audit_entry
         write_audit_entry(

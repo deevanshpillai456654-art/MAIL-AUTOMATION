@@ -1,0 +1,979 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI36 Fresh Frontend Findings - 4test</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --ink: #102033;
+      --muted: #5f6f85;
+      --line: #d9e2ef;
+      --soft: #eef4fb;
+      --blue: #1f66e5;
+      --red: #c82828;
+      --amber: #a76200;
+      --green: #1f7a45;
+      --code: #0f1d2e;
+      --radius: 8px;
+      --shadow: 0 10px 28px rgba(16, 32, 51, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .page {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 32px 24px 56px;
+    }
+
+    .hero {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 28px;
+      margin-bottom: 20px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.2;
+    }
+
+    h1 {
+      font-size: 30px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 20px;
+      margin-bottom: 14px;
+    }
+
+    h3 {
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin: 10px 0 0;
+      max-width: 900px;
+    }
+
+    .meta-grid,
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .meta-card,
+    .summary-card,
+    .panel,
+    .finding {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .meta-card,
+    .summary-card {
+      padding: 14px;
+    }
+
+    .meta-card span,
+    .summary-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .meta-card strong,
+    .summary-card strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 18px;
+    }
+
+    .section {
+      margin-top: 20px;
+    }
+
+    .panel {
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .evidence-list {
+      display: grid;
+      gap: 10px;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+
+    .evidence-list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 12px;
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+
+    .status-pass {
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    .status-note {
+      color: var(--amber);
+      font-weight: 700;
+    }
+
+    .findings {
+      display: grid;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .finding {
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .finding-head {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: start;
+      gap: 12px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfdff;
+    }
+
+    .num {
+      width: 30px;
+      height: 30px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--soft);
+      color: var(--blue);
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .critical {
+      background: #fde8e8;
+      color: var(--red);
+    }
+
+    .high {
+      background: #fff0d8;
+      color: var(--amber);
+    }
+
+    .medium {
+      background: #eaf1ff;
+      color: var(--blue);
+    }
+
+    .low {
+      background: #eaf8ef;
+      color: var(--green);
+    }
+
+    .finding-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      padding: 18px;
+    }
+
+    .finding-body p {
+      margin: 0 0 10px;
+    }
+
+    .finding-body ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+    }
+
+    .finding-body li {
+      margin: 5px 0;
+    }
+
+    .code {
+      font-family: Consolas, Monaco, monospace;
+      background: #eef3f8;
+      border: 1px solid #d5dfeb;
+      color: var(--code);
+      border-radius: 5px;
+      padding: 2px 5px;
+      font-size: 12px;
+    }
+
+    .path-list {
+      display: grid;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .path-list code {
+      display: block;
+      overflow-wrap: anywhere;
+      white-space: normal;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    th,
+    td {
+      text-align: left;
+      vertical-align: top;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    th {
+      background: var(--soft);
+      color: #34455c;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #f0f5ff;
+      padding: 12px 14px;
+      border-radius: 6px;
+      color: #27415f;
+    }
+
+    @media (max-width: 900px) {
+      .meta-grid,
+      .summary-grid,
+      .finding-body {
+        grid-template-columns: 1fr;
+      }
+
+      .finding-head {
+        grid-template-columns: auto 1fr;
+      }
+
+      .finding-head .badge {
+        grid-column: 2;
+        justify-self: start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <h1>AI36 Fresh Frontend Findings</h1>
+      <p class="subtitle">
+        Fresh audit artifact created from current source, current tests, live local routes, static scanning,
+        and newly generated dashboard visual smoke screenshots. This file does not use old reports or old
+        markdown summaries.
+      </p>
+      <div class="meta-grid">
+        <div class="meta-card">
+          <span>Project</span>
+          <strong>AI36 Curated</strong>
+        </div>
+        <div class="meta-card">
+          <span>Workspace</span>
+          <strong>C:\Email\AI36_CURATED_REBUILD\AI36_curated</strong>
+        </div>
+        <div class="meta-card">
+          <span>Audit mode</span>
+          <strong>Fresh test only</strong>
+        </div>
+        <div class="meta-card">
+          <span>Fixes applied</span>
+          <strong>No</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="section panel">
+      <h2>Fresh Validation Evidence</h2>
+      <ul class="evidence-list">
+        <li><span>Frontend JavaScript syntax check</span><strong class="status-pass">PASS - 56 files</strong></li>
+        <li><span>Frontend/dashboard pytest suite</span><strong class="status-pass">PASS - 82 tests</strong></li>
+        <li><span>Dashboard visual smoke pytest</span><strong class="status-pass">PASS - 9 tests</strong></li>
+        <li><span>Fresh dashboard screenshots</span><strong class="status-pass">14 screenshots captured</strong></li>
+        <li><span>Live route checks</span><strong class="status-pass">HTTP 200 for 5 routes</strong></li>
+        <li><span>Frontend static scan</span><strong class="status-note">91 files scanned</strong></li>
+      </ul>
+      <p class="note">
+        Passing tests do not mean the frontend is clean. The current tests are mostly presence, route, and
+        string checks. They did not catch the visual layout conflicts, unsafe dry-run behavior, duplicate IDs,
+        accessibility gaps, or connector state inconsistencies listed below.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>Static Scan Counts</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Fresh count</th>
+            <th>Risk</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Dynamic <span class="code">innerHTML</span> writes</td>
+            <td>395</td>
+            <td>XSS risk, difficult event ownership, harder CSP hardening, more fragile UI rendering.</td>
+          </tr>
+          <tr>
+            <td>Inline event handlers</td>
+            <td>325</td>
+            <td>Prevents strong CSP, mixes behavior into markup, and creates hard-to-test interactions.</td>
+          </tr>
+          <tr>
+            <td>Inline style attributes</td>
+            <td>416</td>
+            <td>Design system bypass, inconsistent spacing, and repeat accessibility warnings.</td>
+          </tr>
+          <tr>
+            <td>Runtime <span class="code">.style</span> writes</td>
+            <td>264</td>
+            <td>State styling is scattered and can conflict with responsive CSS.</td>
+          </tr>
+          <tr>
+            <td>Blocking <span class="code">alert()</span> calls</td>
+            <td>93</td>
+            <td>Blocks UI thread and creates non-premium SaaS error handling.</td>
+          </tr>
+          <tr>
+            <td>Select elements without accessible names</td>
+            <td>15</td>
+            <td>Screen reader failures and repeated axe warnings.</td>
+          </tr>
+          <tr>
+            <td>Symbol-only buttons without labels</td>
+            <td>6</td>
+            <td>Keyboard and assistive technology users cannot identify actions.</td>
+          </tr>
+          <tr>
+            <td>Confirmed mojibake hits</td>
+            <td>1</td>
+            <td>Visible corrupted text remains in connector modal UI.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Detailed Findings</h2>
+      <div class="findings">
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">1</span>
+            <div>
+              <h3>Inbox layout is broken by conflicting CSS definitions</h3>
+              <p class="subtitle">The inbox markup expects a sidebar, message list, and preview column, but the active theme overrides it to two columns.</p>
+            </div>
+            <span class="badge critical">Critical</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Evidence</strong></p>
+              <ul>
+                <li>Fresh screenshot: <span class="code">artifacts/dashboard-visual-smoke/desktop-1440x900/inbox.png</span></li>
+                <li>The message preview area is visually displaced and the lower-left page area has a large empty block.</li>
+                <li>The smoke test passes because it does not assert actual grid placement.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source anchors</strong></p>
+              <div class="path-list">
+                <code>backend/dashboard/index.html:571 - .inbox-layout contains the inbox layout</code>
+                <code>backend/dashboard/enterprise-ui.css:1580 - defines 3 columns</code>
+                <code>backend/dashboard/hybrid-theme.css:5953 - overrides to 2 columns</code>
+              </div>
+              <p><strong>Recommended fix</strong>: consolidate the inbox grid into one source of truth and make the hybrid theme preserve the required 3-column desktop layout.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">2</span>
+            <div>
+              <h3>Sample automation rules still appear as active client rules</h3>
+              <p class="subtitle">Demo rules are visible in the user-facing Rule Lifecycle panel, which conflicts with the client-ready requirement.</p>
+            </div>
+            <span class="badge critical">Critical</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Evidence</strong></p>
+              <ul>
+                <li>Fresh screenshot: <span class="code">artifacts/dashboard-visual-smoke/desktop-1440x900/automations.png</span></li>
+                <li>Visible rules include <span class="code">Quarantine suspected scams</span>, <span class="code">Move invoices to Finance</span>, and <span class="code">Archive old newsletters</span>.</li>
+                <li>These should only appear after a deliberate <span class="code">Load sample rules</span> action.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source anchors</strong></p>
+              <div class="path-list">
+                <code>backend/dashboard/enterprise-ui.js:2299 - loads /api/v1/rules into state.rules</code>
+                <code>backend/dashboard/enterprise-ui.js:2310 - renders every returned rule</code>
+              </div>
+              <p><strong>Recommended fix</strong>: ensure the API excludes <span class="code">is_sample</span> rules by default and add frontend defensive filtering.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">3</span>
+            <div>
+              <h3>Rule simulation can create a real rule</h3>
+              <p class="subtitle">The simulate path persists a draft rule before simulating if no existing rule ID is available.</p>
+            </div>
+            <span class="badge critical">Critical</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Impact</strong></p>
+              <ul>
+                <li>A user pressing <span class="code">Simulate</span> can unintentionally save a rule.</li>
+                <li>This violates the dry-run requirement: no real emails, rules, labels, folders, or records should be modified.</li>
+                <li>It can also explain why demo or test rules reappear.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source anchor</strong></p>
+              <div class="path-list">
+                <code>backend/dashboard/enterprise-ui.js:2376 - POST /api/v1/rules inside simulateRule()</code>
+              </div>
+              <p><strong>Recommended fix</strong>: add a backend <span class="code">simulate-draft</span> endpoint or simulate from the unsaved draft payload without persisting.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">4</span>
+            <div>
+              <h3>Rule lifecycle action buttons are likely no-ops</h3>
+              <p class="subtitle">Pause, Duplicate, and Archive buttons render without action-specific handlers.</p>
+            </div>
+            <span class="badge high">High</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Impact</strong></p>
+              <ul>
+                <li>Users can click visible controls that do nothing.</li>
+                <li>This makes the automations page feel unfinished and unreliable.</li>
+                <li>Client operators cannot confidently pause or archive automation rules.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source anchor</strong></p>
+              <div class="path-list">
+                <code>backend/dashboard/enterprise-ui.js:2310 - buttons have no dataset/action wiring</code>
+              </div>
+              <p><strong>Recommended fix</strong>: wire each action to explicit API endpoints and update state after success.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">5</span>
+            <div>
+              <h3>Duplicate refresh button IDs break DOM uniqueness</h3>
+              <p class="subtitle">Two dashboard buttons use the same <span class="code">refreshBtn</span> ID.</p>
+            </div>
+            <span class="badge high">High</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Impact</strong></p>
+              <ul>
+                <li>Duplicate IDs are invalid HTML.</li>
+                <li>Selectors, labels, tests, and event delegation become ambiguous.</li>
+                <li>One button may trigger behavior intended for another context.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source anchors</strong></p>
+              <div class="path-list">
+                <code>backend/dashboard/index.html:301 - first refreshBtn</code>
+                <code>backend/dashboard/index.html:326 - second refreshBtn</code>
+                <code>backend/dashboard/enterprise-ui.js:2982 - delegates on target.id === 'refreshBtn'</code>
+              </div>
+              <p><strong>Recommended fix</strong>: use unique IDs or data actions such as <span class="code">data-action="refresh-dashboard"</span>.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">6</span>
+            <div>
+              <h3>Changes pagination skips offsets</h3>
+              <p class="subtitle">The next-page logic adds the current offset to itself plus the limit.</p>
+            </div>
+            <span class="badge high">High</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Impact</strong></p>
+              <ul>
+                <li>Page 1 to 2 can work, but later clicks skip expected pages.</li>
+                <li>Users can miss records in the Changes view.</li>
+                <li>Auditing and operational review become unreliable.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source anchor</strong></p>
+              <div class="path-list">
+                <code>backend/dashboard/enterprise-ui.js:6755 - _crOffset += _crOffset + _CR_LIMIT</code>
+              </div>
+              <p><strong>Recommended fix</strong>: change to <span class="code">_crOffset += _CR_LIMIT</span>.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">7</span>
+            <div>
+              <h3>Connector dashboard shows contradictory installed state</h3>
+              <p class="subtitle">Fresh screenshot shows metrics indicating installed/active connectors while the list says no connectors are installed.</p>
+            </div>
+            <span class="badge high">High</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Evidence</strong></p>
+              <ul>
+                <li>Fresh screenshot: <span class="code">artifacts/dashboard-visual-smoke/desktop-1440x900/connectors.png</span></li>
+                <li>Metrics show connector totals while installed list renders the empty state.</li>
+                <li>A stale or mismatched data source can mislead users about what is installed.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source anchor</strong></p>
+              <div class="path-list">
+                <code>platform/connectors-panel/frontend/app.js:251 - empty installed connector state</code>
+              </div>
+              <p><strong>Recommended fix</strong>: normalize the connector status source and make summary counts derive from the same installed connector list.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">8</span>
+            <div>
+              <h3>Connector-panel OAuth start is provider-only</h3>
+              <p class="subtitle">The connector panel starts OAuth with only the provider and tenant, not the target mailbox email.</p>
+            </div>
+            <span class="badge critical">Critical</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Impact</strong></p>
+              <ul>
+                <li>Multiple OAuth accounts for the same provider can still be mixed from this panel.</li>
+                <li>This conflicts with provider plus email token isolation.</li>
+                <li>The app can use the first connected provider token for a second mailbox flow.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source anchors</strong></p>
+              <div class="path-list">
+                <code>platform/connectors-panel/frontend/app.js:880 - provider-only startOAuth button</code>
+                <code>platform/connectors-panel/frontend/app.js:908 - startOAuth(provider)</code>
+                <code>platform/connectors-panel/frontend/app.js:909 - /oauth/authorize/${provider}?tenant_id=...</code>
+              </div>
+              <p><strong>Recommended fix</strong>: require email input for OAuth-capable providers and call the mailbox-aware OAuth start endpoint.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">9</span>
+            <div>
+              <h3>One confirmed mojibake issue remains</h3>
+              <p class="subtitle">The corrected scan found one true corrupted text instance, not a false positive from normal Unicode.</p>
+            </div>
+            <span class="badge medium">Medium</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Evidence</strong></p>
+              <ul>
+                <li>UTF-8 decode errors: <span class="code">0</span></li>
+                <li>Confirmed mojibake hits: <span class="code">1</span></li>
+                <li>Rendered text is encoded as <span class="code">\xc3\u2014</span> in the Tally modal close button.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source anchor</strong></p>
+              <div class="path-list">
+                <code>platform/connectors-panel/frontend/app.js:748 - modal close button corrupted glyph</code>
+              </div>
+              <p><strong>Recommended fix</strong>: replace with plain ASCII <span class="code">x</span> plus an accessible label, or a proper entity with no corruption.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">10</span>
+            <div>
+              <h3>Accessibility gaps remain in form controls and symbol buttons</h3>
+              <p class="subtitle">Several dynamic and static controls still lack accessible names.</p>
+            </div>
+            <span class="badge high">High</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Impact</strong></p>
+              <ul>
+                <li>Screen reader users cannot identify some select controls.</li>
+                <li>Symbol-only buttons such as plus and x are not announced clearly.</li>
+                <li>This can fail axe checks outside the narrow current test coverage.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source examples</strong></p>
+              <div class="path-list">
+                <code>backend/dashboard/index.html:4968 - select without accessible name</code>
+                <code>backend/dashboard/index.html:5022 - select without accessible name</code>
+                <code>backend/dashboard/index.html:593 - plus button without label</code>
+                <code>backend/dashboard/index.html:602 - plus button without label</code>
+              </div>
+              <p><strong>Recommended fix</strong>: add explicit labels, <span class="code">aria-label</span>, or <span class="code">aria-labelledby</span> consistently.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">11</span>
+            <div>
+              <h3>Inline event handlers remain widespread</h3>
+              <p class="subtitle">The frontend still mixes markup and JavaScript behavior across dashboard and connector modules.</p>
+            </div>
+            <span class="badge medium">Medium</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Fresh count</strong>: <span class="code">325</span></p>
+              <ul>
+                <li>Examples include <span class="code">onclick</span> inside generated table rows and connector cards.</li>
+                <li>This blocks a strict Content Security Policy without <span class="code">unsafe-inline</span>.</li>
+                <li>It makes escaping and event ownership fragile.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source examples</strong></p>
+              <div class="path-list">
+                <code>backend/dashboard/enterprise-ui.js:5626 - generated onclick button</code>
+                <code>platform/connectors-panel/frontend/app.js:428 - generated onclick button</code>
+              </div>
+              <p><strong>Recommended fix</strong>: move to delegated listeners and <span class="code">data-action</span> attributes.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">12</span>
+            <div>
+              <h3>Dynamic innerHTML usage is still very high</h3>
+              <p class="subtitle">Many UI sections are built from interpolated strings.</p>
+            </div>
+            <span class="badge medium">Medium</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Fresh count</strong>: <span class="code">395</span></p>
+              <ul>
+                <li>Some values are escaped, but the pattern is inconsistent and high risk.</li>
+                <li>Large string-rendered views are harder to test and easier to break with malformed data.</li>
+                <li>This also increases unnecessary DOM churn on low-resource machines.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source examples</strong></p>
+              <div class="path-list">
+                <code>backend/dashboard/enterprise-ui.js:1828 - message preview render</code>
+                <code>platform/connectors-panel/frontend/app.js:297 - connector marketplace grid render</code>
+              </div>
+              <p><strong>Recommended fix</strong>: move high-risk views to DOM creation helpers or sanitized template components.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">13</span>
+            <div>
+              <h3>Inline styles and runtime style writes bypass the design system</h3>
+              <p class="subtitle">Generated UI contains many one-off styles despite the enterprise spacing system.</p>
+            </div>
+            <span class="badge medium">Medium</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Fresh counts</strong></p>
+              <ul>
+                <li>Inline <span class="code">style=</span> attributes: <span class="code">416</span></li>
+                <li>Runtime <span class="code">.style</span> writes: <span class="code">264</span></li>
+                <li>This can cause spacing, theme, and responsive regressions.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source examples</strong></p>
+              <div class="path-list">
+                <code>backend/dashboard/enterprise-ui.js:1871 - inline styled action form</code>
+                <code>backend/dashboard/enterprise-ui.js:3471 - inline styled generated panel</code>
+              </div>
+              <p><strong>Recommended fix</strong>: move generated inline styles to named classes and tokenized CSS.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">14</span>
+            <div>
+              <h3>Blocking alert dialogs remain in enterprise workflows</h3>
+              <p class="subtitle">Dashboard modules still call browser <span class="code">alert()</span> for validation and failures.</p>
+            </div>
+            <span class="badge medium">Medium</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Fresh count</strong>: <span class="code">93</span></p>
+              <ul>
+                <li>Alerts block the UI thread.</li>
+                <li>They interrupt workflows and look unpolished for enterprise SaaS.</li>
+                <li>They are difficult to style, audit, or localize.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source examples</strong></p>
+              <div class="path-list">
+                <code>backend/dashboard/enterprise-ui.js:4604 - validation alert</code>
+                <code>backend/dashboard/enterprise-ui.js:5599 - save failure alert</code>
+              </div>
+              <p><strong>Recommended fix</strong>: replace with the dashboard toast/inline error pattern.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">15</span>
+            <div>
+              <h3>Connector panel API JSON parsing is brittle</h3>
+              <p class="subtitle">Non-JSON responses can be converted into generic failures instead of useful API messages.</p>
+            </div>
+            <span class="badge medium">Medium</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Impact</strong></p>
+              <ul>
+                <li>HTML error pages or proxy errors can throw from <span class="code">JSON.parse</span>.</li>
+                <li>User-facing errors become generic and harder to debug.</li>
+                <li>The setup page has a safer pattern that could be reused.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source anchors</strong></p>
+              <div class="path-list">
+                <code>platform/connectors-panel/frontend/app.js:22 - direct JSON.parse(text)</code>
+                <code>platform/connectors-panel/frontend/app.js:39 - direct JSON.parse(text)</code>
+                <code>backend/dashboard/setup.js:38 - safer guarded parse pattern</code>
+              </div>
+              <p><strong>Recommended fix</strong>: guard parsing and preserve raw error text without exposing secrets.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="num">16</span>
+            <div>
+              <h3>Duplicate function definition hides earlier rule diagram implementation</h3>
+              <p class="subtitle">The same function name is declared twice in the same file.</p>
+            </div>
+            <span class="badge low">Low</span>
+          </div>
+          <div class="finding-body">
+            <div>
+              <p><strong>Impact</strong></p>
+              <ul>
+                <li>The second function silently overwrites the first.</li>
+                <li>This is not currently a syntax failure, but it is dead code and maintenance risk.</li>
+                <li>Future edits may target the wrong implementation.</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Source anchors</strong></p>
+              <div class="path-list">
+                <code>backend/dashboard/enterprise-ui.js:2321 - first renderRuleDiagram()</code>
+                <code>backend/dashboard/enterprise-ui.js:2329 - second renderRuleDiagram()</code>
+              </div>
+              <p><strong>Recommended fix</strong>: remove the obsolete implementation and keep one rendering path.</p>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section panel">
+      <h2>Priority Fix Order</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Priority</th>
+            <th>Fix area</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>Rule simulation and sample rule visibility</td>
+            <td>Prevents accidental data creation and removes demo content from client-facing automation lists.</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Provider plus email OAuth start in connector panel</td>
+            <td>Protects multi-mailbox OAuth isolation and prevents account token mixing.</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>Inbox CSS conflict</td>
+            <td>Restores the primary email workflow layout.</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>Duplicate IDs, no-op buttons, pagination bug</td>
+            <td>Fixes concrete interaction defects in daily operation screens.</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>Accessibility and corrupted text</td>
+            <td>Removes visible polish issues and avoids recurring Edge/axe warnings.</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td>Inline handlers, inline styles, alert dialogs, innerHTML cleanup</td>
+            <td>Improves maintainability, security posture, CSP readiness, and low-resource performance.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section panel">
+      <h2>Fresh Test Commands Used</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Check</th>
+            <th>Command summary</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>JavaScript syntax</td>
+            <td><span class="code">node --check</span> over frontend JS roots</td>
+            <td>PASS - 56 files</td>
+          </tr>
+          <tr>
+            <td>Frontend/dashboard pytest suite</td>
+            <td><span class="code">python -B -m pytest -q</span> selected frontend dashboard tests</td>
+            <td>PASS - 82 tests</td>
+          </tr>
+          <tr>
+            <td>Visual smoke pytest</td>
+            <td><span class="code">python -B -m pytest -q tests\test_dashboard_visual_smoke.py</span></td>
+            <td>PASS - 9 tests</td>
+          </tr>
+          <tr>
+            <td>Fresh screenshot capture</td>
+            <td><span class="code">python -B scripts\dashboard_visual_smoke.py --timeout-ms 60000</span></td>
+            <td>14 screenshots captured</td>
+          </tr>
+          <tr>
+            <td>Live routes</td>
+            <td><span class="code">Invoke-WebRequest</span> for dashboard, connector, security, setup, admin routes</td>
+            <td>HTTP 200 for all checked routes</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

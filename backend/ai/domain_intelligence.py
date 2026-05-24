@@ -13,9 +13,9 @@ Confidence scoring:
 
 from __future__ import annotations
 
+import logging
 import re
 import unicodedata
-import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 

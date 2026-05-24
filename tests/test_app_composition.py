@@ -58,6 +58,7 @@ def test_static_route_registry_exposes_public_dashboard_pages():
         "/assistant",
         "/setup",
         "/ai",
+        "/ai-automation",
         "/ai-command-center.js",
         "/admin",
         "/security",
@@ -80,6 +81,7 @@ def test_register_static_dashboard_routes_preserves_public_pages():
         "/assistant",
         "/setup",
         "/ai",
+        "/ai-automation",
         "/ai-command-center.js",
         "/admin",
         "/security",
@@ -88,6 +90,18 @@ def test_register_static_dashboard_routes_preserves_public_pages():
         "/",
     }:
         assert path in paths
+
+
+def test_register_static_dashboard_routes_mounts_ai_automation_frontend_and_api():
+    from backend.app.static_mounts import register_static_dashboard_routes
+
+    app = FastAPI()
+    register_static_dashboard_routes(app)
+    paths = {route.path for route in app.routes}
+
+    assert "/ai-automation" in paths
+    assert "/api/ai-automation/" in paths
+    assert "/api/ai-automation/workflows/" in paths
 
 
 def test_lifespan_factory_returns_context_manager_callable():

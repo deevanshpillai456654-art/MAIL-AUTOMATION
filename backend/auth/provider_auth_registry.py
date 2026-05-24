@@ -1,7 +1,9 @@
 """Provider authentication registry."""
 from __future__ import annotations
-from dataclasses import dataclass, asdict
+
+from dataclasses import asdict, dataclass
 from typing import Dict, List
+
 from backend.core.provider_capability_registry import ProviderCapabilityRegistry
 
 

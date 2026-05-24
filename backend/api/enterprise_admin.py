@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 from fastapi import APIRouter, Depends
+
+from backend import config
 from backend.auth.local_auth import require_local_auth_or_localhost
 from backend.db.database import Database
-from backend import config
 
 router = APIRouter()
 db = Database(config.DB_PATH)

@@ -1,9 +1,11 @@
 """Mailbox recovery DAG for auth, connectivity and sync failures."""
 from __future__ import annotations
+
 from typing import Dict, List
-from backend.db.database import Database
-from backend.core.provider_capability_registry import ProviderCapabilityRegistry
+
 from backend.auth.auth_recovery_orchestrator import AuthRecoveryOrchestrator
+from backend.core.provider_capability_registry import ProviderCapabilityRegistry
+from backend.db.database import Database
 
 
 class MailboxRecoveryEngine:

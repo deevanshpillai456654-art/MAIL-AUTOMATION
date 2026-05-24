@@ -2,14 +2,14 @@
 Scheduler API endpoints
 """
 
-import uuid
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
 from typing import Optional
 
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+
 from backend.auth.local_auth import require_local_auth_or_localhost
-from backend.scheduler.tasks import scheduler, TaskFrequency
 from backend.core.runtime_control import get_runtime_control
+from backend.scheduler.tasks import TaskFrequency, scheduler
 
 router = APIRouter()
 
@@ -50,6 +50,7 @@ async def stop_scheduler():
 @router.post("/scheduler/tasks", dependencies=[_auth])
 async def create_task(task: TaskInput):
     from fastapi import HTTPException
+
     from backend.scheduler.tasks import Task
 
     try:

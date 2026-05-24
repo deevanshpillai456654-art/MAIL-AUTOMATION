@@ -25,17 +25,15 @@ Endpoints:
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR

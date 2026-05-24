@@ -7,8 +7,8 @@ import socket
 from typing import Dict, Optional
 
 from backend import config
-from backend.core.provider_capability_registry import ProviderCapabilityRegistry
 from backend.auth.token_crypto import TokenCipher
+from backend.core.provider_capability_registry import ProviderCapabilityRegistry
 from backend.db.database import Database
 
 

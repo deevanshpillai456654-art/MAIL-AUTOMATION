@@ -228,8 +228,9 @@ async def list_changes(
             params + [limit, offset],
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "changes": [dict(zip(_CR_COLS, r)) for r in rows],
         "total": total, "limit": limit, "offset": offset,
@@ -257,8 +258,9 @@ async def create_change(body: ChangeCreate, _auth=Depends(require_local_auth)):
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": cr_id, "title": body.title, "status": "draft"}
 
 
@@ -280,8 +282,9 @@ async def change_stats(_auth=Depends(require_local_auth)):
             "SELECT COUNT(*) FROM change_approvals WHERE status='pending'"
         ).fetchone()[0]
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total":            total,
         "by_status":        [{"status": r[0], "count": r[1]} for r in by_status],
@@ -314,8 +317,9 @@ async def get_change(change_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     cr = dict(zip(_CR_COLS, row))
     cr["approvals"] = [dict(zip(_APR_COLS, a)) for a in aprs]
     return cr
@@ -350,8 +354,9 @@ async def patch_change(change_id: str, body: ChangePatch, _auth=Depends(require_
         con.commit(); con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True}
 
 
@@ -369,8 +374,9 @@ async def delete_change(change_id: str, _auth=Depends(require_local_auth)):
         con.commit(); con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 @router.post("/{change_id}/transition", summary="Transition status")
@@ -404,8 +410,9 @@ async def transition_change(
         con.commit(); con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True, "status": body.status}
 
 
@@ -423,8 +430,9 @@ async def list_approvals(change_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"approvals": [dict(zip(_APR_COLS, r)) for r in rows]}
 
 
@@ -446,8 +454,9 @@ async def add_approval(change_id: str, body: ApprovalCreate, _auth=Depends(requi
         raise
     except sqlite3.IntegrityError:
         raise HTTPException(409, f"Approver '{body.approver}' already added to this change")
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": apr_id, "approver": body.approver, "status": "pending"}
 
 
@@ -471,6 +480,7 @@ async def update_approval(
         con.commit(); con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True, "status": body.status}

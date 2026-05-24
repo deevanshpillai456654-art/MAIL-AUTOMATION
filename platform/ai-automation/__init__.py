@@ -1,1 +1,1 @@
-"""MailPilot AI Automation Platform"""
+﻿"""INTEMO AI Automation Platform"""

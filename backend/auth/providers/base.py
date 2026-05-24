@@ -120,7 +120,13 @@ class BaseOAuthProvider:
                     "refresh_token": tok.get("refresh_token"),
                     "expires_in": tok.get("expires_in", config.TOKEN_EXPIRY_SECONDS),
                 }
-            logger.warning("%s token exchange failed %s: %s", self.PROVIDER, resp.status_code, resp.text[:300])
+            # Provider error bodies can echo PII — log RFC 6749 `error` only.
+            _err = "unknown_error"
+            try:
+                _err = str((resp.json() or {}).get("error", "unknown_error"))[:64]
+            except Exception:
+                pass
+            logger.warning("%s token exchange failed: status=%s error=%s", self.PROVIDER, resp.status_code, _err)
         except requests.RequestException as exc:
             logger.exception("%s token exchange error: %s", self.PROVIDER, exc)
         return None
@@ -140,7 +146,12 @@ class BaseOAuthProvider:
                     "access_token": tok["access_token"],
                     "expires_in": tok.get("expires_in", config.TOKEN_EXPIRY_SECONDS),
                 }
-            logger.warning("%s token refresh failed %s: %s", self.PROVIDER, resp.status_code, resp.text[:300])
+            _err = "unknown_error"
+            try:
+                _err = str((resp.json() or {}).get("error", "unknown_error"))[:64]
+            except Exception:
+                pass
+            logger.warning("%s token refresh failed: status=%s error=%s", self.PROVIDER, resp.status_code, _err)
         except requests.RequestException as exc:
             logger.exception("%s token refresh error: %s", self.PROVIDER, exc)
         return None

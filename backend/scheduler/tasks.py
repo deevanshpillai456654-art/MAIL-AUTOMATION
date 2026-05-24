@@ -2,18 +2,20 @@
 Scheduled tasks for AI Email Organizer
 """
 
+import json
+import logging
 import threading
 import time
-import json
-from concurrent.futures import ThreadPoolExecutor, Future
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timedelta
-from typing import Dict, List, Callable, Optional
 from enum import Enum
+from typing import Callable, Dict, List, Optional
 
-from backend.db.database import Database
+logger = logging.getLogger(__name__)
+
 from backend import config
 from backend.core.enterprise_system import EnterpriseSystem
-
+from backend.db.database import Database
 
 ALLOWED_SYNC_INTERVAL_SECONDS = {20, 30, 60}
 DEFAULT_SYNC_INTERVAL_SECONDS = 30
@@ -64,7 +66,7 @@ class Task:
             self.run_count += 1
             self._calculate_next_run()
         except Exception as e:
-            print(f"Task {self.name} failed: {e}")
+            logger.error("Task %s failed: %s", self.name, e)
 
     def _calculate_next_run(self):
         now = datetime.now()
@@ -207,12 +209,12 @@ def sync_emails_task():
     """Sync emails from connected accounts"""
     settings = _local_settings()
     if settings.get("auto_sync") is False:
-        print(f"[{datetime.now()}] Auto sync is disabled in settings; skipping scheduled sync.")
+        logger.info("Auto sync is disabled in settings; skipping scheduled sync.")
         return
-    print(f"[{datetime.now()}] Running email sync task")
+    logger.info("Running email sync task")
     active_system = scheduler.enterprise_system or enterprise_system
     if not active_system:
-        print("Enterprise system is not configured; skipping scheduled sync.")
+        logger.info("Enterprise system is not configured; skipping scheduled sync.")
         return
 
     db = Database(config.DB_PATH)
@@ -238,30 +240,31 @@ def sync_emails_task():
             total_queued += 1
         else:
             total_skipped += 1
-            print(f"[{datetime.now()}] Unable to queue sync for account {account['id']} provider {account['provider']}")
+            logger.warning("Unable to queue sync for account %s provider %s", account['id'], account['provider'])
 
-    print(f"[{datetime.now()}] Scheduled sync queue finished: queued={total_queued}, skipped={total_skipped}")
+    logger.info("Scheduled sync queue finished: queued=%d, skipped=%d", total_queued, total_skipped)
 
 
 def cleanup_old_emails_task():
     """Clean up old processed emails"""
-    print(f"[{datetime.now()}] Running email cleanup task")
+    logger.info("Running email cleanup task")
 
 
 def generate_metrics_task():
     """Generate daily metrics"""
-    print(f"[{datetime.now()}] Generating metrics")
+    logger.info("Generating metrics")
 
 
 def check_rules_task():
     """Check and apply rules"""
-    print(f"[{datetime.now()}] Checking rules")
+    logger.info("Checking rules")
 
 
 def db_maintenance_task():
     """Prune stale DB rows and checkpoint WAL files."""
     from pathlib import Path
-    from backend.core.db_maintenance import prune_job_queue, prune_app_db, run_wal_checkpoint
+
+    from backend.core.db_maintenance import prune_app_db, prune_job_queue, run_wal_checkpoint
 
     job_queue_path = Path(config.DATA_DIR) / "job_queue.db"
     pruned_jobs = prune_job_queue(job_queue_path)
@@ -270,7 +273,7 @@ def db_maintenance_task():
 
     total_pruned = pruned_jobs + sum(pruned_app.values())
     if total_pruned:
-        print(f"[{datetime.now()}] DB maintenance: pruned {total_pruned} rows total")
+        logger.info("DB maintenance: pruned %d rows total", total_pruned)
 
 
 def ai_state_backup_task():
@@ -278,7 +281,7 @@ def ai_state_backup_task():
     from backend.ai.onnx_control_plane import get_onnx_control_plane
 
     result = get_onnx_control_plane().run_scheduled_ai_state_backup()
-    print(f"[{datetime.now()}] AI state backup task: {result.get('status')} {result.get('reason', '')}")
+    logger.info("AI state backup task: %s %s", result.get('status'), result.get('reason', ''))
 
 
 scheduler = Scheduler()

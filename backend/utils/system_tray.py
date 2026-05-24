@@ -4,8 +4,6 @@ Provides background service with system tray icon
 """
 
 import sys
-import os
-import threading
 import time
 from pathlib import Path
 
@@ -18,8 +16,8 @@ class SystemTray:
 
     def create_tray_icon(self):
         try:
-            from pystray import Icon, Menu, MenuItem
             from PIL import Image, ImageDraw
+            from pystray import Icon, Menu, MenuItem
         except ImportError:
             print("pystray not available. Install: pip install pystray")
             return None

@@ -124,6 +124,10 @@
   PAGES.risks      = ['Risk Overview', 'Review business risk, ownership and mitigation status.'];
   PAGES.certificates = ['Secure Access', 'Track certificates, expiry and renewal readiness.'];
   PAGES.configs    = ['Workspace Settings', 'Manage workspace configuration and version history.'];
+  PAGES.licenses   = ['Licenses', 'Manage software licenses, renewals, seats and assignment tracking.'];
+  PAGES.budgets    = ['Budgets', 'Track spend, allocation, owners and budget utilization.'];
+  PAGES.vendors    = ['Vendors', 'Manage suppliers, ownership, service relationships and compliance readiness.'];
+  PAGES.assets     = ['Resources', 'Track workspace resources, ownership and lifecycle status.'];
   PAGES.flags      = ['Status Markers', 'Manage feature flags and rollout status markers.'];
   PAGES.capacity   = ['System Usage', 'Monitor capacity and resource utilization.'];
   PAGES.knowledge  = ['Knowledge Base', 'Search and maintain internal operating knowledge.'];
@@ -338,10 +342,16 @@
     setTimeout(() => node.remove(), 5200);
   }
 
+  function clearToasts() {
+    const wrap = $('toastWrap');
+    if (wrap) wrap.replaceChildren();
+  }
+
   // -- View routing ------------------------------------------------------------
   function showView(view, settingsTab) {
     const requestedNav = document.querySelector(`.nav-btn[data-view="${view}"]`);
     if (requestedNav?.hidden) view = 'connectors';
+    if (state.currentView && state.currentView !== view) clearToasts();
     state.currentView = view;
     $$('.view').forEach(el => el.classList.toggle('active', el.id === `view-${view}`));
     $$('.nav-btn').forEach(btn => {
@@ -555,7 +565,7 @@
 
   function providerLogoMarkup(provider) {
     const src = PROVIDER_LOGO_IMAGES[provider] || PROVIDER_LOGO_IMAGES.custom;
-    return `<span class="provider-logo-frame" aria-hidden="true"><img class="provider-logo-img" src="${esc(src)}" alt="" width="44" height="44" loading="lazy"></span>`;
+    return `<span class="provider-logo-frame" aria-hidden="true"><img class="provider-logo-img" src="${esc(src)}" alt="" width="44" height="44"></span>`;
   }
 
   function updateConnectionMethod(provider) {
@@ -783,7 +793,7 @@
             <label>IMAP Port<input name="imap_port" type="number" value="${esc(meta.imap_port || 993)}" /></label>
             <label>SMTP Host<input name="smtp_host" value="${esc(meta.smtp_host || '')}" placeholder="smtp.example.com" /></label>
             <label>SMTP Port<input name="smtp_port" type="number" value="${esc(meta.smtp_port || 465)}" /></label>
-            <label>Sync Interval<select name="sync_interval"><option value="20" ${(meta.sync_interval||20)==20?'selected':''}>Every 20 seconds</option><option value="30" ${(meta.sync_interval||20)==30?'selected':''}>Every 30 seconds</option><option value="60" ${(meta.sync_interval||20)==60?'selected':''}>Every 60 seconds</option></select></label>
+            <label>Sync Interval<select name="sync_interval" aria-label="Sync interval" title="Sync interval"><option value="20" ${(meta.sync_interval||20)==20?'selected':''}>Every 20 seconds</option><option value="30" ${(meta.sync_interval||20)==30?'selected':''}>Every 30 seconds</option><option value="60" ${(meta.sync_interval||20)==60?'selected':''}>Every 60 seconds</option></select></label>
             <label class="check wide"><input name="ssl" type="checkbox" ${meta.security!=='starttls'?'checked':''} /> Use SSL / TLS</label>
             <div class="form-actions wide"><button class="btn primary" type="submit">Save Changes</button><button class="btn" data-cancel-edit="${esc(a.id)}" type="button">Cancel</button></div>
           </form>
@@ -1161,7 +1171,7 @@
     _ocrFile = file;
     const info = $('ocrFileInfo');
     const btn  = $('ocrScanBtn');
-    if (info) { info.classList.remove('hidden'); info.textContent = `${file.name}  Â·  ${(file.size / 1024).toFixed(1)} KB`; }
+    if (info) { info.classList.remove('hidden'); info.textContent = `${file.name} - ${(file.size / 1024).toFixed(1)} KB`; }
     if (btn)  btn.disabled = false;
   }
 
@@ -2294,9 +2304,21 @@
   }
 
   // -- Rules / Automations -----------------------------------------------------
+  const SAMPLE_RULE_NAMES = new Set([
+    'Quarantine suspected scams',
+    'Move invoices to Finance',
+    'Move OTPs to security',
+    'Archive old newsletters',
+    'Flag urgent emails',
+  ]);
+
+  function isSampleRule(rule) {
+    return Boolean(rule?.is_sample) || SAMPLE_RULE_NAMES.has(String(rule?.name || '').trim());
+  }
+
   async function loadRules() {
     const result = await api('/api/v1/rules');
-    state.rules = result.ok ? (result.data.rules || []) : [];
+    state.rules = result.ok ? (result.data.rules || []).filter(rule => !isSampleRule(rule)) : [];
     renderRules();
   }
 
@@ -2307,7 +2329,7 @@
     const ruleListEl = $('ruleList');
     if (ruleListEl) {
       if (rows.length) {
-        ruleListEl.innerHTML = rows.map(r => `<div class="rule-item" role="listitem" data-rule-id="${esc(r.id)}"><div><b>${esc(r.name)}</b><small>${esc(r.status||'Active')} - ${esc(r.mailbox_scope === 'selected' ? 'one mailbox' : 'all mailboxes')} - priority ${esc(r.priority||'Medium')} - executions ${esc(r.execution_count||0)}</small></div><div><button class="btn sm" data-simulate-rule-id="${esc(r.id)}" type="button">Test</button><button class="btn sm" type="button">Pause</button><button class="btn sm" type="button">Duplicate</button><button class="btn sm" type="button">Archive</button></div></div>`).join('');
+        ruleListEl.innerHTML = rows.map(r => `<div class="rule-item" role="listitem" data-rule-id="${esc(r.id)}"><div><b>${esc(r.name)}</b><small>${esc(r.status||'Active')} - ${esc(r.mailbox_scope === 'selected' ? 'one mailbox' : 'all mailboxes')} - priority ${esc(r.priority||'Medium')} - executions ${esc(r.execution_count||0)}</small></div><div><button class="btn sm" data-simulate-rule-id="${esc(r.id)}" type="button">Test</button><button class="btn sm" data-rule-action="pause" data-rule-id="${esc(r.id)}" type="button">Pause</button><button class="btn sm" data-rule-action="duplicate" data-rule-id="${esc(r.id)}" type="button">Duplicate</button><button class="btn sm" data-rule-action="archive" data-rule-id="${esc(r.id)}" type="button">Archive</button></div></div>`).join('');
       } else {
         renderEmptyState(ruleListEl, {
           title: 'No rules created yet',
@@ -2316,10 +2338,6 @@
       }
     }
     renderRuleDiagram();
-  }
-
-  function renderRuleDiagram() {
-    if ($('ruleDiagram')) $('ruleDiagram').innerHTML = ['Analyze','Match','Prioritize','Execute','Log','Report'].map(n => `<span class="workflow-node">${esc(n)}</span>`).join(' -> ');
   }
 
   function renderWorkflowSteps(steps) {
@@ -2369,23 +2387,47 @@
   }
 
   async function simulateRule(ruleId = null) {
-    let id = ruleId || state.lastRuleId || state.rules?.[0]?.id;
-    if (!id) {
+    const mailboxId = $('ruleMailboxSelect')?.value || selectedMailboxId();
+    const id = ruleId || state.lastRuleId || state.rules?.[0]?.id;
+    let result;
+    if (id) {
+      const payload = {limit:100};
+      if (mailboxId) payload.mailbox_id = Number(mailboxId);
+      result = await api(`/api/v1/rules/${encodeURIComponent(id)}/simulate`, {method:'POST', body:JSON.stringify(payload)});
+    } else {
       const draft = currentRuleFormPayload();
       if (!draft.name || !draft.condition.value.length) return renderSimulationPanel('Enter a rule name and keyword before testing.', false);
-      const saved = await api('/api/v1/rules', {method:'POST', body:JSON.stringify(draft)});
-      if (!saved.ok) return renderSimulationPanel(msgFromError(saved.error), false);
-      id = saved.data.rule_id;
-      state.lastRuleId = id;
-      await loadRules();
+      const draftPayload = {name:draft.name, condition:draft.condition, actions:draft.actions, mailbox_scope:draft.mailbox_scope, mailbox_id:draft.mailbox_id, scan_scope:draft.scan_scope, match_mode:draft.match_mode, limit:100};
+      if (mailboxId) draftPayload.mailbox_id = Number(mailboxId);
+      result = await api('/api/v1/rules/simulate-draft', {method:'POST', body:JSON.stringify(draftPayload)});
     }
-    const mailboxId = $('ruleMailboxSelect')?.value || selectedMailboxId();
-    const payload = {limit:100};
-    if (mailboxId) payload.mailbox_id = Number(mailboxId);
-    const result = await api(`/api/v1/rules/${encodeURIComponent(id)}/simulate`, {method:'POST', body:JSON.stringify(payload)});
     if ($('ruleTimeline')) $('ruleTimeline').innerHTML = `<div class="timeline-item"><b>Simulation</b><br><small>${esc(result.ok ? `Matched ${result.data.matched_count||0} of ${result.data.scanned_count||0}` : msgFromError(result.error))}</small></div>`;
     if (result.ok) renderSimulationPanel(result.data, true); else renderSimulationPanel(msgFromError(result.error), false);
     toast('Simulation complete', result.ok ? 'No messages were modified.' : msgFromError(result.error), result.ok ? 'ok' : 'warn');
+  }
+
+  async function handleRuleLifecycleAction(action, ruleId) {
+    const id = String(ruleId || '').trim();
+    if (!id) return;
+    const src = state.rules.find(rule => String(rule.id) === id);
+    if (action === 'duplicate') {
+      const form = $('ruleForm');
+      const nameEl = form?.querySelector('[name="name"]');
+      if (nameEl) nameEl.value = `${src?.name || 'Rule'} (copy)`;
+      toast('Rule duplicated', 'Review the copied rule and save it when ready.', 'info');
+      return;
+    }
+    if (action === 'pause') {
+      const result = await api(`/api/v1/rules/${encodeURIComponent(id)}`, {method:'PUT', body:JSON.stringify({enabled:false})});
+      if (result.ok) { toast('Rule paused', 'Rule will not run until it is enabled again.', 'ok'); await loadRules(); }
+      else toast('Pause failed', msgFromError(result.error), 'bad');
+      return;
+    }
+    if (action === 'archive') {
+      const result = await api(`/api/v1/rules/${encodeURIComponent(id)}`, {method:'DELETE'});
+      if (result.ok) { toast('Rule archived', 'Rule removed from active automations.', 'ok'); await loadRules(); }
+      else toast('Archive failed', msgFromError(result.error), 'bad');
+    }
   }
 
   function duplicateRule() {
@@ -2778,20 +2820,20 @@ ${section('Model Health', modelHealth)}
 
   function adminSectionDetails(name) {
     const n = String(name || '').toLowerCase();
-    if (n.includes('user'))             return `<div class="control-grid"><label>Invite user<input placeholder="name@company.com"></label><label>Default role<select><option>Staff</option><option>Admin</option><option>Viewer</option></select></label><button class="btn primary" data-admin-action type="button">Send Invite</button></div>`;
-    if (n.includes('roles'))            return `<div class="control-grid"><label>Role<select><option>Admin</option><option>Manager</option><option>Staff</option></select></label><label class="check"><input type="checkbox" checked> Can manage rules</label><label class="check"><input type="checkbox" checked> Can connect accounts</label><label class="check"><input type="checkbox"> Can install updates</label><button class="btn primary" data-admin-action type="button">Save Permissions</button></div>`;
-    if (n.includes('team'))             return `<div class="control-grid"><label>Team name<input placeholder="Operations Team"></label><label>Assignment queue<select><option>Round robin</option><option>Least active</option><option>Manual</option></select></label><button class="btn primary" data-admin-action type="button">Create Team</button></div>`;
+    if (n.includes('user'))             return `<div class="control-grid"><label>Invite user<input placeholder="name@company.com"></label><label>Default role<select aria-label="Default role" title="Default role"><option>Staff</option><option>Admin</option><option>Viewer</option></select></label><button class="btn primary" data-admin-action type="button">Send Invite</button></div>`;
+    if (n.includes('roles'))            return `<div class="control-grid"><label>Role<select aria-label="Role" title="Role"><option>Admin</option><option>Manager</option><option>Staff</option></select></label><label class="check"><input type="checkbox" checked> Can manage rules</label><label class="check"><input type="checkbox" checked> Can connect accounts</label><label class="check"><input type="checkbox"> Can install updates</label><button class="btn primary" data-admin-action type="button">Save Permissions</button></div>`;
+    if (n.includes('team'))             return `<div class="control-grid"><label>Team name<input placeholder="Operations Team"></label><label>Assignment queue<select aria-label="Assignment queue" title="Assignment queue"><option>Round robin</option><option>Least active</option><option>Manual</option></select></label><button class="btn primary" data-admin-action type="button">Create Team</button></div>`;
     if (n.includes('system health'))    return `<div class="report-cards"><div class="report-card"><span>API</span><strong>Ready</strong></div><div class="report-card"><span>Database</span><strong>Ready</strong></div><div class="report-card"><span>Queues</span><strong>Ready</strong></div><div class="report-card"><span>Sync</span><strong>Ready</strong></div></div>`;
     if (n.includes('email provider'))   return `<div class="settings-grid"><div class="settings-card"><b>OAuth providers</b><span>Gmail uses Google OAuth. Outlook, Microsoft 365 and Exchange use Microsoft OAuth.</span><button class="btn primary" data-open-view="accounts" type="button">Open Account Manager</button></div><div class="settings-card"><b>App-password providers</b><span>Yahoo, Zoho, Proton Bridge, IMAP/SMTP and custom domains use encrypted app-password settings.</span><button class="btn" data-open-view="settings" data-settings-jump="accounts" type="button">Account Settings</button></div></div>`;
     if (n.includes('update'))           return `<div class="workflow-diagram"><span class="workflow-node">Upload ZIP</span><span class="workflow-node">Validate</span><span class="workflow-node">Preview</span><span class="workflow-node">Backup</span><span class="workflow-node">Install</span><span class="workflow-node">Rollback</span></div>`;
     if (n.includes('security'))         return `<div class="settings-grid"><div class="settings-card"><b>Vault</b><span>Tokens and passwords are encrypted locally.</span><span class="badge ok">Enabled</span></div><div class="settings-card"><b>RBAC</b><span>Admin functions are role-controlled.</span><span class="badge ok">Enabled</span></div><div class="settings-card"><b>Audit</b><span>Admin and rule actions are logged.</span><span class="badge ok">Enabled</span></div></div>`;
-    if (n.includes('backup'))           return `<div class="control-grid"><label>Backup schedule<select><option>Daily</option><option>Weekly</option><option>Before updates</option></select></label><label>Retention<select><option>30 days</option><option>90 days</option></select></label><button class="btn primary" data-admin-action type="button">Save Backup Policy</button></div>`;
+    if (n.includes('backup'))           return `<div class="control-grid"><label>Backup schedule<select aria-label="Backup schedule" title="Backup schedule"><option>Daily</option><option>Weekly</option><option>Before updates</option></select></label><label>Retention<select aria-label="Backup retention" title="Backup retention"><option>30 days</option><option>90 days</option></select></label><button class="btn primary" data-admin-action type="button">Save Backup Policy</button></div>`;
     if (n.includes('database'))         return `<div class="report-cards"><div class="report-card"><span>Indexes</span><strong>Ready</strong></div><div class="report-card"><span>Migrations</span><strong>Ready</strong></div><div class="report-card"><span>Integrity</span><strong>Ready</strong></div></div>`;
     if (n.includes('notification'))     return `<div class="control-grid"><label>Admin alert email<input placeholder="admin@company.com"></label><label class="check"><input type="checkbox" checked> Sync failures</label><label class="check"><input type="checkbox" checked> Rule failures</label><label class="check"><input type="checkbox" checked> Update failures</label><button class="btn primary" data-admin-action type="button">Save Alerts</button></div>`;
-    if (n.includes('ai configuration')) return `<div class="control-grid"><label>Confidence threshold<input type="number" value="85"></label><label>Review queue<select><option>Manual review below threshold</option><option>Auto classify all</option></select></label><button class="btn primary" data-admin-action type="button">Save AI Policy</button></div>`;
+    if (n.includes('ai configuration')) return `<div class="control-grid"><label>Confidence threshold<input type="number" value="85"></label><label>Review queue<select aria-label="Review queue" title="Review queue"><option>Manual review below threshold</option><option>Auto classify all</option></select></label><button class="btn primary" data-admin-action type="button">Save AI Policy</button></div>`;
     if (n.includes('queue'))            return `<div class="report-cards"><div class="report-card"><span>Email sync</span><strong>Ready</strong></div><div class="report-card"><span>AI processing</span><strong>Ready</strong></div><div class="report-card"><span>Forwarding</span><strong>Ready</strong></div><div class="report-card"><span>Reports</span><strong>Ready</strong></div></div>`;
     if (n.includes('license'))          return `<div class="settings-grid"><div class="settings-card"><b>License status</b><span>Client runtime license controls are available for commercial deployment.</span><span class="badge ok">Ready</span></div></div>`;
-    return `<div class="control-grid"><label>Policy name<input value="${esc(name||'Admin Control')}"></label><label>Status<select><option>Enabled</option><option>Paused</option></select></label><button class="btn primary" data-admin-action type="button">Save ${esc(name||'Admin')} Controls</button></div>`;
+    return `<div class="control-grid"><label>Policy name<input value="${esc(name||'Admin Control')}"></label><label>Status<select aria-label="Policy status" title="Policy status"><option>Enabled</option><option>Paused</option></select></label><button class="btn primary" data-admin-action type="button">Save ${esc(name||'Admin')} Controls</button></div>`;
   }
 
   function renderAdminSection(index) {
@@ -2854,13 +2896,13 @@ ${section('Model Health', modelHealth)}
   function renderSettings(tab = 'general') {
     $$('.settings-tab').forEach(b => b.classList.toggle('active', b.dataset.settings === tab));
     const blocks = {
-      general:       `<h2>General</h2><p>Control default operational behavior for the local enterprise runtime.</p><form class="form-grid settings-form"><label>Default sync interval<select name="sync_interval"><option value="20">20 seconds</option><option value="30">30 seconds</option><option value="60">60 seconds</option></select></label><label>Default landing page<select name="landing"><option>Dashboard</option><option>Inbox</option><option>Accounts</option></select></label><label class="check wide"><input name="preserve_accounts" type="checkbox" checked> Preserve accounts during restart, update, crash and failed sync</label><label class="check wide"><input name="manual_delete_only" type="checkbox" checked> Manual account removal only</label><div class="form-actions"><button class="btn primary" type="submit">Save General Settings</button></div></form>`,
+      general:       `<h2>General</h2><p>Control default operational behavior for the local enterprise runtime.</p><form class="form-grid settings-form"><label>Default sync interval<select name="sync_interval" aria-label="Default sync interval" title="Default sync interval"><option value="20">20 seconds</option><option value="30">30 seconds</option><option value="60">60 seconds</option></select></label><label>Default landing page<select name="landing" aria-label="Default landing page" title="Default landing page"><option>Dashboard</option><option>Inbox</option><option>Accounts</option></select></label><label class="check wide"><input name="preserve_accounts" type="checkbox" checked> Preserve accounts during restart, update, crash and failed sync</label><label class="check wide"><input name="manual_delete_only" type="checkbox" checked> Manual account removal only</label><div class="form-actions"><button class="btn primary" type="submit">Save General Settings</button></div></form>`,
       accounts:      `<h2>Accounts</h2><p>Provider onboarding, credential persistence and reconnect policy.</p><div class="settings-grid"><div class="settings-card"><b>Provider onboarding</b><span>Gmail uses Google OAuth. Outlook, Microsoft 365 and Exchange use Microsoft OAuth. Yahoo, Proton Bridge and custom domains use secure app-password/IMAP-SMTP flows. Zoho supports IMAP/SMTP.</span><button class="btn primary" data-open-view="accounts" type="button">Open Account Manager</button></div><div class="settings-card"><b>Persistence rule</b><span>Accounts are never removed automatically after restart, failed OAuth, wrong password, migration or update. They move to Reconnect Required.</span><button class="btn" data-settings-action="account-policy" type="button">Save Account Policy</button></div></div>`,
-      ai:            `<h2>AI Processing Settings</h2><p>Configure classification and extraction behavior.</p><form class="form-grid settings-form"><label>Classification mode<select name="mode"><option>Balanced</option><option>Strict</option><option>High recall</option></select></label><label>Minimum confidence<input name="confidence" type="number" min="0" max="100" value="85"></label><label class="check"><input name="attachments" type="checkbox" checked> Analyze supported attachments</label><label class="check"><input name="corrections" type="checkbox" checked> Learn from manual corrections</label><label class="wide">Active categories<input value="RFQ, Invoice, Support, Shipment, Lead, Complaint, Payment, Logistics"></label><div class="form-actions"><button class="btn primary" type="submit">Save AI Settings</button><button class="btn" data-open-view="ai" type="button">Run Test Analysis</button></div></form>`,
-      automations:   `<h2>Automation Settings</h2><p>Control retries, approvals and safe execution for rules and workflows.</p><form class="form-grid settings-form"><label>Retry count<select><option>1 retry</option><option selected>3 retries</option><option>5 retries</option></select></label><label>Failure action<select><option selected>Pause affected rule</option><option>Notify admin only</option><option>Retry later</option></select></label><label class="check"><input type="checkbox" checked> Require rule approval for forwarding</label><label class="check"><input type="checkbox" checked> Prevent duplicate forwarding</label><div class="form-actions"><button class="btn primary" type="submit">Save Automation Settings</button><button class="btn" data-open-view="automations" type="button">Manage Rules</button></div></form>`,
-      notifications: `<h2>Notification Settings</h2><p>Choose which operational events should alert admins and users.</p><form class="form-grid settings-form"><label class="check"><input type="checkbox" checked> Sync failures</label><label class="check"><input type="checkbox" checked> Forwarding failures</label><label class="check"><input type="checkbox" checked> OAuth reconnect required</label><label class="check"><input type="checkbox" checked> Update validation failures</label><label>Alert email<input type="email" placeholder="admin@company.com"></label><label>Digest frequency<select><option>Immediate</option><option selected>Daily digest</option><option>Weekly digest</option></select></label><div class="form-actions"><button class="btn primary" type="submit">Save Notification Rules</button></div></form>`,
+      ai:            `<h2>AI Processing Settings</h2><p>Configure classification and extraction behavior.</p><form class="form-grid settings-form"><label>Classification mode<select name="mode" aria-label="Classification mode" title="Classification mode"><option>Balanced</option><option>Strict</option><option>High recall</option></select></label><label>Minimum confidence<input name="confidence" type="number" min="0" max="100" value="85"></label><label class="check"><input name="attachments" type="checkbox" checked> Analyze supported attachments</label><label class="check"><input name="corrections" type="checkbox" checked> Learn from manual corrections</label><label class="wide">Active categories<input value="RFQ, Invoice, Support, Shipment, Lead, Complaint, Payment, Logistics"></label><div class="form-actions"><button class="btn primary" type="submit">Save AI Settings</button><button class="btn" data-open-view="ai" type="button">Run Test Analysis</button></div></form>`,
+      automations:   `<h2>Automation Settings</h2><p>Control retries, approvals and safe execution for rules and workflows.</p><form class="form-grid settings-form"><label>Retry count<select aria-label="Retry count" title="Retry count"><option>1 retry</option><option selected>3 retries</option><option>5 retries</option></select></label><label>Failure action<select aria-label="Failure action" title="Failure action"><option selected>Pause affected rule</option><option>Notify admin only</option><option>Retry later</option></select></label><label class="check"><input type="checkbox" checked> Require rule approval for forwarding</label><label class="check"><input type="checkbox" checked> Prevent duplicate forwarding</label><div class="form-actions"><button class="btn primary" type="submit">Save Automation Settings</button><button class="btn" data-open-view="automations" type="button">Manage Rules</button></div></form>`,
+      notifications: `<h2>Notification Settings</h2><p>Choose which operational events should alert admins and users.</p><form class="form-grid settings-form"><label class="check"><input type="checkbox" checked> Sync failures</label><label class="check"><input type="checkbox" checked> Forwarding failures</label><label class="check"><input type="checkbox" checked> OAuth reconnect required</label><label class="check"><input type="checkbox" checked> Update validation failures</label><label>Alert email<input type="email" placeholder="admin@company.com"></label><label>Digest frequency<select aria-label="Digest frequency" title="Digest frequency"><option>Immediate</option><option selected>Daily digest</option><option>Weekly digest</option></select></label><div class="form-actions"><button class="btn primary" type="submit">Save Notification Rules</button></div></form>`,
       security:      `<h2>Security Settings</h2><p>Credential vault, OAuth token lifecycle, RBAC and secure backup controls.</p><div class="settings-grid"><div class="settings-card"><b>Credential Vault</b><span>OAuth tokens and app passwords are encrypted locally. Raw secrets are never shown back to the UI.</span><span class="badge ok">Enabled</span></div><div class="settings-card"><b>Session &amp; RBAC</b><span>Admin areas require role permission and all actions are audit-ready.</span><span class="badge ok">Protected</span></div></div><div class="form-actions"><button class="btn primary" data-settings-action="security-review" type="button">Run Security Review</button></div>`,
-      integrations:  `<h2>Integrations</h2><p>Configure provider APIs and operational webhooks.</p><form class="form-grid settings-form"><label>Webhook URL<input placeholder="https://company.com/webhooks/email-ops"></label><label>Integration status<select><option>Enabled</option><option>Paused</option></select></label><label class="check"><input type="checkbox" checked> Sign webhook payloads</label><label class="check"><input type="checkbox" checked> Retry failed webhooks</label><div class="form-actions"><button class="btn primary" type="submit">Save Integrations</button></div></form>`,
+      integrations:  `<h2>Integrations</h2><p>Configure provider APIs and operational webhooks.</p><form class="form-grid settings-form"><label>Webhook URL<input placeholder="https://company.com/webhooks/email-ops"></label><label>Integration status<select aria-label="Integration status" title="Integration status"><option>Enabled</option><option>Paused</option></select></label><label class="check"><input type="checkbox" checked> Sign webhook payloads</label><label class="check"><input type="checkbox" checked> Retry failed webhooks</label><div class="form-actions"><button class="btn primary" type="submit">Save Integrations</button></div></form>`,
       updates:       `<h2>System Updates</h2><p>Upload ZIP patches, validate, preview changes, backup, install and rollback when required.</p><form id="patchForm" class="stacked-form"><input name="file" type="file" accept=".zip"><div class="form-actions"><button class="btn" id="previewPatchBtn" type="button">Preview Changes</button><button class="btn primary" type="submit">Validate Patch</button></div></form><div class="workflow-diagram" id="updatePreview"><span class="workflow-node">Upload ZIP</span><span class="workflow-node">Validate</span><span class="workflow-node">Preview</span><span class="workflow-node">Backup</span><span class="workflow-node">Install</span><span class="workflow-node">Rollback Ready</span></div><div id="updateStatus" class="activity-list"></div>`,
       advanced:      `<h2>Advanced Diagnostics</h2><p>Admin-only system diagnostics. Normal users do not need this section.</p>`
     };
@@ -2979,7 +3021,7 @@ ${section('Model Health', modelHealth)}
     if (target.dataset.settings) renderSettings(target.dataset.settings);
 
     if (target.id === 'sidebarToggle') setSidebarOpen(!$('sidebar')?.classList.contains('open'));
-    if (target.id === 'refreshBtn')    { await Promise.all([loadDashboard(), loadAccounts()]); toast('Refreshed', 'Latest operational data loaded.', 'ok'); }
+    if (target.id === 'refreshBtn' || target.id === 'refreshDashBtn' || target.id === 'pageRefreshBtn') { await Promise.all([loadDashboard(), loadAccounts()]); toast('Refreshed', 'Latest operational data loaded.', 'ok'); }
 
     if (target.classList.contains('provider-card')) { selectProvider(target.dataset.provider, true); $('accountForm')?.email?.focus(); }
     if (target.classList.contains('filter-chip')) { $$('.filter-chip').forEach(b => b.classList.remove('active')); target.classList.add('active'); state.savedFilter = target.dataset.filter; renderInbox(); }
@@ -3024,6 +3066,29 @@ ${section('Model Health', modelHealth)}
 
     if (target.id === 'simulateRuleBtn')   simulateRule();
     if (target.dataset.simulateRuleId)     simulateRule(target.dataset.simulateRuleId);
+    if (target.dataset.ruleAction) { await handleRuleLifecycleAction(target.dataset.ruleAction, target.dataset.ruleId); return; }
+    if (target.dataset.pauseRuleId) {
+      const rid = target.dataset.pauseRuleId;
+      const r = await api(`/api/v1/rules/${encodeURIComponent(rid)}`, {method:'PUT', body:JSON.stringify({enabled:false})});
+      if (r.ok) { toast('Rule paused', 'Rule will not run until re-enabled.', 'ok'); loadRules(); } else toast('Pause failed', msgFromError(r.error), 'bad');
+    }
+    if (target.dataset.duplicateRuleId) {
+      const src = state.rules.find(r => String(r.id) === String(target.dataset.duplicateRuleId));
+      if (src) {
+        const form = $('ruleForm');
+        if (form) {
+          const nameEl = form.querySelector('[name="name"]');
+          if (nameEl) nameEl.value = `${src.name} (copy)`;
+          toast('Rule duplicated', 'Modify the name and click Save Rule.', 'info');
+        }
+      }
+    }
+    if (target.dataset.archiveRuleId) {
+      const rid = target.dataset.archiveRuleId;
+      if (!confirm('Archive this rule? It will be disabled and hidden from the list.')) return;
+      const r = await api(`/api/v1/rules/${encodeURIComponent(rid)}`, {method:'DELETE'});
+      if (r.ok) { toast('Rule archived', 'Rule removed.', 'ok'); loadRules(); } else toast('Archive failed', msgFromError(r.error), 'bad');
+    }
     if (target.id === 'scanRuleStructureBtn') scanRuleMailboxStructure();
     if (target.dataset.recoverOnnxModel)   recoverOnnxModel(target.dataset.recoverOnnxModel);
     if (target.dataset.forgetLearningKey)  forgetLearningOverride(target.dataset.forgetLearningKey);
@@ -3488,7 +3553,7 @@ ${section('Model Health', modelHealth)}
             <button class="btn sm danger" type="button" data-alert-del="${esc(rule.rule_id)}">Delete</button>
           </div>
         </div>
-        ${rule.last_breach ? `<div style="margin-top:6px;font-size:11px;color:var(--text-muted);">Last breach: ${esc(rule.last_breach.slice(0,19).replace('T',' '))} UTC Â· ${rule.breach_count} total</div>` : ''}
+        ${rule.last_breach ? `<div style="margin-top:6px;font-size:11px;color:var(--text-muted);">Last breach: ${esc(rule.last_breach.slice(0,19).replace('T',' '))} UTC - ${rule.breach_count} total</div>` : ''}
       </div>`;
     }).join('')}</div>`;
 
@@ -3665,7 +3730,7 @@ ${section('Model Health', modelHealth)}
         modal.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:min(640px,95vw);max-height:80vh;overflow-y:auto;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
             <h3 style="font-size:14px;font-weight:700;margin:0;">Delivery Log (last ${deliveries.length})</h3>
-            <button type="button" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted);">x</button>
+            <button type="button" aria-label="Close delivery log" title="Close delivery log" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted);">x</button>
           </div>
           <table style="width:100%;border-collapse:collapse;font-size:12px;">
             <thead><tr style="color:var(--text-muted);border-bottom:1px solid var(--border);">
@@ -4076,7 +4141,7 @@ ${section('Model Health', modelHealth)}
         const SEV_BADGE = { critical: 'bad', high: 'bad', medium: 'warn', low: 'neutral' };
         const TYPE_ICON = {
           anomaly:     '!',
-          security:    'ðŸ›¡',
+          security:    'SEC',
           opportunity: '*',
           pattern:     '*',
         };
@@ -4129,7 +4194,7 @@ ${section('Model Health', modelHealth)}
         <div style="background:var(--surface-raised);border:1px solid var(--border);border-radius:8px;padding:12px 16px;min-width:160px;flex:1;">
           <div style="font-size:24px;font-weight:700;color:var(--accent);">${esc(String(p.value))} <span style="font-size:12px;font-weight:400;color:var(--text-muted);">${esc(p.unit)}</span></div>
           <div style="font-size:12px;font-weight:600;margin:2px 0;">${esc(p.title)}</div>
-          <div style="font-size:11px;color:var(--text-muted);">Confidence: ${p.confidence}% Â· ${esc(p.horizon)}</div>
+          <div style="font-size:11px;color:var(--text-muted);">Confidence: ${p.confidence}% - ${esc(p.horizon)}</div>
         </div>`).join('') || '<p style="color:var(--text-muted);font-size:13px;">No predictions available yet.</p>';
     }
   }
@@ -4477,7 +4542,7 @@ ${section('Model Health', modelHealth)}
             <div class="panel-head">
               <div>
                 <h2>Workflow Scheduler</h2>
-                <p>${s.scheduled_workflows} scheduled workflow${s.scheduled_workflows !== 1 ? 's' : ''} Â· ${s.checks_run} checks run</p>
+                <p>${s.scheduled_workflows} scheduled workflow${s.scheduled_workflows !== 1 ? 's' : ''} - ${s.checks_run} checks run</p>
               </div>
               <button class="btn ghost" id="triggerSchedulerBtn" style="font-size:12px;">Check Now</button>
             </div>
@@ -4601,7 +4666,7 @@ ${section('Model Health', modelHealth)}
       e.preventDefault();
       let steps = [];
       try { steps = JSON.parse($('pbSteps').value || '[]'); }
-      catch { alert('Steps must be valid JSON.'); return; }
+      catch { toast('Invalid steps', 'Steps must be valid JSON.', 'bad'); return; }
       const body = {
         name:           $('pbName').value.trim(),
         description:    $('pbDesc').value.trim(),
@@ -4816,7 +4881,7 @@ ${section('Model Health', modelHealth)}
     form?.addEventListener('submit', async e => {
       e.preventDefault();
       const sections = Array.from(form.querySelectorAll('[name="section"]:checked')).map(c => c.value).join(',');
-      if (!sections) { alert('Select at least one section.'); return; }
+      if (!sections) { toast('No section selected', 'Select at least one section.', 'warn'); return; }
       const body = {
         name:           $('dispName')?.value?.trim(),
         interval_hours: parseInt($('dispInterval')?.value || '24'),
@@ -5329,7 +5394,7 @@ ${section('Model Health', modelHealth)}
     const maxPage = Math.max(1, Math.ceil(total / limit));
     pg.innerHTML = `
       <button class="btn sm ghost" ${page <= 1 ? 'disabled' : ''} id="auditPrevBtn"><- Prev</button>
-      <span style="color:var(--text-muted);">Page ${page} / ${maxPage} Â· ${total} entries</span>
+      <span style="color:var(--text-muted);">Page ${page} / ${maxPage} - ${total} entries</span>
       <button class="btn sm ghost" ${page >= maxPage ? 'disabled' : ''} id="auditNextBtn">Next -></button>`;
     pg.querySelector('#auditPrevBtn')?.addEventListener('click', () => _loadAuditEntries(offset - limit));
     pg.querySelector('#auditNextBtn')?.addEventListener('click', () => _loadAuditEntries(offset + limit));
@@ -5596,7 +5661,7 @@ ${section('Model Health', modelHealth)}
         _loadSlaPolicies();
         _loadSlaStats();
       } catch (err) {
-        alert('Save failed: ' + (err.message || err));
+        toast('Save failed', err.message || String(err), 'bad');
       }
     });
   }
@@ -5710,7 +5775,7 @@ ${section('Model Health', modelHealth)}
       _loadSlaBreaches();
       _loadSlaStats();
     } catch (err) {
-      alert('Delete failed: ' + (err.message || err));
+      toast('Delete failed', err.message || String(err), 'bad');
     }
   }
 
@@ -5751,7 +5816,7 @@ ${section('Model Health', modelHealth)}
         }
         _closeOncallScheduleModal();
         _loadOncallSchedules();
-      } catch (err) { alert('Save failed: ' + (err.message || err)); }
+      } catch (err) { toast('Save failed', err.message || String(err), 'bad'); }
     });
 
     _q('#oncallSlotForm').addEventListener('submit', async e => {
@@ -5770,7 +5835,7 @@ ${section('Model Health', modelHealth)}
         _q('#oncallSlotModal').hidden = true;
         _loadOncallSchedules();
         _loadOncallCurrent();
-      } catch (err) { alert('Add slot failed: ' + (err.message || err)); }
+      } catch (err) { toast('Add slot failed', err.message || String(err), 'bad'); }
     });
 
     _q('#oncallEscForm').addEventListener('submit', async e => {
@@ -5786,7 +5851,7 @@ ${section('Model Health', modelHealth)}
         await _api('/oncall/escalations', 'POST', body);
         _q('#oncallEscModal').hidden = true;
         _loadOncallSchedules();
-      } catch (err) { alert('Add tier failed: ' + (err.message || err)); }
+      } catch (err) { toast('Add tier failed', err.message || String(err), 'bad'); }
     });
   }
 
@@ -5938,7 +6003,7 @@ ${section('Model Health', modelHealth)}
       await _api(`/oncall/schedules/${id}`, 'DELETE');
       _loadOncallSchedules();
       _loadOncallCurrent();
-    } catch (err) { alert('Delete failed: ' + (err.message || err)); }
+    } catch (err) { toast('Delete failed', err.message || String(err), 'bad'); }
   }
 
   async function _deleteOncallSlot(id) {
@@ -5946,14 +6011,14 @@ ${section('Model Health', modelHealth)}
       await _api(`/oncall/slots/${id}`, 'DELETE');
       _loadOncallSchedules();
       _loadOncallCurrent();
-    } catch (err) { alert('Remove slot failed: ' + (err.message || err)); }
+    } catch (err) { toast('Remove slot failed', err.message || String(err), 'bad'); }
   }
 
   async function _deleteOncallEsc(id) {
     try {
       await _api(`/oncall/escalations/${id}`, 'DELETE');
       _loadOncallSchedules();
-    } catch (err) { alert('Remove tier failed: ' + (err.message || err)); }
+    } catch (err) { toast('Remove tier failed', err.message || String(err), 'bad'); }
   }
 
   // -- API Keys --------------------------------------------------------------
@@ -5998,7 +6063,7 @@ ${section('Model Health', modelHealth)}
           _showAkReveal(data.key, data.warning || '');
         }
       } catch (err) {
-        alert('Save failed: ' + (err.message || err));
+        toast('Save failed', err.message || String(err), 'bad');
       }
     });
   }
@@ -6110,7 +6175,7 @@ ${section('Model Health', modelHealth)}
       const data = await _api(`/api-keys/${id}/rotate`, 'POST');
       _showAkReveal(data.key, data.warning || '');
     } catch (err) {
-      alert('Rotate failed: ' + (err.message || err));
+      toast('Rotate failed', err.message || String(err), 'bad');
     }
   }
 
@@ -6121,7 +6186,7 @@ ${section('Model Health', modelHealth)}
       _loadApiKeys();
       _loadAkStats();
     } catch (err) {
-      alert('Delete failed: ' + (err.message || err));
+      toast('Delete failed', err.message || String(err), 'bad');
     }
   }
 
@@ -6172,7 +6237,7 @@ ${section('Model Health', modelHealth)}
         _loadMaintenanceWindows();
         _loadMaintenanceStatus();
       } catch (err) {
-        alert('Save failed: ' + (err.message || err));
+        toast('Save failed', err.message || String(err), 'bad');
       }
     });
   }
@@ -6212,7 +6277,7 @@ ${section('Model Health', modelHealth)}
           : '';
         return `<tr>
           <td>
-            <a href="#" onclick="event.preventDefault();_openMaintLogModal('${w.id}','${_esc(w.name)}')" style="font-weight:600;">${_esc(w.name)}</a>
+            <button class="link-button" type="button" onclick="_openMaintLogModal('${w.id}','${_esc(w.name)}')">${_esc(w.name)}</button>
             ${w.description ? `<div style="font-size:11px;color:var(--text-muted);">${_esc(w.description)}</div>` : ''}
           </td>
           <td style="font-size:11px;">${_relativeTime(w.starts_at)}</td>
@@ -6315,7 +6380,7 @@ ${section('Model Health', modelHealth)}
       await _api(`/maintenance/${id}/activate`, 'POST');
       _loadMaintenanceWindows();
       _loadMaintenanceStatus();
-    } catch (err) { alert('Activate failed: ' + (err.message || err)); }
+    } catch (err) { toast('Activate failed', err.message || String(err), 'bad'); }
   }
 
   async function _maintComplete(id) {
@@ -6323,7 +6388,7 @@ ${section('Model Health', modelHealth)}
       await _api(`/maintenance/${id}/complete`, 'POST');
       _loadMaintenanceWindows();
       _loadMaintenanceStatus();
-    } catch (err) { alert('Complete failed: ' + (err.message || err)); }
+    } catch (err) { toast('Complete failed', err.message || String(err), 'bad'); }
   }
 
   async function _maintCancel(id, name) {
@@ -6332,7 +6397,7 @@ ${section('Model Health', modelHealth)}
       await _api(`/maintenance/${id}/cancel`, 'POST');
       _loadMaintenanceWindows();
       _loadMaintenanceStatus();
-    } catch (err) { alert('Cancel failed: ' + (err.message || err)); }
+    } catch (err) { toast('Cancel failed', err.message || String(err), 'bad'); }
   }
 
   async function _deleteMaintWindow(id, name) {
@@ -6341,7 +6406,7 @@ ${section('Model Health', modelHealth)}
       await _api(`/maintenance/${id}`, 'DELETE');
       _loadMaintenanceWindows();
       _loadMaintenanceStatus();
-    } catch (err) { alert('Delete failed: ' + (err.message || err)); }
+    } catch (err) { toast('Delete failed', err.message || String(err), 'bad'); }
   }
 
   // ===========================================================================
@@ -6411,7 +6476,7 @@ ${section('Model Health', modelHealth)}
     if (q)   params.set('q', q);
     if (cat) params.set('category', cat);
     const tbody = _q('#rbListTbody');
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data = await _api(`/runbooks?${params}`);
       const rbs = data.runbooks || [];
@@ -6465,7 +6530,7 @@ ${section('Model Health', modelHealth)}
          <strong>Views:</strong> ${rb.view_count}` +
         (rb.latest_version ? `<br><strong>v${rb.latest_version.version_number}</strong>  -  ${_esc(rb.latest_version.change_note||'')} by ${_esc(rb.latest_version.edited_by||'?')} on ${(rb.latest_version.edited_at||'').slice(0,10)}` : '');
       _q('#rbDetailContent').textContent = rb.content_md || '(empty)';
-    } catch (err) { alert('Load failed: ' + (err.message || err)); }
+    } catch (err) { toast('Load failed', err.message || String(err), 'bad'); }
   }
 
   function _openRbModal(rb) {
@@ -6486,7 +6551,7 @@ ${section('Model Health', modelHealth)}
     try {
       const rb = await _api(`/runbooks/${id}`);
       _openRbModal(rb);
-    } catch (err) { alert('Load failed: ' + (err.message || err)); }
+    } catch (err) { toast('Load failed', err.message || String(err), 'bad'); }
   }
 
   async function _saveRunbook() {
@@ -6511,7 +6576,7 @@ ${section('Model Health', modelHealth)}
       _loadRbCategories();
       _loadRunbooks();
       if (_rbCurrentId === id) _rbOpenDetail(id);
-    } catch (err) { alert('Save failed: ' + (err.message || err)); }
+    } catch (err) { toast('Save failed', err.message || String(err), 'bad'); }
   }
 
   async function _loadRbVersions(id) {
@@ -6533,7 +6598,7 @@ ${section('Model Health', modelHealth)}
           ).join('')
         : '<p style="color:var(--text-muted);padding:16px;">No versions recorded.</p>';
       _q('#rbVersionModal').hidden = false;
-    } catch (err) { alert('Load failed: ' + (err.message || err)); }
+    } catch (err) { toast('Load failed', err.message || String(err), 'bad'); }
   }
 
   async function _viewRbVersion(id, num) {
@@ -6544,7 +6609,7 @@ ${section('Model Health', modelHealth)}
         w.document.write(`<pre style="font-family:monospace;white-space:pre-wrap;padding:20px;">${v.content_md||'(empty)'}</pre>`);
         w.document.close();
       }
-    } catch (err) { alert('Load failed: ' + (err.message || err)); }
+    } catch (err) { toast('Load failed', err.message || String(err), 'bad'); }
   }
 
   async function _deleteRunbook(id, name) {
@@ -6557,7 +6622,7 @@ ${section('Model Health', modelHealth)}
       }
       _loadRbStats();
       _loadRunbooks();
-    } catch (err) { alert('Delete failed: ' + (err.message || err)); }
+    } catch (err) { toast('Delete failed', err.message || String(err), 'bad'); }
   }
 
   // ── SLO Management ───────────────────────────────────────────────────────────
@@ -6664,7 +6729,7 @@ ${section('Model Health', modelHealth)}
     const body={name:_q('#sloFormName').value,service:_q('#sloFormService').value,target_pct:parseFloat(_q('#sloFormTarget').value),
       time_window:_q('#sloFormWindow').value,owner:_q('#sloFormOwner').value,team:_q('#sloFormTeam').value,description:_q('#sloFormDesc').value};
     try{await _api(id?`/slos/${id}`:'/slos',id?'PATCH':'POST',body);_q('#sloEditModal').hidden=true;_loadSloStats();_loadSlos();}
-    catch(err){alert('Save failed: '+(err.message||err));}
+    catch(err){toast('Save failed', err.message || String(err), 'bad');}
   }
 
   async function _openSloTransModal() { _q('#sloTransitionModal').hidden=false; }
@@ -6672,19 +6737,19 @@ ${section('Model Health', modelHealth)}
   async function _doSloTransition() {
     const status=_q('#sloTransitionStatus').value; const notes=_q('#sloTransitionNotes').value; if(!status) return;
     try{await _api(`/slos/${_sloCurrentId}/transition`,'POST',{status,notes});_q('#sloTransitionModal').hidden=true;_sloOpenDetail(_sloCurrentId);_loadSloStats();_loadSlos();}
-    catch(err){alert('Transition failed: '+(err.message||err));}
+    catch(err){toast('Transition failed', err.message || String(err), 'bad');}
   }
 
   async function _addSloMeasurement() {
     const body={actual_pct:parseFloat(_q('#sloMeasActual').value),good_events:parseInt(_q('#sloMeasGood').value)||0,total_events:parseInt(_q('#sloMeasTotal').value)||0,notes:_q('#sloMeasNotes').value};
     try{await _api(`/slos/${_sloCurrentId}/measurements`,'POST',body);_q('#sloMeasModal').hidden=true;_sloOpenDetail(_sloCurrentId);_loadSloStats();_loadSlos();}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _deleteSlo(id,name) {
     if(!confirm(`Delete SLO "${name}"?`)) return;
     try{await _api(`/slos/${id}`,'DELETE');_loadSloStats();_loadSlos();}
-    catch(err){alert('Delete failed: '+(err.message||err));}
+    catch(err){toast('Delete failed', err.message || String(err), 'bad');}
   }
 
   // ── Change Management ────────────────────────────────────────────────────────
@@ -6752,7 +6817,7 @@ ${section('Model Health', modelHealth)}
       const page = Math.floor(_crOffset / _CR_LIMIT) + 1;
       _q('#crPagination').innerHTML = `<button class="btn xs" ${_crOffset===0?'disabled':''} onclick="_crOffset=Math.max(0,_crOffset-${_CR_LIMIT});_loadChanges()">Prev</button>
         <span class="ops-pagination-label">Page ${page}/${pages}</span>
-        <button class="btn xs" ${_crOffset+_CR_LIMIT>=data.total?'disabled':''} onclick="_crOffset+=_crOffset+${_CR_LIMIT};_loadChanges()">Next</button>`;
+        <button class="btn xs" ${_crOffset+_CR_LIMIT>=data.total?'disabled':''} onclick="_crOffset+=${_CR_LIMIT};_loadChanges()">Next</button>`;
     } catch(err) { tbody.innerHTML = `<tr><td colspan="7" class="ops-table-state ops-table-state-danger">${_esc(err.message||'Error')}</td></tr>`; }
   }
 
@@ -6810,7 +6875,7 @@ ${section('Model Health', modelHealth)}
     try {
       await _api(id ? `/changes/${id}` : '/changes', id ? 'PATCH' : 'POST', body);
       _closeCrModal(); _loadCrStats(); _loadChanges();
-    } catch(err) { alert('Save failed: ' + (err.message||err)); }
+    } catch(err) { toast('Save failed', err.message || String(err), 'bad'); }
   }
 
   async function _openCrTransition(id) {
@@ -6832,20 +6897,20 @@ ${section('Model Health', modelHealth)}
     try {
       await _api(`/changes/${_crCurrentId}/transition`, 'POST', { status, approved_by: _q('#crTransitionApprovedBy').value, notes: _q('#crTransitionNote').value });
       _q('#crTransitionModal').hidden = true; _openCrDetail(_crCurrentId); _loadCrStats(); _loadChanges();
-    } catch(err) { alert('Transition failed: ' + (err.message||err)); }
+    } catch(err) { toast('Transition failed', err.message || String(err), 'bad'); }
   }
 
   async function _addCrApprover() {
     try {
       await _api(`/changes/${_crCurrentId}/approvals`, 'POST', { name: _q('#crApproverName').value, notes: _q('#crApproverNote').value });
       _q('#crApproverModal').hidden = true; _openCrDetail(_crCurrentId);
-    } catch(err) { alert('Failed: ' + (err.message||err)); }
+    } catch(err) { toast('Error', err.message || String(err), 'bad'); }
   }
 
   async function _deleteCr(id, name) {
     if (!confirm(`Delete change request "${name}"?`)) return;
     try { await _api(`/changes/${id}`, 'DELETE'); _loadCrStats(); _loadChanges(); }
-    catch(err) { alert('Delete failed: ' + (err.message||err)); }
+    catch(err) { toast('Delete failed', err.message || String(err), 'bad'); }
   }
 
   // ── Risk Register ────────────────────────────────────────────────────────────
@@ -6889,15 +6954,17 @@ ${section('Model Health', modelHealth)}
     if (q) params.set('q', q); if (status) params.set('status', status);
     if (cat) params.set('category', cat); if (level) params.set('risk_level', level);
     const tbody = _q('#riskTbody');
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data = await _api(`/risks?${params}`);
       const rows = data.risks || [];
-      if (!rows.length) { renderEmptyRow(tbody, { colspan: 6, title: 'No risks found' }); return; }
+      if (!rows.length) { renderEmptyRow(tbody, { colspan: 9, title: 'No risks found' }); return; }
       tbody.innerHTML = rows.map(r => `<tr style="cursor:pointer;" onclick="_riskOpenDetail('${r.id}')">
         <td><strong>${_esc(r.title)}</strong></td><td>${_esc(r.category||'')}</td>
+        <td><span class="badge">${_esc(r.status||'')}</span></td>
+        <td>${r.likelihood||'-'}</td><td>${r.impact||'-'}</td><td>${r.risk_score||'-'}</td>
         <td><span class="badge ${r.risk_level==='critical'?'bad':r.risk_level==='high'?'warn':'ok'}">${_esc(r.risk_level||'')}</span></td>
-        <td>${r.risk_score||'—'}</td><td><span class="badge">${_esc(r.status||'')}</span></td>
+        <td>${_esc(r.owner||'-')}</td>
         <td><button class="btn xs" onclick="event.stopPropagation();_openRiskModal('${r.id}')">Edit</button>
             <button class="btn xs danger" onclick="event.stopPropagation();_deleteRisk('${r.id}','${_esc(r.title).replace(/'/g,"\\'")}')">Del</button></td>
       </tr>`).join('');
@@ -6950,26 +7017,26 @@ ${section('Model Health', modelHealth)}
     try {
       await _api(id ? `/risks/${id}` : '/risks', id ? 'PATCH' : 'POST', body);
       _q('#riskFormDialog').hidden = true; _loadRiskStats(); _loadRisks();
-    } catch(err) { alert('Save failed: ' + (err.message||err)); }
+    } catch(err) { toast('Save failed', err.message || String(err), 'bad'); }
   }
 
   async function _doRiskTransition() {
     const status = _q('#riskTransSelect').value; if (!status) return;
     try { await _api(`/risks/${_riskCurrentId}/transition`, 'POST', { status }); _riskOpenDetail(_riskCurrentId); _loadRiskStats(); _loadRisks(); }
-    catch(err) { alert('Transition failed: ' + (err.message||err)); }
+    catch(err) { toast('Transition failed', err.message || String(err), 'bad'); }
   }
 
   async function _addRiskReview() {
     const form = _q('#riskRevForm');
     const body = { likelihood: parseInt(form.querySelector('[name=likelihood]')?.value||3), impact: parseInt(form.querySelector('[name=impact]')?.value||3), notes: form.querySelector('[name=notes]')?.value||'' };
     try { await _api(`/risks/${_riskCurrentId}/reviews`, 'POST', body); _q('#riskRevDialog').hidden = true; _riskOpenDetail(_riskCurrentId); }
-    catch(err) { alert('Failed: ' + (err.message||err)); }
+    catch(err) { toast('Error', err.message || String(err), 'bad'); }
   }
 
   async function _deleteRisk(id, name) {
     if (!confirm(`Delete risk "${name}"?`)) return;
     try { await _api(`/risks/${id}`, 'DELETE'); _loadRiskStats(); _loadRisks(); }
-    catch(err) { alert('Delete failed: ' + (err.message||err)); }
+    catch(err) { toast('Delete failed', err.message || String(err), 'bad'); }
   }
 
   // ── Certificates ─────────────────────────────────────────────────────────────
@@ -7014,12 +7081,12 @@ ${section('Model Health', modelHealth)}
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data = await _api(`/certificates?${params}`); const rows = data.certificates || [];
-      if (!rows.length) { renderEmptyRow(tbody, { colspan: 6, title: 'No certificates found' }); return; }
+      if (!rows.length) { renderEmptyRow(tbody, { colspan: 8, title: 'No certificates found' }); return; }
       tbody.innerHTML = rows.map(r => `<tr style="cursor:pointer;" onclick="_certOpenDetail('${r.id}')">
-        <td><strong>${_esc(r.common_name||r.name||'')}</strong></td><td>${_esc(r.cert_type||'')}</td>
+        <td><strong>${_esc(r.common_name||r.name||'')}</strong></td><td>${_esc(r.domain||'')}</td><td>${_esc(r.cert_type||r.type||'')}</td>
         <td><span class="badge ${r.status==='expired'?'bad':r.status==='expiring_soon'?'warn':'ok'}">${_esc(r.status||'')}</span></td>
-        <td style="font-size:11px;">${(r.expires_at||'').slice(0,10)||'—'}</td>
-        <td>${_esc(r.environment||'')}</td>
+        <td style="font-size:11px;">${(r.expires_at||'').slice(0,10)||'-'}</td>
+        <td>${r.days_until_expiry!=null?r.days_until_expiry:'-'}</td><td>${r.auto_renew?'Yes':'No'}</td>
         <td><button class="btn xs" onclick="event.stopPropagation();_openCertModal('${r.id}')">Edit</button>
             <button class="btn xs danger" onclick="event.stopPropagation();_deleteCert('${r.id}','${_esc((r.common_name||r.name||'')).replace(/'/g,"\\'")}')">Del</button></td>
       </tr>`).join('');
@@ -7062,26 +7129,26 @@ ${section('Model Health', modelHealth)}
     const form=_q('#certForm'); const id=form.dataset.id;
     const body=Object.fromEntries(new FormData(form).entries());
     try { await _api(id?`/certificates/${id}`:'/certificates', id?'PATCH':'POST', body); _q('#certFormDialog').hidden=true; _loadCertStats(); _loadCerts(); }
-    catch(err) { alert('Save failed: '+(err.message||err)); }
+    catch(err) { toast('Save failed', err.message || String(err), 'bad'); }
   }
 
   async function _doCertTransition() {
     const status=_q('#certTransSelect').value; if(!status) return;
     try { await _api(`/certificates/${_certCurrentId}/transition`,'POST',{status}); _certOpenDetail(_certCurrentId); _loadCertStats(); _loadCerts(); }
-    catch(err) { alert('Transition failed: '+(err.message||err)); }
+    catch(err) { toast('Transition failed', err.message || String(err), 'bad'); }
   }
 
   async function _addCertRenewal() {
     const form=_q('#certRenewForm');
     const body={renewed_by:form.querySelector('[name=renewed_by]')?.value||'', notes:form.querySelector('[name=notes]')?.value||''};
     try { await _api(`/certificates/${_certCurrentId}/renew`,'POST',body); _q('#certRenewDialog').hidden=true; _certOpenDetail(_certCurrentId); }
-    catch(err) { alert('Failed: '+(err.message||err)); }
+    catch(err) { toast('Error', err.message || String(err), 'bad'); }
   }
 
   async function _deleteCert(id, name) {
     if (!confirm(`Delete certificate "${name}"?`)) return;
     try { await _api(`/certificates/${id}`,'DELETE'); _loadCertStats(); _loadCerts(); }
-    catch(err) { alert('Delete failed: '+(err.message||err)); }
+    catch(err) { toast('Delete failed', err.message || String(err), 'bad'); }
   }
 
   // ── Config Management ────────────────────────────────────────────────────────
@@ -7120,16 +7187,16 @@ ${section('Model Health', modelHealth)}
     const params=new URLSearchParams({limit:_CFG_LIMIT,offset:_cfgOffset});
     if(q) params.set('q',q); if(env) params.set('environment',env); if(type) params.set('config_type',type); if(status) params.set('status',status);
     const tbody=_q('#cfgTbody');
-    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data=await _api(`/configs?${params}`); const rows=data.configs||[];
-      if(!rows.length){renderEmptyRow(tbody,{colspan:6,title:'No configs found'});return;}
+      if(!rows.length){renderEmptyRow(tbody,{colspan:8,title:'No configs found'});return;}
       tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_cfgOpenDetail('${r.id}')">
-        <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.config_type||'')}</td>
-        <td>${_esc(r.environment||'')}</td><td><span class="badge">${_esc(r.status||'')}</span></td>
-        <td>v${r.version||1}</td>
+        <td><strong>${_esc(r.key||r.name||'')}</strong></td><td>${_esc(r.environment||'')}</td><td>${_esc(r.config_type||r.type||'')}</td>
+        <td>${_esc(r.value||'-')}</td><td><span class="badge">${_esc(r.status||'')}</span></td>
+        <td>${_esc(r.owner||'-')}</td><td>v${r.version_count||1}</td>
         <td><button class="btn xs" onclick="event.stopPropagation();_openCfgModal('${r.id}')">Edit</button>
-            <button class="btn xs danger" onclick="event.stopPropagation();_deleteCfg('${r.id}','${_esc(r.name||'').replace(/'/g,"\\'")}')">Del</button></td>
+            <button class="btn xs danger" onclick="event.stopPropagation();_deleteCfg('${r.id}','${_esc(r.key||r.name||'').replace(/'/g,"\\'")}')">Del</button></td>
       </tr>`).join('');
       const pages=Math.ceil(data.total/_CFG_LIMIT)||1; const page=Math.floor(_cfgOffset/_CFG_LIMIT)+1;
       _q('#cfgPager').innerHTML=`<button class="btn xs" ${_cfgOffset===0?'disabled':''} onclick="_cfgOffset=Math.max(0,_cfgOffset-${_CFG_LIMIT});_loadConfigs()">Prev</button>
@@ -7168,25 +7235,25 @@ ${section('Model Health', modelHealth)}
   async function _saveCfg() {
     const form=_q('#cfgForm'); const id=form.dataset.id; const body=Object.fromEntries(new FormData(form).entries());
     try{await _api(id?`/configs/${id}`:'/configs',id?'PATCH':'POST',body);_q('#cfgFormDialog').hidden=true;_loadCfgStats();_loadConfigs();}
-    catch(err){alert('Save failed: '+(err.message||err));}
+    catch(err){toast('Save failed', err.message || String(err), 'bad');}
   }
 
   async function _doCfgTransition() {
     const status=_q('#cfgTransSelect').value; if(!status) return;
     try{await _api(`/configs/${_cfgCurrentId}/transition`,'POST',{status});_cfgOpenDetail(_cfgCurrentId);_loadCfgStats();_loadConfigs();}
-    catch(err){alert('Transition failed: '+(err.message||err));}
+    catch(err){toast('Transition failed', err.message || String(err), 'bad');}
   }
 
   async function _promoteCfg() {
     const env=_q('#cfgPromoteSelect').value; const by=_q('#cfgPromoteBy').value;
     try{await _api(`/configs/${_cfgCurrentId}/promote`,'POST',{target_environment:env,promoted_by:by});_q('#cfgEditDialog').hidden=true;_cfgOpenDetail(_cfgCurrentId);}
-    catch(err){alert('Promote failed: '+(err.message||err));}
+    catch(err){toast('Promote failed', err.message || String(err), 'bad');}
   }
 
   async function _deleteCfg(id,name) {
     if(!confirm(`Delete config "${name}"?`)) return;
     try{await _api(`/configs/${id}`,'DELETE');_loadCfgStats();_loadConfigs();}
-    catch(err){alert('Delete failed: '+(err.message||err));}
+    catch(err){toast('Delete failed', err.message || String(err), 'bad');}
   }
 
   // ── License Management ───────────────────────────────────────────────────────
@@ -7227,14 +7294,14 @@ ${section('Model Health', modelHealth)}
     const params=new URLSearchParams({limit:_LIC_LIMIT,offset:_licOffset});
     if(q) params.set('q',q); if(status) params.set('status',status); if(type) params.set('license_type',type);
     const tbody=_q('#licTbody');
-    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data=await _api(`/licenses?${params}`); const rows=data.licenses||[];
-      if(!rows.length){renderEmptyRow(tbody,{colspan:6,title:'No licenses found'});return;}
+      if(!rows.length){renderEmptyRow(tbody,{colspan:8,title:'No licenses found'});return;}
       tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_licOpenDetail('${r.id}')">
-        <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.license_type||'')}</td>
+        <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.product||'')}</td><td>${_esc(r.vendor||'')}</td><td>${_esc(r.license_type||r.type||'')}</td>
         <td><span class="badge ${r.status==='expired'?'bad':r.status==='expiring_soon'?'warn':'ok'}">${_esc(r.status||'')}</span></td>
-        <td>${r.total_seats||'—'}</td><td style="font-size:11px;">${(r.expires_at||'').slice(0,10)||'—'}</td>
+        <td>${r.seats_used||0}/${r.seats_total||r.total_seats||0}</td><td style="font-size:11px;">${(r.expiry_date||r.expires_at||'').slice(0,10)||'-'}</td>
         <td><button class="btn xs" onclick="event.stopPropagation();_openLicModal('${r.id}')">Edit</button>
             <button class="btn xs danger" onclick="event.stopPropagation();_deleteLic('${r.id}','${_esc(r.name||'').replace(/'/g,"\\'")}')">Del</button></td>
       </tr>`).join('');
@@ -7276,37 +7343,37 @@ ${section('Model Health', modelHealth)}
   async function _saveLic() {
     const form=_q('#licForm'); const id=form.dataset.id; const body=Object.fromEntries(new FormData(form).entries());
     try{await _api(id?`/licenses/${id}`:'/licenses',id?'PATCH':'POST',body);_q('#licFormDialog').hidden=true;_loadLicStats();_loadLicenses();}
-    catch(err){alert('Save failed: '+(err.message||err));}
+    catch(err){toast('Save failed', err.message || String(err), 'bad');}
   }
 
   async function _doLicTransition() {
     const status=_q('#licTransSelect').value; if(!status) return;
     try{await _api(`/licenses/${_licCurrentId}/transition`,'POST',{status});_licOpenDetail(_licCurrentId);_loadLicStats();_loadLicenses();}
-    catch(err){alert('Transition failed: '+(err.message||err));}
+    catch(err){toast('Transition failed', err.message || String(err), 'bad');}
   }
 
   async function _addLicAsn() {
     const form=_q('#licAsnForm'); const body={user_email:form.querySelector('[name=user_email]')?.value||'',role:form.querySelector('[name=role]')?.value||''};
     try{await _api(`/licenses/${_licCurrentId}/assignments`,'POST',body);_q('#licAsnDialog').hidden=true;_licOpenDetail(_licCurrentId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _deleteLicAsn(licId,asnId) {
     if(!confirm('Remove assignment?')) return;
     try{await _api(`/licenses/${licId}/assignments/${asnId}`,'DELETE');_licOpenDetail(licId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _addLicRen() {
     const form=_q('#licRenForm'); const body={renewed_by:form.querySelector('[name=renewed_by]')?.value||'',notes:form.querySelector('[name=notes]')?.value||''};
     try{await _api(`/licenses/${_licCurrentId}/renewals`,'POST',body);_q('#licRenDialog').hidden=true;_licOpenDetail(_licCurrentId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _deleteLic(id,name) {
     if(!confirm(`Delete license "${name}"?`)) return;
     try{await _api(`/licenses/${id}`,'DELETE');_loadLicStats();_loadLicenses();}
-    catch(err){alert('Delete failed: '+(err.message||err));}
+    catch(err){toast('Delete failed', err.message || String(err), 'bad');}
   }
 
   // ── Budget Tracking ──────────────────────────────────────────────────────────
@@ -7344,15 +7411,17 @@ ${section('Model Health', modelHealth)}
     const params=new URLSearchParams({limit:_BUD_LIMIT,offset:_budOffset});
     if(q) params.set('q',q); if(status) params.set('status',status); if(cat) params.set('category',cat);
     const tbody=_q('#budTbody');
-    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
+    tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Loading...</td></tr>';
     try {
       const data=await _api(`/budgets?${params}`); const rows=data.budgets||[];
-      if(!rows.length){renderEmptyRow(tbody,{colspan:6,title:'No budgets found'});return;}
+      if(!rows.length){renderEmptyRow(tbody,{colspan:8,title:'No budgets found'});return;}
       tbody.innerHTML=rows.map(r=>`<tr style="cursor:pointer;" onclick="_budOpenDetail('${r.id}')">
         <td><strong>${_esc(r.name||'')}</strong></td><td>${_esc(r.category||'')}</td>
         <td><span class="badge ${r.is_over_budget?'bad':'ok'}">${_esc(r.status||'')}</span></td>
         <td>${r.amount!=null?r.amount:''} ${_esc(r.currency||'')}</td>
-        <td>${r.total_spent!=null?r.total_spent.toFixed(2):'—'}</td>
+        <td>${r.spent!=null?r.spent.toFixed(2):(r.total_spent!=null?r.total_spent.toFixed(2):'0.00')}</td>
+        <td><span class="badge ${r.utilization_pct>90?'bad':r.utilization_pct>70?'warn':'ok'}">${r.utilization_pct!=null?r.utilization_pct.toFixed(1)+'%':'0.0%'}</span></td>
+        <td>${_esc(r.owner||'-')}</td>
         <td><button class="btn xs" onclick="event.stopPropagation();_openBudModal('${r.id}')">Edit</button>
             <button class="btn xs danger" onclick="event.stopPropagation();_deleteBud('${r.id}','${_esc(r.name||'').replace(/'/g,"\\'")}')">Del</button></td>
       </tr>`).join('');
@@ -7394,31 +7463,31 @@ ${section('Model Health', modelHealth)}
   async function _saveBud() {
     const form=_q('#budForm'); const id=form.dataset.id; const body=Object.fromEntries(new FormData(form).entries());
     try{await _api(id?`/budgets/${id}`:'/budgets',id?'PATCH':'POST',body);_q('#budFormDialog').hidden=true;_loadBudStats();_loadBudgets();}
-    catch(err){alert('Save failed: '+(err.message||err));}
+    catch(err){toast('Save failed', err.message || String(err), 'bad');}
   }
 
   async function _doBudTransition() {
     const status=_q('#budTransSelect').value; if(!status) return;
     try{await _api(`/budgets/${_budCurrentId}/transition`,'POST',{status});_budOpenDetail(_budCurrentId);_loadBudStats();_loadBudgets();}
-    catch(err){alert('Transition failed: '+(err.message||err));}
+    catch(err){toast('Transition failed', err.message || String(err), 'bad');}
   }
 
   async function _addBudEntry() {
     const form=_q('#budEntryForm'); const body=Object.fromEntries(new FormData(form).entries());
     try{await _api(`/budgets/${_budCurrentId}/entries`,'POST',body);_q('#budEntryDialog').hidden=true;_budOpenDetail(_budCurrentId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _deleteBudEntry(budId,entryId) {
     if(!confirm('Delete cost entry?')) return;
     try{await _api(`/budgets/${budId}/entries/${entryId}`,'DELETE');_budOpenDetail(budId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _deleteBud(id,name) {
     if(!confirm(`Delete budget "${name}"?`)) return;
     try{await _api(`/budgets/${id}`,'DELETE');_loadBudStats();_loadBudgets();}
-    catch(err){alert('Delete failed: '+(err.message||err));}
+    catch(err){toast('Delete failed', err.message || String(err), 'bad');}
   }
 
   // ── Feature Flags ────────────────────────────────────────────────────────────
@@ -7503,7 +7572,7 @@ ${section('Model Health', modelHealth)}
     const id=_q('#flag-modal').dataset.id;
     const body={name:_q('#flag-f-name').value,description:_q('#flag-f-desc').value,owner:_q('#flag-f-owner').value,tags:_q('#flag-f-tags').value};
     try{await _api(id?`/flags/${id}`:'/flags',id?'PATCH':'POST',body);_q('#flag-modal').hidden=true;_loadFlagStats();_loadFlags();}
-    catch(err){alert('Save failed: '+(err.message||err));}
+    catch(err){toast('Save failed', err.message || String(err), 'bad');}
   }
 
   async function _openFlagTransitionModal() {
@@ -7517,33 +7586,33 @@ ${section('Model Health', modelHealth)}
     const status=_q('#flag-transition-status').value; if(!status) return;
     const author=_q('#flag-transition-author').value;
     try{await _api(`/flags/${_flagCurrentId}/transition`,'POST',{status,author});_q('#flag-transition-modal').hidden=true;_flagOpenDetail(_flagCurrentId);_loadFlagStats();_loadFlags();}
-    catch(err){alert('Transition failed: '+(err.message||err));}
+    catch(err){toast('Transition failed', err.message || String(err), 'bad');}
   }
 
   async function _saveFlagEnv() {
     const env=_q('#flag-env-name').value.trim(); if(!env) return;
     const enabled=_q('#flag-env-enabled').value==='true'; const pct=parseInt(_q('#flag-env-rollout').value)||0;
     try{await _api(`/flags/${_flagCurrentId}/environments`,'POST',{environment:env,enabled,rollout_percentage:pct});_flagOpenDetail(_flagCurrentId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _addFlagEvt() {
     const note=_q('#flag-evt-note').value.trim(); const author=_q('#flag-evt-author').value.trim();
     if(!note) return;
     try{await _api(`/flags/${_flagCurrentId}/events`,'POST',{note,author});_q('#flag-evt-note').value='';_flagOpenDetail(_flagCurrentId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _deleteFlagCurrent() {
     const id=_flagCurrentId; if(!id||!confirm('Delete this flag?')) return;
     try{await _api(`/flags/${id}`,'DELETE');_q('#flag-detail').hidden=true;_flagCurrentId=null;_loadFlagStats();_loadFlags();}
-    catch(err){alert('Delete failed: '+(err.message||err));}
+    catch(err){toast('Delete failed', err.message || String(err), 'bad');}
   }
 
   async function _deleteFlagById(id,name) {
     if(!confirm(`Delete flag "${name}"?`)) return;
     try{await _api(`/flags/${id}`,'DELETE');_loadFlagStats();_loadFlags();}
-    catch(err){alert('Delete failed: '+(err.message||err));}
+    catch(err){toast('Delete failed', err.message || String(err), 'bad');}
   }
 
   // ── Vendor Management ────────────────────────────────────────────────────────
@@ -7635,7 +7704,7 @@ ${section('Model Health', modelHealth)}
       contract_value:_q('#ven-f-value').value?parseFloat(_q('#ven-f-value').value):null,
       sla_tier:_q('#ven-f-sla').value,owner:_q('#ven-f-owner').value,notes:_q('#ven-f-notes').value};
     try{await _api(id?`/vendors/${id}`:'/vendors',id?'PATCH':'POST',body);_q('#ven-modal').hidden=true;_loadVenStats();_loadVendors();}
-    catch(err){alert('Save failed: '+(err.message||err));}
+    catch(err){toast('Save failed', err.message || String(err), 'bad');}
   }
 
   async function _openVenTransModal() {
@@ -7645,32 +7714,32 @@ ${section('Model Health', modelHealth)}
   async function _doVenTransition() {
     const status=_q('#ven-transition-status').value; if(!status) return;
     try{await _api(`/vendors/${_venCurrentId}/transition`,'POST',{status});_q('#ven-transition-modal').hidden=true;_venOpenDetail(_venCurrentId);_loadVenStats();_loadVendors();}
-    catch(err){alert('Transition failed: '+(err.message||err));}
+    catch(err){toast('Transition failed', err.message || String(err), 'bad');}
   }
 
   async function _addVenContact() {
     const name=_q('#ven-con-name').value.trim(); if(!name) return;
     const body={name,email:_q('#ven-con-email').value,role:_q('#ven-con-role').value};
     try{await _api(`/vendors/${_venCurrentId}/contacts`,'POST',body);_q('#ven-con-name').value='';_venOpenDetail(_venCurrentId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _addVenReview() {
     const body={rating:parseInt(_q('#ven-rev-rating').value)||3,reviewer:_q('#ven-rev-reviewer').value,notes:_q('#ven-rev-notes').value};
     try{await _api(`/vendors/${_venCurrentId}/reviews`,'POST',body);_venOpenDetail(_venCurrentId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _deleteVenCurrent() {
     if(!_venCurrentId||!confirm('Delete this vendor?')) return;
     try{await _api(`/vendors/${_venCurrentId}`,'DELETE');_q('#ven-detail').hidden=true;_venCurrentId=null;_loadVenStats();_loadVendors();}
-    catch(err){alert('Delete failed: '+(err.message||err));}
+    catch(err){toast('Delete failed', err.message || String(err), 'bad');}
   }
 
   async function _deleteVenById(id,name) {
     if(!confirm(`Delete vendor "${name}"?`)) return;
     try{await _api(`/vendors/${id}`,'DELETE');_loadVenStats();_loadVendors();}
-    catch(err){alert('Delete failed: '+(err.message||err));}
+    catch(err){toast('Delete failed', err.message || String(err), 'bad');}
   }
 
   // ── Capacity Planning ────────────────────────────────────────────────────────
@@ -7759,7 +7828,7 @@ ${section('Model Health', modelHealth)}
       reserved_capacity:parseFloat(_q('#cap-f-reserved').value)||0,environment:_q('#cap-f-env').value,
       owner:_q('#cap-f-owner').value,team:_q('#cap-f-team').value,notes:_q('#cap-f-notes').value};
     try{await _api(id?`/capacity/resources/${id}`:'/capacity/resources',id?'PATCH':'POST',body);_q('#cap-modal').hidden=true;_loadCapStats();_loadCapacity();}
-    catch(err){alert('Save failed: '+(err.message||err));}
+    catch(err){toast('Save failed', err.message || String(err), 'bad');}
   }
 
   async function _openCapTransModal() { _q('#cap-transition-modal').hidden=false; }
@@ -7767,25 +7836,25 @@ ${section('Model Health', modelHealth)}
   async function _doCapTransition() {
     const status=_q('#cap-transition-status').value; if(!status) return;
     try{await _api(`/capacity/resources/${_capCurrentId}/transition`,'POST',{status});_q('#cap-transition-modal').hidden=true;_capOpenDetail(_capCurrentId);_loadCapStats();_loadCapacity();}
-    catch(err){alert('Transition failed: '+(err.message||err));}
+    catch(err){toast('Transition failed', err.message || String(err), 'bad');}
   }
 
   async function _addCapSnap() {
     const body={used_capacity:parseFloat(_q('#cap-snap-used').value)||0,total_capacity:parseFloat(_q('#cap-snap-total').value)||0,notes:_q('#cap-snap-notes').value};
     try{await _api(`/capacity/resources/${_capCurrentId}/snapshots`,'POST',body);_capOpenDetail(_capCurrentId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _deleteCapCurrent() {
     if(!_capCurrentId||!confirm('Delete this resource?')) return;
     try{await _api(`/capacity/resources/${_capCurrentId}`,'DELETE');_q('#cap-detail').hidden=true;_capCurrentId=null;_loadCapStats();_loadCapacity();}
-    catch(err){alert('Delete failed: '+(err.message||err));}
+    catch(err){toast('Delete failed', err.message || String(err), 'bad');}
   }
 
   async function _deleteCapById(id,name) {
     if(!confirm(`Delete resource "${name}"?`)) return;
     try{await _api(`/capacity/resources/${id}`,'DELETE');_loadCapStats();_loadCapacity();}
-    catch(err){alert('Delete failed: '+(err.message||err));}
+    catch(err){toast('Delete failed', err.message || String(err), 'bad');}
   }
 
   // ── Knowledge Base ───────────────────────────────────────────────────────────
@@ -7869,7 +7938,7 @@ ${section('Model Health', modelHealth)}
     const id=_q('#kb-modal').dataset.id;
     const body={title:_q('#kb-f-title').value,category:_q('#kb-f-category').value,tags:_q('#kb-f-tags').value,author:_q('#kb-f-author').value,body:_q('#kb-f-body').value};
     try{await _api(id?`/kb/articles/${id}`:'/kb/articles',id?'PATCH':'POST',body);_q('#kb-modal').hidden=true;_loadKbStats();_loadKb();}
-    catch(err){alert('Save failed: '+(err.message||err));}
+    catch(err){toast('Save failed', err.message || String(err), 'bad');}
   }
 
   async function _openKbTransModal() { _q('#kb-transition-modal').hidden=false; }
@@ -7877,25 +7946,25 @@ ${section('Model Health', modelHealth)}
   async function _doKbTransition() {
     const status=_q('#kb-transition-status').value; const author=_q('#kb-transition-author').value; if(!status) return;
     try{await _api(`/kb/articles/${_kbCurrentId}/transition`,'POST',{status,author});_q('#kb-transition-modal').hidden=true;_kbOpenDetail(_kbCurrentId);_loadKbStats();_loadKb();}
-    catch(err){alert('Transition failed: '+(err.message||err));}
+    catch(err){toast('Transition failed', err.message || String(err), 'bad');}
   }
 
   async function _saveKbRevision() {
     const body={author:_q('#kb-rev-author').value,body:_q('#kb-f-body')?.value||''};
     try{await _api(`/kb/articles/${_kbCurrentId}/revisions`,'POST',body);_kbOpenDetail(_kbCurrentId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _deleteKbCurrent() {
     if(!_kbCurrentId||!confirm('Delete this article?')) return;
     try{await _api(`/kb/articles/${_kbCurrentId}`,'DELETE');_q('#kb-detail').hidden=true;_kbCurrentId=null;_loadKbStats();_loadKb();}
-    catch(err){alert('Delete failed: '+(err.message||err));}
+    catch(err){toast('Delete failed', err.message || String(err), 'bad');}
   }
 
   async function _deleteKbById(id,name) {
     if(!confirm(`Delete article "${name}"?`)) return;
     try{await _api(`/kb/articles/${id}`,'DELETE');_loadKbStats();_loadKb();}
-    catch(err){alert('Delete failed: '+(err.message||err));}
+    catch(err){toast('Delete failed', err.message || String(err), 'bad');}
   }
 
   // ── Asset Management ─────────────────────────────────────────────────────────
@@ -7988,7 +8057,7 @@ ${section('Model Health', modelHealth)}
       hostname:_q('#asset-f-hostname').value,ip_address:_q('#asset-f-ip').value,version:_q('#asset-f-version').value,
       owner:_q('#asset-f-owner').value,team:_q('#asset-f-team').value,tags:_q('#asset-f-tags').value,description:_q('#asset-f-desc').value};
     try{await _api(id?`/assets/${id}`:'/assets',id?'PATCH':'POST',body);_q('#asset-modal').hidden=true;_loadAssetStats();_loadAssets();}
-    catch(err){alert('Save failed: '+(err.message||err));}
+    catch(err){toast('Save failed', err.message || String(err), 'bad');}
   }
 
   async function _openAssetTransModal() { _q('#asset-transition-modal').hidden=false; }
@@ -7996,36 +8065,36 @@ ${section('Model Health', modelHealth)}
   async function _doAssetTransition() {
     const status=_q('#asset-transition-status').value; const note=_q('#asset-transition-note').value; const author=_q('#asset-transition-author').value; if(!status) return;
     try{await _api(`/assets/${_assetCurrentId}/transition`,'POST',{status,note,author});_q('#asset-transition-modal').hidden=true;_assetOpenDetail(_assetCurrentId);_loadAssetStats();_loadAssets();}
-    catch(err){alert('Transition failed: '+(err.message||err));}
+    catch(err){toast('Transition failed', err.message || String(err), 'bad');}
   }
 
   async function _addAssetRel() {
     const target=_q('#asset-rel-target-id').value.trim(); const type=_q('#asset-rel-type').value; if(!target) return;
     try{await _api(`/assets/${_assetCurrentId}/relationships`,'POST',{target_id:target,relationship_type:type});_assetOpenDetail(_assetCurrentId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _deleteAssetRel(assetId,relId) {
     try{await _api(`/assets/${assetId}/relationships/${relId}`,'DELETE');_assetOpenDetail(assetId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _addAssetEvt() {
     const note=_q('#asset-evt-note').value.trim(); const author=_q('#asset-evt-author').value.trim(); if(!note) return;
     try{await _api(`/assets/${_assetCurrentId}/events`,'POST',{note,author});_q('#asset-evt-note').value='';_assetOpenDetail(_assetCurrentId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _deleteAssetCurrent() {
     if(!_assetCurrentId||!confirm('Delete this asset?')) return;
     try{await _api(`/assets/${_assetCurrentId}`,'DELETE');_q('#asset-detail').hidden=true;_assetCurrentId=null;_loadAssetStats();_loadAssets();}
-    catch(err){alert('Delete failed: '+(err.message||err));}
+    catch(err){toast('Delete failed', err.message || String(err), 'bad');}
   }
 
   async function _deleteAssetById(id,name) {
     if(!confirm(`Delete asset "${name}"?`)) return;
     try{await _api(`/assets/${id}`,'DELETE');_loadAssetStats();_loadAssets();}
-    catch(err){alert('Delete failed: '+(err.message||err));}
+    catch(err){toast('Delete failed', err.message || String(err), 'bad');}
   }
 
   // ── Deployments ───────────────────────────────────────────────────────────────
@@ -8119,7 +8188,7 @@ ${section('Model Health', modelHealth)}
       deployer:_q('#depFormDeployer').value,service_id:_q('#depFormServiceId').value||null,
       change_id:_q('#depFormChangeId').value||null,notes:_q('#depFormNotes').value};
     try{await _api(id?`/deployments/${id}`:'/deployments',id?'PATCH':'POST',body);_q('#depEditModal').hidden=true;_loadDepStats();_loadDeployments();}
-    catch(err){alert('Save failed: '+(err.message||err));}
+    catch(err){toast('Save failed', err.message || String(err), 'bad');}
   }
 
   async function _openDepTransModal() { _q('#depTransitionModal').hidden=false; }
@@ -8127,13 +8196,13 @@ ${section('Model Health', modelHealth)}
   async function _doDepTransition() {
     const status=_q('#depTransitionStatus').value; const note=_q('#depTransitionNote').value; const author=_q('#depTransitionAuthor').value; if(!status) return;
     try{await _api(`/deployments/${_depCurrentId}/transition`,'POST',{status,note,author});_q('#depTransitionModal').hidden=true;_depOpenDetail(_depCurrentId);_loadDepStats();_loadDeployments();}
-    catch(err){alert('Transition failed: '+(err.message||err));}
+    catch(err){toast('Transition failed', err.message || String(err), 'bad');}
   }
 
   async function _addDepNote() {
     const body={text:_q('#depNoteText').value,author:_q('#depNoteAuthor').value};
     try{await _api(`/deployments/${_depCurrentId}/notes`,'POST',body);_q('#depNoteModal').hidden=true;_depOpenDetail(_depCurrentId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   // ── Service Catalog ───────────────────────────────────────────────────────────
@@ -8221,13 +8290,13 @@ ${section('Model Health', modelHealth)}
       status:_q('#svcFormStatus').value,owner:_q('#svcFormOwner').value,team:_q('#svcFormTeam').value,
       doc_url:_q('#svcFormDocUrl').value||null,health_url:_q('#svcFormHealthUrl').value||null};
     try{await _api(id?`/services/${id}`:'/services',id?'PATCH':'POST',body);_q('#svcEditModal').hidden=true;_loadSvcStats();_loadServices();}
-    catch(err){alert('Save failed: '+(err.message||err));}
+    catch(err){toast('Save failed', err.message || String(err), 'bad');}
   }
 
   async function _doSvcStatus() {
     const status=_q('#svcStatusSelect').value; const reason=_q('#svcStatusReason').value; const changed_by=_q('#svcStatusAuthor').value; if(!status) return;
     try{await _api(`/services/${_svcCurrentId}/status`,'POST',{status,reason,changed_by});_q('#svcStatusModal').hidden=true;_svcOpenDetail(_svcCurrentId);_loadSvcStats();_loadServices();}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   // ── Problem Management ────────────────────────────────────────────────────────
@@ -8328,7 +8397,7 @@ ${section('Model Health', modelHealth)}
       root_cause:_q('#prFormRootCause').value,workaround:_q('#prFormWorkaround').value,
       linked_change_id:_q('#prFormLinkedChange').value||null};
     try{await _api(id?`/problems/${id}`:'/problems',id?'PATCH':'POST',body);_q('#prEditModal').hidden=true;_loadPrStats();_loadProblems();}
-    catch(err){alert('Save failed: '+(err.message||err));}
+    catch(err){toast('Save failed', err.message || String(err), 'bad');}
   }
 
   async function _openPrTransModal() { _q('#prTransitionModal').hidden=false; }
@@ -8336,19 +8405,19 @@ ${section('Model Health', modelHealth)}
   async function _doPrTransition() {
     const status=_q('#prTransitionStatus').value; const note=_q('#prTransitionNote').value; if(!status) return;
     try{await _api(`/problems/${_prCurrentId}/transition`,'POST',{status,note});_q('#prTransitionModal').hidden=true;_openPrDetail(_prCurrentId);_loadPrStats();_loadProblems();}
-    catch(err){alert('Transition failed: '+(err.message||err));}
+    catch(err){toast('Transition failed', err.message || String(err), 'bad');}
   }
 
   async function _linkPrIncident() {
     const incident_id=_q('#prLinkIncidentId').value.trim(); if(!incident_id) return;
     try{await _api(`/problems/${_prCurrentId}/incidents`,'POST',{incident_id});_q('#prLinkIncidentModal').hidden=true;_openPrDetail(_prCurrentId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   async function _addPrTimeline() {
     const body={event_type:_q('#prTimelineEventType').value,note:_q('#prTimelineNote').value,author:_q('#prTimelineAuthor').value};
     try{await _api(`/problems/${_prCurrentId}/timeline`,'POST',body);_q('#prTimelineModal').hidden=true;_openPrDetail(_prCurrentId);}
-    catch(err){alert('Failed: '+(err.message||err));}
+    catch(err){toast('Error', err.message || String(err), 'bad');}
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

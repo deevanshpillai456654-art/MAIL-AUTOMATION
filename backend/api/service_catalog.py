@@ -200,8 +200,9 @@ async def list_services(
             params + [limit, offset],
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "services": [dict(zip(_SVC_COLS, r)) for r in rows],
         "total": total, "limit": limit, "offset": offset,
@@ -237,8 +238,9 @@ async def create_service(body: ServiceCreate, _auth=Depends(require_local_auth))
         con.close()
     except sqlite3.IntegrityError:
         raise HTTPException(409, "A service with that slug already exists")
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": svc_id, "name": body.name, "slug": slug, "status": body.status}
 
 
@@ -259,8 +261,9 @@ async def service_stats(_auth=Depends(require_local_auth)):
             "SELECT COUNT(*) FROM services WHERE status NOT IN ('operational','deprecated')"
         ).fetchone()[0]
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total": total,
         "degraded": degraded,
@@ -279,8 +282,9 @@ async def get_service(service_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return dict(zip(_SVC_COLS, row))
 
 
@@ -316,8 +320,9 @@ async def patch_service(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return dict(zip(_SVC_COLS, row))
 
 
@@ -333,8 +338,9 @@ async def delete_service(service_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Status update ─────────────────────────────────────────────────────────────
@@ -365,8 +371,9 @@ async def update_status(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True, "status": body.status}
 
 
@@ -394,8 +401,9 @@ async def get_history(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "history": [dict(zip(_HIST_COLS, r)) for r in rows],
         "total": total,

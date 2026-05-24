@@ -241,8 +241,9 @@ async def list_vendors(
             params + [limit, offset],
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "vendors": [dict(zip(_VEN_COLS, r)) for r in rows],
         "total": total, "limit": limit, "offset": offset,
@@ -266,8 +267,9 @@ async def create_vendor(body: VendorCreate, _auth=Depends(require_local_auth)):
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": ven_id, "name": body.name, "status": "active"}
 
 
@@ -297,8 +299,9 @@ async def vendor_stats(_auth=Depends(require_local_auth)):
             "SELECT ROUND(AVG(rating),2) FROM vendor_reviews"
         ).fetchone()[0]
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total":       total,
         "active":      active,
@@ -325,8 +328,9 @@ async def expiring_vendors(
             (f"+{days}",),
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"vendors": [dict(zip(_VEN_COLS, r)) for r in rows], "days": days}
 
 
@@ -340,8 +344,9 @@ async def get_vendor(vendor_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return dict(zip(_VEN_COLS, row))
 
 
@@ -373,8 +378,9 @@ async def patch_vendor(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return dict(zip(_VEN_COLS, row))
 
 
@@ -390,8 +396,9 @@ async def delete_vendor(vendor_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Transitions ───────────────────────────────────────────────────────────────
@@ -423,8 +430,9 @@ async def transition_vendor(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True, "status": body.status}
 
 
@@ -443,8 +451,9 @@ async def list_contacts(vendor_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"contacts": [dict(zip(_CON_COLS, r)) for r in rows]}
 
 
@@ -467,8 +476,9 @@ async def add_contact(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": con_id, "ok": True}
 
 
@@ -491,8 +501,9 @@ async def delete_contact(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Reviews ───────────────────────────────────────────────────────────────────
@@ -514,8 +525,9 @@ async def list_reviews(vendor_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "reviews":    [dict(zip(_REV_COLS, r)) for r in rows],
         "avg_rating": avg,
@@ -540,6 +552,7 @@ async def add_review(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": rev_id, "ok": True}

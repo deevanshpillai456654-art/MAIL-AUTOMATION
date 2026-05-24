@@ -6,14 +6,14 @@ empty message list.  Valid empty inbox reads still complete with fetched=0.
 """
 
 import logging
-from typing import List, Dict
-from datetime import datetime, timedelta, timezone
 import time
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List
 
-from backend.db.database import Database
+from backend import config
 from backend.ai.classifier import EmailClassifier
 from backend.auth.outlook_auth import OutlookOAuth
-from backend import config
+from backend.db.database import Database
 from backend.rules.action_executor import RuleActionExecutor
 
 _log = logging.getLogger(__name__)

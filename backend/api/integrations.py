@@ -2,30 +2,24 @@
 Extended API routes for Gmail and Outlook integrations
 """
 
-import sys
-from pathlib import Path
 
 import re as _re
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
-from typing import Optional, List
 
 from backend.auth.local_auth import require_local_auth
 
 _AUTH = [Depends(require_local_auth)]
-from datetime import datetime
 import json
+
 import requests
 
-from backend.db.database import Database
+from backend import config
 from backend.auth.gmail_auth import GmailOAuth
 from backend.auth.outlook_auth import OutlookOAuth
-from backend.sync.gmail_sync import sync_gmail_account
-from backend.sync.outlook_sync import sync_outlook_account
-from backend.sync.imap_sync import sync_imap_account
-from backend.core.mailbox_orchestrator import MailboxOrchestrator
-from backend import config
+from backend.db.database import Database
 
 router = APIRouter()
 db = Database(config.DB_PATH)

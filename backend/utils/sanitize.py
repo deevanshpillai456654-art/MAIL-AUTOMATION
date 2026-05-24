@@ -2,9 +2,9 @@
 Data sanitization and validation utilities
 """
 
-import re
 import html
-from typing import Any, Dict, Optional
+import re
+from typing import Dict, Optional
 
 
 def sanitize_string(value: str, max_length: int = 10000) -> str:

@@ -4,12 +4,12 @@ Allows Gmail extension and Outlook add-in to discover the local service
 """
 
 import json
-import os
 import time
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
+
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
+
 from backend.runtime_version import APP_VERSION, DISPLAY_VERSION
 
 router = APIRouter()
@@ -152,7 +152,7 @@ async def get_endpoints():
 
 
 def get_known_ports() -> List[int]:
-    return list(range(4597, 4510))
+    return list(range(4597, 4509, -1))
 
 
 def is_service_running(port: int = 4597) -> bool:

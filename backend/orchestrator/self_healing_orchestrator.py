@@ -15,20 +15,16 @@ Comprehensive self-healing orchestrator:
 - OrchestrationAPIs
 """
 
-import time
-import threading
 import logging
-import asyncio
 import sqlite3
-import json
-import secrets
 import statistics
-from pathlib import Path
+import threading
+import time
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable, Set
 from enum import Enum
-from collections import deque, defaultdict
-from contextlib import contextmanager
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Set
 
 from backend import config
 
@@ -297,7 +293,7 @@ class CascadingFailureDetector:
     def predict_cascade(self, graph: DependencyGraphManager, potential_failure: str) -> float:
         if graph.get_component(potential_failure):
             deps = graph.get_all_dependents(potential_failure)
-            critical_deps = [d for d in deps if graph.get_component(d) and 
+            critical_deps = [d for d in deps if graph.get_component(d) and
                           graph.get_component(d).health_score < 0.5]
             return len(critical_deps) / max(len(deps), 1)
         return 0.0
@@ -454,7 +450,7 @@ class DynamicThrottlingEngine:
         self._throttle_history: deque = deque(maxlen=1000)
         self._current_global_factor = 1.0
 
-    def register_throttle(self, name: str, throttle_type: ThrottleType, 
+    def register_throttle(self, name: str, throttle_type: ThrottleType,
                          threshold: float, cooldown: float = 30.0):
         self._throttle_configs[name] = ThrottleConfig(
             throttle_type=throttle_type,
@@ -483,13 +479,13 @@ class DynamicThrottlingEngine:
 
         return config.current_factor
 
-    def apply_global_throttle(self, resource_type: str, current_value: float, 
+    def apply_global_throttle(self, resource_type: str, current_value: float,
                            threshold: float) -> float:
         if current_value > threshold:
             factor = max(0.2, 1.0 - (current_value - threshold) / threshold)
             self._current_global_factor = factor
             self._throttle_history.append({
-                "type": resource_type, "timestamp": time.time(), 
+                "type": resource_type, "timestamp": time.time(),
                 "factor": factor, "value": current_value
             })
             return factor
@@ -630,7 +626,7 @@ class AutomaticProviderIsolation:
         logger.info(f"Provider {provider} released from isolation")
         return True
 
-    def should_isolate(self, provider: str, error_rate: float, 
+    def should_isolate(self, provider: str, error_rate: float,
                      error_threshold: float = 0.3) -> bool:
         if provider in self._isolation_rules:
             config = self._isolation_rules[provider]
@@ -661,7 +657,7 @@ class AdaptiveWorkerScaling:
         )
         self._pools[name] = pool
 
-    def scale_pool(self, pool_name: str, queue_size: int = None, 
+    def scale_pool(self, pool_name: str, queue_size: int = None,
                 target_utilization: float = 0.7) -> int:
         pool = self._pools.get(pool_name)
         if not pool:
@@ -816,7 +812,7 @@ class SelfHealingOrchestrator:
         self.throttling.register_throttle("memory", ThrottleType.RESOURCE, 0.85)
         self.throttling.register_throttle("cpu", ThrottleType.RESOURCE, 0.9)
 
-    def register_component(self, name: str, component_type: str, 
+    def register_component(self, name: str, component_type: str,
                         dependencies: List[str] = None):
         component = Component(
             name=name, component_type=component_type,
@@ -836,7 +832,7 @@ class SelfHealingOrchestrator:
         if comp:
             comp.restart_func = restart_func
 
-    def register_worker_pool(self, name: str, min_workers: int = 1, 
+    def register_worker_pool(self, name: str, min_workers: int = 1,
                           max_workers: int = 10, enable_scale_to_zero: bool = False):
         self.worker_scaling.register_pool(name, min_workers, max_workers, enable_scale_to_zero)
 
@@ -884,7 +880,7 @@ class SelfHealingOrchestrator:
                 logger.error(f"Health check failed for {name}: {e}")
                 self._update_component_health(name, False, 0.0, str(e))
 
-    def _update_component_health(self, name: str, is_healthy: bool, 
+    def _update_component_health(self, name: str, is_healthy: bool,
                           health_score: float = 1.0, error: str = None):
         comp = self.graph.get_component(name)
         if not comp:
@@ -928,11 +924,11 @@ class SelfHealingOrchestrator:
 
     def get_status(self) -> Dict:
         total = len(self.graph._components)
-        healthy = sum(1 for c in self.graph._components.values() 
+        healthy = sum(1 for c in self.graph._components.values()
                     if c.state == ComponentState.HEALTHY)
-        degraded = sum(1 for c in self.graph._components.values() 
+        degraded = sum(1 for c in self.graph._components.values()
                       if c.state == ComponentState.DEGRADED)
-        failed = sum(1 for c in self.graph._components.values() 
+        failed = sum(1 for c in self.graph._components.values()
                    if c.state == ComponentState.FAILED)
 
         system_score = statistics.mean(
@@ -944,7 +940,7 @@ class SelfHealingOrchestrator:
             "system_health": "healthy" if system_score > 0.7 else "degraded" if system_score > 0.4 else "critical",
             "system_score": system_score,
             "components": {
-                "total": total, "healthy": healthy, 
+                "total": total, "healthy": healthy,
                 "degraded": degraded, "failed": failed
             },
             "degraded_mode": self.degraded_controller.get_degradation_status(),

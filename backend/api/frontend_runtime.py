@@ -1,14 +1,16 @@
 """Frontend runtime telemetry and client policy endpoints."""
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
-from backend.auth.local_auth import require_local_auth_or_localhost
 from pydantic import BaseModel, Field
-from backend.core.runtime_control import get_runtime_control
+
+from backend.auth.local_auth import require_local_auth_or_localhost
 from backend.core.ai_gateway import get_ai_gateway
+from backend.core.runtime_control import get_runtime_control
 from backend.security.redaction import redact
 
 router = APIRouter(prefix="/frontend", tags=["frontend-runtime"], dependencies=[Depends(require_local_auth_or_localhost)])
@@ -69,7 +71,7 @@ async def get_frontend_runtime_policy():
         "replay_dedupe_required": True,
         "websocket_ack_required": True,
         "account_scoped_rendering_required": True,
-        "allowed_local_origins": ["http://127.0.0.1:4597", "http://localhost:4597"],
+        "allowed_local_origins": [f"http://127.0.0.1:{os.environ.get('API_PORT', '4597')}", f"http://localhost:{os.environ.get('API_PORT', '4597')}"],
     }
 
 

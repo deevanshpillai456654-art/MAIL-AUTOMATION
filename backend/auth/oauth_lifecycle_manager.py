@@ -1,11 +1,13 @@
 """OAuth lifecycle automation for supported providers."""
 from __future__ import annotations
+
 from typing import Dict
-from backend.db.database import Database
-from backend.core.provider_capability_registry import ProviderCapabilityRegistry
+
 from backend.auth.gmail_auth import GmailOAuth
 from backend.auth.outlook_auth import OutlookOAuth
 from backend.auth.provider_token_manager import ProviderTokenManager
+from backend.core.provider_capability_registry import ProviderCapabilityRegistry
+from backend.db.database import Database
 
 
 class OAuthLifecycleManager:

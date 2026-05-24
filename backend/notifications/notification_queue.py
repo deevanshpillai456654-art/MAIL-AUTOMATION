@@ -10,14 +10,13 @@ Notification queuing:
 - Delivery tracking
 """
 
-import time
-import threading
 import logging
-from typing import Any, Callable, Dict, List, Optional
+import threading
+import time
+from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from collections import deque
-import json
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger("notification.queue")
 
@@ -55,21 +54,21 @@ class NotificationQueue:
     """
     Notification queue manager.
     """
-    
+
     def __init__(self, max_size: int = 1000):
         self.max_size = max_size
         self._queue: deque = deque(maxlen=max_size)
         self._lock = threading.Lock()
-        
+
         # Handlers
         self._handlers: Dict[str, Callable] = {}
-        
+
         # Metrics
         self._sent = 0
         self._failed = 0
-        
+
         logger.info("NotificationQueue initialized")
-    
+
     def enqueue(
         self,
         notification_id: str,
@@ -88,25 +87,25 @@ class NotificationQueue:
             priority=priority,
             metadata=metadata or {}
         )
-        
+
         with self._lock:
             self._queue.append(notification)
             return True
-    
+
     def process(self, batch_size: int = 10) -> int:
         """Process notifications"""
         processed = 0
-        
+
         with self._lock:
             if not self._queue:
                 return 0
-            
+
             # Get batch
             batch = []
             for _ in range(min(batch_size, len(self._queue))):
                 if self._queue:
                     batch.append(self._queue.popleft())
-        
+
         for notification in batch:
             if self._deliver(notification):
                 notification.status = NotificationStatus.SENT
@@ -122,13 +121,13 @@ class NotificationQueue:
                 else:
                     notification.status = NotificationStatus.FAILED
                     self._failed += 1
-        
+
         return processed
-    
+
     def _deliver(self, notification: Notification) -> bool:
         """Deliver notification"""
         handler = self._handlers.get(notification.user_id)
-        
+
         if handler:
             try:
                 handler(notification)
@@ -136,13 +135,13 @@ class NotificationQueue:
             except Exception as e:
                 logger.error(f"Notification delivery error: {e}")
                 return False
-        
+
         return True  # No handler = considered delivered
-    
+
     def register_handler(self, user_id: str, handler: Callable):
         """Register notification handler"""
         self._handlers[user_id] = handler
-    
+
     def get_stats(self) -> Dict:
         """Get queue stats"""
         with self._lock:

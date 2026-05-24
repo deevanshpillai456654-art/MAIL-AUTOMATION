@@ -249,11 +249,16 @@ async def list_budgets(
             "ORDER BY created_at DESC LIMIT ? OFFSET ?",
             params + [limit, offset],
         ).fetchall()
+        budgets = []
+        for row in rows:
+            item = dict(zip(_BUD_COLS, row))
+            budgets.append(_enrich(item, _get_spent(con, item["id"])))
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
-        "budgets": [dict(zip(_BUD_COLS, r)) for r in rows],
+        "budgets": budgets,
         "total": total, "limit": limit, "offset": offset,
     }
 
@@ -275,8 +280,9 @@ async def create_budget(body: BudgetCreate, _auth=Depends(require_local_auth)):
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": bud_id, "name": body.name, "status": "draft"}
 
 
@@ -313,8 +319,9 @@ async def budget_stats(_auth=Depends(require_local_auth)):
             "GROUP BY category ORDER BY COUNT(*) DESC"
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total":         total,
         "active":        active,
@@ -337,8 +344,9 @@ async def get_budget(budget_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return _enrich(dict(zip(_BUD_COLS, row)), spent)
 
 
@@ -371,8 +379,9 @@ async def patch_budget(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return _enrich(dict(zip(_BUD_COLS, row)), spent)
 
 
@@ -387,8 +396,9 @@ async def delete_budget(budget_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Transitions ───────────────────────────────────────────────────────────────
@@ -420,8 +430,9 @@ async def transition_budget(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True, "status": body.status}
 
 
@@ -449,8 +460,9 @@ async def list_entries(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "entries": [dict(zip(_ENT_COLS, r)) for r in rows],
         "total": total, "spent": spent,
@@ -481,8 +493,9 @@ async def add_entry(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": ent_id, "spent": spent, "ok": True}
 
 
@@ -508,8 +521,9 @@ async def delete_entry(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Global recent entries ─────────────────────────────────────────────────────
@@ -527,6 +541,7 @@ async def recent_entries(
             (limit,),
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"entries": [dict(zip(_ENT_COLS, r)) for r in rows]}

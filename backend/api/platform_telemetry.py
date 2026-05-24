@@ -22,12 +22,11 @@ Endpoint:
 """
 from __future__ import annotations
 
-import json
 import logging
 import sqlite3
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends
 
@@ -223,7 +222,8 @@ def _ai_gateway_metrics() -> Dict[str, Any]:
 
 def _notification_metrics() -> Dict[str, Any]:
     try:
-        from backend.api.notifications import _DB_PATH as notif_db, _MAX_STORE
+        from backend.api.notifications import _DB_PATH as notif_db
+        from backend.api.notifications import _MAX_STORE
         from backend.core.runtime_control import get_runtime_control
 
         capacity = min(_MAX_STORE, get_runtime_control().service_limits("notifications")["queue_limit"])

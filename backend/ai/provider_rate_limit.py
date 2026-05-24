@@ -15,17 +15,13 @@ Local AI engine rate limiting:
 - Resource alerts
 """
 
-import time
-import hashlib
 import logging
-import asyncio
 import threading
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
-from dataclasses import dataclass, field
+import time
+from collections import defaultdict, deque
+from dataclasses import dataclass
 from enum import Enum
-from collections import deque, defaultdict
-import uuid
-import secrets
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("provider.rate_limit")
 
@@ -65,29 +61,29 @@ class TokenBucket:
     tokens: float
     refill_rate: float
     last_refill: float
-    
+
     def __init__(self, capacity: float, refill_rate: float):
         self.capacity = capacity
         self.tokens = capacity
         self.refill_rate = refill_rate
         self.last_refill = time.time()
-    
+
     def consume(self, tokens: float) -> bool:
         """Try to consume tokens"""
         self._refill()
-        
+
         if self.tokens >= tokens:
             self.tokens -= tokens
             return True
         return False
-    
+
     def _refill(self):
         """Refill tokens"""
         now = time.time()
         elapsed = now - self.last_refill
         self.tokens = min(self.capacity, self.tokens + elapsed * self.refill_rate)
         self.last_refill = now
-    
+
     def available(self) -> float:
         """Available tokens"""
         self._refill()
@@ -106,7 +102,7 @@ class AdaptiveThrottleState:
 
 class RateLimitIntelligence:
     """Main rate limit intelligence"""
-    
+
     def __init__(self):
         self._provider_quotas: Dict[ProviderType, ProviderQuota] = {}
         self._token_buckets: Dict[ProviderType, TokenBucket] = {}
@@ -114,7 +110,7 @@ class RateLimitIntelligence:
         self._adaptive_state: Dict[ProviderType, AdaptiveThrottleState] = {}
         self._usage_history: Dict[ProviderType, List[Dict[str, Any]]] = defaultdict(list)
         self._lock = threading.RLock()
-        
+
         self._config = {
             "enable_adaptive_throttling": True,
             "enable_resource_alerts": True,
@@ -123,8 +119,8 @@ class RateLimitIntelligence:
             "backoff_max_ms": 5000,
             "resource_alert_threshold": 0.8
         }
-    
-    def register_provider(self, 
+
+    def register_provider(self,
                       provider: ProviderType,
                       rpm: int = 60,
                       tpm: int = 90000,
@@ -138,63 +134,63 @@ class RateLimitIntelligence:
                 resource_limit_daily=daily_resource_limit
             )
             self._provider_quotas[provider] = quota
-            
+
             self._token_buckets[provider] = TokenBucket(
                 capacity=rpm,
                 refill_rate=rpm / 60.0
             )
-            
+
             self._adaptive_state[provider] = AdaptiveThrottleState()
-            
+
             logger.info(f"Provider registered: {provider.value}")
-    
-    async def check_limit(self, 
+
+    async def check_limit(self,
                       provider: ProviderType,
                       priority: RequestPriority = RequestPriority.NORMAL) -> Tuple[bool, float]:
         """Check rate limit, return (allowed, delay_ms)"""
         with self._lock:
             if provider not in self._provider_quotas:
                 return True, 0.0
-            
+
             quota = self._provider_quotas[provider]
             bucket = self._token_buckets[provider]
-            
+
             if bucket.consume(1):
                 quota.current_requests += 1
-                
+
                 self._adaptive_state[provider].success_rate = 1.0
                 self._adaptive_state[provider].current_delay_ms = 0
-                
+
                 return True, 0.0
-            
+
             delay = self._adaptive_state[provider].current_delay_ms
-            
+
             if self._config["enable_adaptive_throttling"]:
                 delay = self._calculate_backoff(provider, priority)
                 self._adaptive_state[provider].current_delay_ms = delay
-            
+
             return False, delay
-    
-    def _calculate_backoff(self, 
+
+    def _calculate_backoff(self,
                          provider: ProviderType,
                          priority: RequestPriority) -> float:
         """Calculate adaptive backoff"""
         state = self._adaptive_state[provider]
-        
+
         base_delay = self._config["backoff_base_ms"]
         max_delay = self._config["backoff_max_ms"]
-        
+
         if priority == RequestPriority.CRITICAL:
             return 0
         elif priority == RequestPriority.LOW:
             base_delay *= 2
-        
+
         backoff = base_delay * state.backoff_multiplier
-        
+
         state.backoff_multiplier = min(state.backoff_multiplier * 1.5, 10.0)
-        
+
         return min(backoff, max_delay)
-    
+
     def record_success(self, provider: ProviderType, tokens: int = 0, resource_units: float = 0.0):
         """Record successful request"""
         with self._lock:
@@ -203,12 +199,12 @@ class RateLimitIntelligence:
                 quota.current_requests += 1
                 quota.current_tokens += tokens
                 quota.current_resource_units += resource_units
-                
+
                 self._adaptive_state[provider].success_rate = 1.0
                 self._adaptive_state[provider].backoff_multiplier = max(
                     1.0, self._adaptive_state[provider].backoff_multiplier * 0.9
                 )
-    
+
     def record_failure(self, provider: ProviderType):
         """Record failed request"""
         with self._lock:
@@ -216,70 +212,70 @@ class RateLimitIntelligence:
                 state = self._adaptive_state[provider]
                 state.backoff_multiplier *= 1.2
                 state.requests_dropped += 1
-    
+
     def get_queue_depth(self, provider: ProviderType) -> int:
         """Get pending requests"""
         with self._lock:
             return len(self._request_queue.get(provider, []))
-    
+
     def get_available_quota(self, provider: ProviderType) -> Dict[str, float]:
         """Get available quota"""
         with self._lock:
             if provider not in self._provider_quotas:
                 return {}
-            
+
             quota = self._provider_quotas[provider]
             bucket = self._token_buckets.get(provider)
-            
+
             return {
                 "requests_remaining": quota.requests_per_minute - quota.current_requests,
                 "tokens_remaining": quota.tokens_per_minute - quota.current_tokens,
                 "resource_units_remaining": quota.resource_limit_daily - quota.current_resource_units,
                 "bucket_available": bucket.available() if bucket else 0
             }
-    
+
     def should_alert(self, provider: ProviderType) -> bool:
         """Check if cost alert needed"""
         with self._lock:
             if not self._config["enable_resource_alerts"]:
                 return False
-            
+
             if provider not in self._provider_quotas:
                 return False
-            
+
             quota = self._provider_quotas[provider]
             threshold = self._config["resource_alert_threshold"]
-            
+
             return quota.current_resource_units >= quota.resource_limit_daily * threshold
-    
+
     def forecast_usage(self, provider: ProviderType, minutes: int = 60) -> Dict[str, float]:
         """Forecast usage"""
         with self._lock:
             history = self._usage_history.get(provider, [])
-            
+
             if len(history) < 10:
                 return {"forecasted_requests": 0, "forecasted_resource_units": 0}
-            
+
             recent = history[-minutes:]
-            
+
             avg_requests = sum(h.get("requests", 0) for h in recent) / len(recent)
             avg_resource_units = sum(h.get("resource_units", 0) for h in recent) / len(recent)
-            
+
             return {
                 "forecasted_requests": avg_requests * minutes,
                 "forecasted_resource_units": avg_resource_units * minutes
             }
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get rate limit stats"""
         with self._lock:
             stats = {
                 "providers": {}
             }
-            
+
             for provider, quota in self._provider_quotas.items():
                 adaptive = self._adaptive_state.get(provider)
-                
+
                 stats["providers"][provider.value] = {
                     "current_requests": quota.current_requests,
                     "current_tokens": quota.current_tokens,
@@ -288,7 +284,7 @@ class RateLimitIntelligence:
                     "success_rate": adaptive.success_rate if adaptive else 1.0,
                     "queue_depth": len(self._request_queue[provider])
                 }
-            
+
             return stats
 
 

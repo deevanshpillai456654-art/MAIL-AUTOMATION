@@ -14,19 +14,17 @@ Enterprise policy features:
 - Email retention automation
 """
 
-import time
-import re
-import hashlib
-import logging
-import threading
-import sqlite3
 import json
-from pathlib import Path
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Set, Callable
-from enum import Enum
-from collections import deque
+import logging
+import re
+import sqlite3
+import threading
+import time
 from contextlib import contextmanager
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+from typing import Callable, Dict, List, Optional
 
 from backend import config
 
@@ -133,33 +131,33 @@ class PolicyEngine:
     """
     Enterprise policy engine for retention, legal hold, and DLP.
     """
-    
+
     def __init__(self, db_path: str = None):
         self.db_path = db_path or (Path(config.DATA_DIR) / "policy_engine.db")
         self._init_db()
-        
+
         # Policies
         self._retention_policies: Dict[str, RetentionPolicy] = {}
         self._legal_holds: Dict[str, LegalHold] = {}
         self._dlp_rules: Dict[str, DLPRule] = {}
-        
+
         # PII patterns
         self._pii_patterns = self._init_pii_patterns()
-        
+
         # Callbacks
         self.on_policy_violation: Optional[Callable] = None
         self.on_retention_expired: Optional[Callable] = None
         self.on_legal_hold_match: Optional[Callable] = None
-        
+
         self._lock = threading.RLock()
-        
+
         logger.info("Policy Engine initialized")
-    
+
     def _init_db(self):
         """Initialize policy database"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
-        
+
         # Retention policies
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS retention_policies (
@@ -173,7 +171,7 @@ class PolicyEngine:
                 is_active INTEGER DEFAULT 1
             )
         """)
-        
+
         # Legal holds
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS legal_holds (
@@ -189,7 +187,7 @@ class PolicyEngine:
                 is_active INTEGER DEFAULT 1
             )
         """)
-        
+
         # DLP rules
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS dlp_rules (
@@ -203,7 +201,7 @@ class PolicyEngine:
                 is_active INTEGER DEFAULT 1
             )
         """)
-        
+
         # Policy audit logs
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS policy_audit_logs (
@@ -218,7 +216,7 @@ class PolicyEngine:
                 result TEXT
             )
         """)
-        
+
         # Email retention tracking
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS email_retention (
@@ -229,10 +227,10 @@ class PolicyEngine:
                 is_on_legal_hold INTEGER DEFAULT 0
             )
         """)
-        
+
         conn.commit()
         conn.close()
-    
+
     def _init_pii_patterns(self) -> Dict[str, str]:
         """Initialize PII detection patterns"""
         return {
@@ -245,7 +243,7 @@ class PolicyEngine:
             "passport": r"\b[A-Z]{1,2}\d{6,9}\b",
             "drivers_license": r"\b[A-Z]{1,2}\d{5,8}\b"
         }
-    
+
     @contextmanager
     def _get_conn(self):
         conn = sqlite3.connect(str(self.db_path))
@@ -254,14 +252,14 @@ class PolicyEngine:
             yield conn
         finally:
             conn.close()
-    
+
     def create_retention_policy(self, name: str, folder_pattern: str,
                                retention_days: int, action_on_expiry: PolicyAction,
                                exclude_flagged: bool = False, exclude_dl: bool = False) -> str:
         """Create retention policy"""
         import secrets
         policy_id = f"ret_{secrets.token_hex(8)}"
-        
+
         policy = RetentionPolicy(
             policy_id=policy_id,
             name=name,
@@ -271,9 +269,9 @@ class PolicyEngine:
             exclude_flagged=exclude_flagged,
             exclude_dl=exclude_dl
         )
-        
+
         self._retention_policies[policy_id] = policy
-        
+
         # Store in database
         with self._get_conn() as conn:
             cursor = conn.cursor()
@@ -286,74 +284,74 @@ class PolicyEngine:
                 action_on_expiry.value, 1 if exclude_flagged else 0, 1 if exclude_dl else 0
             ))
             conn.commit()
-        
+
         logger.info(f"Retention policy created: {name}")
-        
+
         return policy_id
-    
+
     def apply_retention_policy(self, email: Dict, account_id: int) -> PolicyAction:
         """Apply retention policy to an email"""
         folder = email.get("folder", "")
         received_at = email.get("received_at", time.time())
-        
+
         # Check legal hold first
         if self._is_on_legal_hold(account_id, email):
-            self._log_audit(PolicyType.LEGAL_HOLD, "", PolicyAction.HOLD, 
+            self._log_audit(PolicyType.LEGAL_HOLD, "", PolicyAction.HOLD,
                           email.get("id"), account_id, "Email on legal hold")
             return PolicyAction.HOLD
-        
+
         # Find applicable policy
         for policy in self._retention_policies.values():
             if not policy.is_active:
                 continue
-            
+
             if self._matches_pattern(folder, policy.folder_pattern):
                 # Check exclusions
                 if policy.exclude_flagged and email.get("flagged", False):
                     continue
                 if policy.exclude_dl and email.get("is_dl", False):
                     continue
-                
+
                 # Calculate expiry
                 age_days = (time.time() - received_at) / 86400
-                
+
                 if age_days > policy.retention_days:
                     # Expired
-                    self._log_audit(PolicyType.RETENTION, policy.policy_id, 
-                                  policy.action_on_expiry, email.get("id"), 
+                    self._log_audit(PolicyType.RETENTION, policy.policy_id,
+                                  policy.action_on_expiry, email.get("id"),
                                   account_id, f"Retention expired ({age_days:.0f} days)")
-                    
+
                     return policy.action_on_expiry
-        
+
         return PolicyAction.KEEP
-    
+
     def _is_on_legal_hold(self, account_id: int, email: Dict) -> bool:
         """Check if email is on legal hold"""
         for hold in self._legal_holds.values():
             if not hold.is_active:
                 continue
-            
+
             # Check account
             if account_id not in hold.account_ids:
                 continue
-            
+
             # Check folder pattern
             folder = email.get("folder", "")
             if not any(self._matches_pattern(folder, fp) for fp in hold.folder_patterns):
                 continue
-            
+
             # Check sender pattern
             sender = email.get("from", "")
             if not any(self._matches_pattern(sender, sp) for sp in hold.sender_patterns):
                 continue
-            
+
             # Check keywords
             body = email.get("body_text", "")
             if any(kw.lower() in body.lower() for kw in hold.keywords):
                 return True
-        
+
         return False
-    
+
     def create_legal_hold(self, name: str, account_ids: List[int],
                           folder_patterns: List[str], sender_patterns: List[str],
                           keywords: List[str], created_by: str,
@@ -361,7 +359,7 @@ class PolicyEngine:
         """Create legal hold"""
         import secrets
         hold_id = f"hold_{secrets.token_hex(8)}"
-        
+
         hold = LegalHold(
             hold_id=hold_id,
             name=name,
@@ -373,9 +371,9 @@ class PolicyEngine:
             end_date=end_date,
             created_by=created_by
         )
-        
+
         self._legal_holds[hold_id] = hold
-        
+
         # Store in database
         with self._get_conn() as conn:
             cursor = conn.cursor()
@@ -389,18 +387,18 @@ class PolicyEngine:
                 end_date, created_by
             ))
             conn.commit()
-        
+
         logger.info(f"Legal hold created: {name}")
-        
+
         return hold_id
-    
+
     def create_dlp_rule(self, name: str, pattern: str, pattern_type: str,
                         severity: str, actions: List[PolicyAction],
                         notify: List[str] = None) -> str:
         """Create DLP rule"""
         import secrets
         rule_id = f"dlp_{secrets.token_hex(8)}"
-        
+
         rule = DLPRule(
             rule_id=rule_id,
             name=name,
@@ -410,9 +408,9 @@ class PolicyEngine:
             actions=actions,
             notify=notify or []
         )
-        
+
         self._dlp_rules[rule_id] = rule
-        
+
         # Store in database
         with self._get_conn() as conn:
             cursor = conn.cursor()
@@ -425,24 +423,24 @@ class PolicyEngine:
                 json.dumps([a.value for a in actions]), json.dumps(notify or [])
             ))
             conn.commit()
-        
+
         logger.info(f"DLP rule created: {name}")
-        
+
         return rule_id
-    
+
     def scan_dlp(self, email: Dict) -> List[Dict]:
         """Scan email for DLP violations"""
         violations = []
-        
+
         # Combine text to scan
         text_to_scan = f"{email.get('subject', '')} {email.get('body_text', '')}"
-        
+
         for rule in self._dlp_rules.values():
             if not rule.is_active:
                 continue
-            
+
             matches = []
-            
+
             if rule.pattern_type == "regex":
                 try:
                     matches = re.findall(rule.pattern, text_to_scan, re.IGNORECASE)
@@ -454,7 +452,7 @@ class PolicyEngine:
             elif rule.pattern_type == "exact":
                 if rule.pattern.lower() in text_to_scan.lower():
                     matches = [rule.pattern]
-            
+
             if matches:
                 violation = {
                     "rule_id": rule.rule_id,
@@ -464,18 +462,18 @@ class PolicyEngine:
                     "actions": rule.actions
                 }
                 violations.append(violation)
-                
+
                 # Log violation
                 self._log_audit(PolicyType.DLP, rule.rule_id, PolicyAction.ALERT,
                               email.get("id"), email.get("account_id"),
                               f"DLP violation: {rule.name}")
-        
+
         return violations
-    
+
     def detect_pii(self, text: str) -> List[PIIDetection]:
         """Detect PII in text"""
         detections = []
-        
+
         for pii_type, pattern in self._pii_patterns.items():
             try:
                 for match in re.finditer(pattern, text, re.IGNORECASE):
@@ -487,16 +485,16 @@ class PolicyEngine:
                     ))
             except re.error:
                 continue
-        
+
         return detections
-    
+
     def mask_pii(self, text: str, pii_types: List[str] = None) -> tuple[str, List[PIIDetection]]:
         """Mask PII in text"""
         detections = self.detect_pii(text)
-        
+
         if pii_types:
             detections = [d for d in detections if d.pii_type in pii_types]
-        
+
         masked_text = text
         # Sort by reverse index to avoid offset issues
         for detection in sorted(detections, key=lambda x: x.start_index, reverse=True):
@@ -504,9 +502,9 @@ class PolicyEngine:
             replacement = self._get_pii_mask(pii_type)
             masked_text = masked_text[:detection.start_index] + replacement + masked_text[detection.end_index:]
             detection.is_masked = True
-        
+
         return masked_text, detections
-    
+
     def _get_pii_mask(self, pii_type: str) -> str:
         """Get mask for PII type"""
         masks = {
@@ -520,25 +518,25 @@ class PolicyEngine:
             "drivers_license": "XXXXXXXX"
         }
         return masks.get(pii_type, "XXXX")
-    
+
     def _matches_pattern(self, text: str, pattern: str) -> bool:
         """Check if text matches pattern"""
         if not pattern or pattern == "*" or pattern == "all":
             return True
-        
+
         # Simple wildcard match
         if "*" in pattern:
             import fnmatch
             return fnmatch.fnmatch(text.lower(), pattern.lower())
-        
+
         return pattern.lower() in text.lower()
-    
-    def _log_audit(self, policy_type: PolicyType, policy_id: str, 
+
+    def _log_audit(self, policy_type: PolicyType, policy_id: str,
                   action: PolicyAction, email_id: int, account_id: int, details: str):
         """Log policy audit"""
         import secrets
         log_id = f"audit_{secrets.token_hex(8)}"
-        
+
         with self._get_conn() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -546,19 +544,19 @@ class PolicyEngine:
                 (log_id, timestamp, policy_type, policy_id, action, email_id, account_id, details, result)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                log_id, time.time(), policy_type.value, policy_id, 
+                log_id, time.time(), policy_type.value, policy_id,
                 action.value, email_id, account_id, details, "success"
             ))
             conn.commit()
-    
-    def get_audit_logs(self, account_id: int = None, 
+
+    def get_audit_logs(self, account_id: int = None,
                        limit: int = 100) -> List[PolicyAuditLog]:
         """Get policy audit logs"""
         logs = []
-        
+
         with self._get_conn() as conn:
             cursor = conn.cursor()
-            
+
             if account_id:
                 cursor.execute("""
                     SELECT * FROM policy_audit_logs
@@ -572,7 +570,7 @@ class PolicyEngine:
                     ORDER BY timestamp DESC
                     LIMIT ?
                 """, (limit,))
-            
+
             for row in cursor.fetchall():
                 logs.append(PolicyAuditLog(
                     log_id=row["log_id"],
@@ -585,27 +583,27 @@ class PolicyEngine:
                     details=row["details"],
                     result=row["result"]
                 ))
-        
+
         return logs
-    
+
     def get_policy_stats(self) -> Dict:
         """Get policy statistics"""
         with self._get_conn() as conn:
             cursor = conn.cursor()
-            
+
             cursor.execute("SELECT COUNT(*) FROM retention_policies WHERE is_active = 1")
             active_retention = cursor.fetchone()[0]
-            
+
             cursor.execute("SELECT COUNT(*) FROM legal_holds WHERE is_active = 1")
             active_holds = cursor.fetchone()[0]
-            
+
             cursor.execute("SELECT COUNT(*) FROM dlp_rules WHERE is_active = 1")
             active_dlp = cursor.fetchone()[0]
-            
-            cursor.execute("SELECT COUNT(*) FROM policy_audit_logs WHERE timestamp > ?", 
+
+            cursor.execute("SELECT COUNT(*) FROM policy_audit_logs WHERE timestamp > ?",
                          (time.time() - 86400,))
             recent_logs = cursor.fetchone()[0]
-        
+
         return {
             "active_retention_policies": active_retention,
             "active_legal_holds": active_holds,

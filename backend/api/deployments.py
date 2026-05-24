@@ -202,8 +202,9 @@ async def list_deployments(
             params + [limit, offset],
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "deployments": [dict(zip(_DEP_COLS, r)) for r in rows],
         "total": total, "limit": limit, "offset": offset,
@@ -230,8 +231,9 @@ async def create_deployment(body: DeploymentCreate, _auth=Depends(require_local_
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": dep_id, "name": body.name, "status": "planned"}
 
 
@@ -253,8 +255,9 @@ async def deployment_stats(_auth=Depends(require_local_auth)):
             "AND created_at >= datetime('now','-7 days')"
         ).fetchone()[0]
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total": total,
         "recent_failures": recent_failures,
@@ -273,8 +276,9 @@ async def get_deployment(deployment_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return dict(zip(_DEP_COLS, row))
 
 
@@ -302,8 +306,9 @@ async def patch_deployment(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return dict(zip(_DEP_COLS, row))
 
 
@@ -318,8 +323,9 @@ async def delete_deployment(deployment_id: str, _auth=Depends(require_local_auth
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Transitions ───────────────────────────────────────────────────────────────
@@ -359,8 +365,9 @@ async def transition_deployment(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True, "status": body.status}
 
 
@@ -388,8 +395,9 @@ async def list_notes(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "notes":  [dict(zip(_NOTE_COLS, r)) for r in rows],
         "total":  total,
@@ -414,6 +422,7 @@ async def add_note(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": note_id, "ok": True}

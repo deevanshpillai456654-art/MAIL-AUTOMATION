@@ -594,7 +594,7 @@ def test_sidebar_uses_calm_grouped_enterprise_navigation():
         "Change Requests",
         "Risk Overview",
         "Secure Access",
-        "Workspace Config",
+        "Workspace Settings",
         "System Updates",
         "Knowledge Base",
         "Releases",

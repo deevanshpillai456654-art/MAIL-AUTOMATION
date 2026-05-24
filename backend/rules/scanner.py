@@ -14,8 +14,9 @@ import re
 import zipfile
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
-from xml.etree import ElementTree
 
+# Use defusedxml to prevent XXE / billion-laughs on untrusted attachment XML.
+from defusedxml import ElementTree
 
 MAX_SOURCE_CHARS = 50000
 MAX_PREVIEW_CHARS = 160
@@ -136,8 +137,8 @@ def _extract_pdf_text(path: Path) -> str:
 
 def _extract_image_ocr(path: Path) -> str:
     try:
-        from PIL import Image  # type: ignore
         import pytesseract  # type: ignore
+        from PIL import Image  # type: ignore
         with Image.open(path) as image:
             return normalize_text(pytesseract.image_to_string(image))
     except Exception:

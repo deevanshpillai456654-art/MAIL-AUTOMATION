@@ -2,17 +2,15 @@
 Port management API endpoints
 """
 
-import sys
-from pathlib import Path
 
 import os
-import psutil
-
-from fastapi import APIRouter, Depends, HTTPException
-from backend.auth.local_auth import require_local_auth_or_localhost
-from pydantic import BaseModel
 from typing import Optional
 
+import psutil
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
+from backend.auth.local_auth import require_local_auth_or_localhost
 from backend.utils.port_manager import PortManager, get_service_info
 
 router = APIRouter(dependencies=[Depends(require_local_auth_or_localhost)])

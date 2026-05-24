@@ -39,11 +39,11 @@ Endpoints:
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import sqlite3
 import uuid
-import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
@@ -192,8 +192,9 @@ def evaluate_feature_flag(flag_key: str, environment: str = "production", tenant
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
     bucket = _rollout_bucket(key, environment, tenant_id)
     result = {
@@ -309,8 +310,9 @@ async def list_flags(
             params + [limit, offset],
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "flags": [dict(zip(_FLAG_COLS, r)) for r in rows],
         "total": total, "limit": limit, "offset": offset,
@@ -333,8 +335,9 @@ async def create_flag(body: FlagCreate, _auth=Depends(require_local_auth)):
         _log_event(con, flag_id, "created", "Flag created.", body.owner, now)
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": flag_id, "key": key, "status": "draft"}
 
 
@@ -362,8 +365,9 @@ async def flag_stats(_auth=Depends(require_local_auth)):
             "GROUP BY environment ORDER BY COUNT(*) DESC"
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total":        total,
         "active":       active,
@@ -423,8 +427,9 @@ async def get_flag(flag_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return dict(zip(_FLAG_COLS, row))
 
 
@@ -455,8 +460,9 @@ async def patch_flag(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return dict(zip(_FLAG_COLS, row))
 
 
@@ -472,8 +478,9 @@ async def delete_flag(flag_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Transitions ───────────────────────────────────────────────────────────────
@@ -507,8 +514,9 @@ async def transition_flag(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True, "status": body.status}
 
 
@@ -527,8 +535,9 @@ async def list_environments(flag_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"environments": [dict(zip(_ENV_COLS, r)) for r in rows]}
 
 
@@ -582,8 +591,9 @@ async def upsert_environment(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     status_code = 201 if created else 200
     from fastapi.responses import JSONResponse
     return JSONResponse(
@@ -615,8 +625,9 @@ async def list_events(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"events": [dict(zip(_EVT_COLS, r)) for r in rows], "total": total}
 
 
@@ -638,6 +649,7 @@ async def add_event(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True}

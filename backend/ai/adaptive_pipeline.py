@@ -16,17 +16,11 @@ Incoming Email
 """
 
 import logging
-from typing import Dict, Optional, List, Any
-from datetime import datetime
+from typing import Dict, List, Optional
 
-from backend.ai.classifier import EmailClassifier
-from backend.ai.learning_engine import (
-    AdaptiveLearningEngine, 
-    get_learning_engine,
-    LearningFeedback,
-    LearningSignal
-)
 from backend import config
+from backend.ai.classifier import EmailClassifier
+from backend.ai.learning_engine import LearningFeedback, LearningSignal, get_learning_engine
 from backend.db.database import Database
 
 logger = logging.getLogger("ai.pipeline")
@@ -47,13 +41,13 @@ class AdaptiveAI:
     def __init__(self, db: Database = None, user_id: int = 1):
         self.db = db or Database(config.DB_PATH)
         self.user_id = user_id
-        
+
         # Base classifier
         self.classifier = EmailClassifier()
-        
+
         # Adaptive learning engine
         self.learning_engine = get_learning_engine(user_id)
-        
+
         logger.info(f"Adaptive AI initialized for user {user_id}")
 
     def classify_adaptive(self, email_data: Dict) -> Dict:
@@ -63,23 +57,23 @@ class AdaptiveAI:
         sender = email_data.get("sender_email", "")
         subject = email_data.get("subject", "")
         body = email_data.get("body_text", "")
-        
+
         # Step 1: Get behavioral priority boost
         priority_boost = self.learning_engine.get_priority_boost(
-            sender, 
+            sender,
             email_data.get("category", "")
         )
-        
+
         # Step 2: Get semantic importance
         category = email_data.get("category")
         if category:
             category_importance = self.learning_engine.get_category_importance(category)
         else:
             category_importance = 0.5
-        
+
         # Step 3: Get personalization settings
         prefs = self.learning_engine.get_personalization()
-        
+
         # Step 4: Run base classification
         base_result = self.classifier.classify(
             email_data.get("subject", ""),
@@ -87,7 +81,7 @@ class AdaptiveAI:
             email_data.get("sender_email", ""),
             email_data.get("body_text", "")
         )
-        
+
         # Convert to dict format if needed
         if isinstance(base_result, tuple):
             base_result = {
@@ -95,13 +89,13 @@ class AdaptiveAI:
                 "confidence": base_result[1],
                 "priority": "Medium"
             }
-        
+
         # Step 5: Apply priority adaptation
         if priority_boost > 1.2:
             if base_result.get("priority") in ["Low", "Medium"]:
                 base_result["priority"] = "High"
             base_result["priority_score"] = base_result.get("priority_score", 0.5) * priority_boost
-        
+
         # Step 6: Adjust confidence based on learning
         adjusted_confidence = self._adjust_confidence(
             base_result.get("category", ""),
@@ -109,7 +103,7 @@ class AdaptiveAI:
             sender
         )
         base_result["confidence"] = adjusted_confidence
-        
+
         # Step 7: Determine action based on confidence thresholds
         action = self._determine_action(
             adjusted_confidence,
@@ -117,7 +111,7 @@ class AdaptiveAI:
             sender in prefs.vip_senders
         )
         base_result["action"] = action
-        
+
         # Step 8: Add adaptive metadata
         base_result["adaptive"] = {
             "priority_boost": priority_boost,
@@ -125,12 +119,12 @@ class AdaptiveAI:
             "is_vip": sender in prefs.vip_senders,
             "learning_enabled": self.learning_engine.learning_enabled,
             "explainability": self._generate_explainability(
-                sender, 
+                sender,
                 base_result.get("category", ""),
                 priority_boost
             )
         }
-        
+
         return base_result
 
     def _adjust_confidence(self, category: str, base_confidence: float, sender: str) -> float:
@@ -138,10 +132,10 @@ class AdaptiveAI:
         # Get confidence calibration for category
         confidence_engine = self.learning_engine.confidence_engine
         category_confidence = confidence_engine.get_adjusted_confidence(0)
-        
+
         # Adjust based on sender profile
         profile = self.learning_engine.get_sender_profile(sender)
-        
+
         # High interaction sender = higher confidence
         if profile.interaction_count > 20:
             sender_confidence = 1.2
@@ -151,17 +145,17 @@ class AdaptiveAI:
             sender_confidence = 0.9
         else:
             sender_confidence = 1.0
-        
+
         # Combine adjustments
         adjusted = base_confidence * (category_confidence / 0.7) * sender_confidence
-        
+
         return min(1.0, max(0.1, adjusted))
 
     def _determine_action(self, confidence: float, prefs, is_vip: bool) -> str:
         """Determine action based on confidence and preferences"""
         if is_vip:
             return "notify"
-        
+
         if confidence >= prefs.confidence_threshold_high:
             return "auto_move"
         elif confidence >= prefs.confidence_threshold_low:
@@ -172,23 +166,23 @@ class AdaptiveAI:
     def _generate_explainability(self, sender: str, category: str, priority_boost: float) -> Dict:
         """Generate explainability for the classification"""
         profile = self.learning_engine.get_sender_profile(sender)
-        
+
         factors = []
-        
+
         if priority_boost > 1.5:
             factors.append("High sender importance detected")
-        
+
         if profile.interaction_count > 10:
             factors.append(f"Frequent interaction ({profile.interaction_count} times)")
-        
+
         if sender in self.learning_engine.personalization_engine.preferences.vip_senders:
             factors.append("VIP sender")
-        
+
         if category:
             importance = self.learning_engine.get_category_importance(category)
             if importance > 0.7:
                 factors.append(f"Category '{category}' is important to user")
-        
+
         return {
             "factors": factors,
             "priority_boost": priority_boost,
@@ -269,7 +263,7 @@ class AdaptiveAI:
     def record_email_move(self, email_id: int, to_folder: str):
         """Record email move for workflow learning"""
         action = f"moved_to_{to_folder}"
-        
+
         # Determine signal based on folder
         if to_folder in ["spam", "trash"]:
             signal = LearningSignal.NEGATIVE
@@ -277,7 +271,7 @@ class AdaptiveAI:
             signal = LearningSignal.POSITIVE
         else:
             signal = LearningSignal.NEUTRAL
-        
+
         self.process_feedback(
             email_id=email_id,
             action=action,
@@ -288,7 +282,7 @@ class AdaptiveAI:
         """Record star toggle"""
         action = "starred" if starred else "unstarred"
         signal = LearningSignal.POSITIVE if starred else LearningSignal.NEUTRAL
-        
+
         self.process_feedback(
             email_id=email_id,
             action=action,
@@ -327,13 +321,13 @@ class AdaptiveAI:
         email = self._get_email_by_id(email_id)
         if not email:
             return {}
-        
+
         sender = email.get("sender_email", "")
         category = email.get("category", "")
-        
+
         profile = self.learning_engine.get_sender_profile(sender)
         priority_boost = self.learning_engine.get_priority_boost(sender, category)
-        
+
         return {
             "email_id": email_id,
             "sender": sender,
@@ -354,11 +348,11 @@ class AdaptiveAI:
 def get_adaptive_ai(user_id: int = 1) -> AdaptiveAI:
     """Get or create adaptive AI instance"""
     global _adaptive_ais
-    
+
     if '_adaptive_ais' not in globals():
         _adaptive_ais = {}
-    
+
     if user_id not in _adaptive_ais:
         _adaptive_ais[user_id] = AdaptiveAI(user_id=user_id)
-    
+
     return _adaptive_ais[user_id]

@@ -14,19 +14,15 @@ Distributed chaos orchestration:
 - Chaos as code
 """
 
-import time
-import json
-import hashlib
-import logging
 import asyncio
+import logging
 import threading
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+import time
+import uuid
+from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
-from collections import deque, defaultdict
-import uuid
-import secrets
-import random
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("chaos.distributed")
 
@@ -84,7 +80,7 @@ class BlastRadius:
 
 class ChaosMeshCoordination:
     """Coordinate chaos across nodes"""
-    
+
     def __init__(self):
         self._nodes: Dict[str, Dict[str, Any]] = {}
         self._experiments: Dict[str, ChaosExperiment] = {}
@@ -94,7 +90,7 @@ class ChaosMeshCoordination:
             "consensus_threshold": 0.7,
             "sync_interval_seconds": 5
         }
-    
+
     def register_node(self, node_id: str, zone: str = "default"):
         """Register node"""
         with self._lock:
@@ -103,27 +99,27 @@ class ChaosMeshCoordination:
                 "registered_at": time.time(),
                 "status": "active"
             }
-    
+
     def request_vote(self, experiment: ChaosExperiment) -> Tuple[bool, str]:
         """Vote on experiment"""
         with self._lock:
             active_nodes = sum(1 for n in self._nodes.values() if n.get("status") == "active")
             required = active_nodes * self._config["consensus_threshold"]
-            
+
             if active_nodes < 2:
                 return True, "insufficient_nodes"
-            
+
             return True, "voted"
-    
+
     def start_experiment(self, experiment: ChaosExperiment) -> bool:
         """Start experiment"""
         with self._lock:
             self._experiments[experiment.experiment_id] = experiment
             self._active[experiment.experiment_id] = experiment.target
-            
+
             logger.info(f"Started chaos: {experiment.name}")
             return True
-    
+
     def end_experiment(self, experiment_id: str, results: Dict[str, Any]):
         """End experiment"""
         with self._lock:
@@ -132,7 +128,7 @@ class ChaosMeshCoordination:
                 exp.status = "completed"
                 exp.ended_at = time.time()
                 exp.results = results
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Get mesh status"""
         with self._lock:
@@ -140,7 +136,7 @@ class ChaosMeshCoordination:
                 "nodes": len(self._nodes),
                 "active_experiments": len(self._active),
                 "completed_experiments": len([
-                    e for e in self._experiments.values() 
+                    e for e in self._experiments.values()
                     if e.status == "completed"
                 ])
             }
@@ -148,7 +144,7 @@ class ChaosMeshCoordination:
 
 class ExperimentScheduler:
     """Schedule chaos experiments"""
-    
+
     def __init__(self):
         self._schedule: Dict[str, List[ChaosExperiment]] = defaultdict(list)
         self._running: Dict[str, str] = {}
@@ -158,35 +154,35 @@ class ExperimentScheduler:
             "min_interval_seconds": 300,
             "max_failures_per_day": 10
         }
-    
-    def schedule_experiment(self, 
+
+    def schedule_experiment(self,
                         experiment: ChaosExperiment,
                         run_at: float):
         """Schedule experiment"""
         key = time.strftime("%Y-%m-%d", time.localtime(run_at))
-        
+
         with self._lock:
             self._schedule[key].append(experiment)
-    
-    def get_pending(self, 
+
+    def get_pending(self,
                    before: Optional[float] = None) -> List[ChaosExperiment]:
         """Get pending experiments"""
         key = time.strftime("%Y-%m-%d", time.localtime(time.time()))
-        
+
         with self._lock:
             pending = [
                 e for e in self._schedule.get(key, [])
                 if e.status == "pending"
             ]
-            
+
             if before:
                 pending = [
-                    e for e in pending 
+                    e for e in pending
                     if e.duration_seconds < before
                 ]
-            
+
             return pending
-    
+
     def cancel_experiment(self, experiment_id: str) -> bool:
         """Cancel scheduled experiment"""
         with self._lock:
@@ -200,18 +196,18 @@ class ExperimentScheduler:
 
 class FaultInjector:
     """Inject faults"""
-    
+
     def __init__(self):
         self._active_faults: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.RLock()
-    
-    def inject_latency(self, 
-                     target: str, 
+
+    def inject_latency(self,
+                     target: str,
                      delay_ms: int,
                      duration_seconds: int) -> str:
         """Inject latency"""
         fault_id = str(uuid.uuid4())
-        
+
         with self._lock:
             self._active_faults[fault_id] = {
                 "type": FaultType.LATENCY,
@@ -220,16 +216,16 @@ class FaultInjector:
                 "started_at": time.time(),
                 "duration": duration_seconds
             }
-        
+
         return fault_id
-    
-    def inject_error(self, 
-                  target: str, 
+
+    def inject_error(self,
+                  target: str,
                   error_rate: float,
                   duration_seconds: int) -> str:
         """Inject errors"""
         fault_id = str(uuid.uuid4())
-        
+
         with self._lock:
             self._active_faults[fault_id] = {
                 "type": FaultType.ERROR,
@@ -238,15 +234,15 @@ class FaultInjector:
                 "started_at": time.time(),
                 "duration": duration_seconds
             }
-        
+
         return fault_id
-    
-    def inject_partition(self, 
+
+    def inject_partition(self,
                        target: str,
                        duration_seconds: int) -> str:
         """Inject network partition"""
         fault_id = str(uuid.uuid4())
-        
+
         with self._lock:
             self._active_faults[fault_id] = {
                 "type": FaultType.PARTITION,
@@ -254,9 +250,9 @@ class FaultInjector:
                 "started_at": time.time(),
                 "duration": duration_seconds
             }
-        
+
         return fault_id
-    
+
     def stop_fault(self, fault_id: str) -> bool:
         """Stop fault"""
         with self._lock:
@@ -264,7 +260,7 @@ class FaultInjector:
                 del self._active_faults[fault_id]
                 return True
         return False
-    
+
     def get_active(self) -> List[Dict[str, Any]]:
         """Get active faults"""
         with self._lock:
@@ -273,77 +269,77 @@ class FaultInjector:
 
 class RecoveryValidator:
     """Validate recovery"""
-    
+
     def __init__(self):
         self._metrics: Dict[str, List[float]] = defaultdict(list)
         self._lock = threading.RLock()
-    
-    def validate_recovery(self, 
+
+    def validate_recovery(self,
                      metric_name: str,
                      baseline: float,
                      tolerance: float = 0.1) -> Tuple[bool, float]:
         """Validate recovery within tolerance"""
         with self._lock:
             values = self._metrics.get(metric_name, [])
-            
+
             if not values:
                 return False, 0.0
-            
+
             avg = sum(values) / len(values)
             diff = abs(avg - baseline) / baseline
-            
+
             return diff <= tolerance, diff
-    
+
     def record_metric(self, metric_name: str, value: float):
         """Record recovery metric"""
         with self._lock:
             self._metrics[metric_name].append(value)
-            
+
             if len(self._metrics[metric_name]) > 100:
                 self._metrics[metric_name] = self._metrics[metric_name][-100:]
 
 
 class ChaosMetrics:
     """Chaos experiment metrics"""
-    
+
     def __init__(self):
         self._experiment_metrics: Dict[str, Dict[str, List[float]]] = defaultdict(
             lambda: defaultdict(list)
         )
         self._lock = threading.RLock()
-    
-    def record_metric(self, 
+
+    def record_metric(self,
                     experiment_id: str,
                     metric_name: str,
                     value: float):
         """Record experiment metric"""
         with self._lock:
             self._experiment_metrics[experiment_id][metric_name].append(value)
-    
-    def get_summary(self, 
+
+    def get_summary(self,
                  experiment_id: str) -> Dict[str, Any]:
         """Get experiment summary"""
         with self._lock:
             metrics = self._experiment_metrics.get(experiment_id, {})
-            
+
             summary = {}
             for name, values in metrics.items():
                 if not values:
                     continue
-                
+
                 summary[name] = {
                     "count": len(values),
                     "mean": sum(values) / len(values),
                     "min": min(values),
                     "max": max(values)
                 }
-            
+
             return summary
 
 
 class DistributedChaosOrchestrator:
     """Main chaos orchestration"""
-    
+
     def __init__(self):
         self._mesh = ChaosMeshCoordination()
         self._scheduler = ExperimentScheduler()
@@ -351,24 +347,24 @@ class DistributedChaosOrchestrator:
         self._recovery = RecoveryValidator()
         self._metrics = ChaosMetrics()
         self._lock = threading.RLock()
-        
+
         self._config = {
             "enable_auto_recovery": True,
             "enable_continuous_chaos": False,
             "blast_radius": BlastRadius(),
             "steady_state": []
         }
-        
+
         self._active_experiment: Optional[str] = None
-        
+
         logger.info("Distributed chaos orchestrator initialized")
-    
+
     def define_steady_state(self, steady_state: SteadyState):
         """Define steady state hypothesis"""
         with self._lock:
             self._config["steady_state"].append(steady_state)
-    
-    def create_experiment(self, 
+
+    def create_experiment(self,
                        name: str,
                        fault_type: FaultType,
                        target: str,
@@ -383,16 +379,16 @@ class DistributedChaosOrchestrator:
             duration_seconds=duration_seconds,
             blast_radius=blast_radius
         )
-    
+
     async def run_experiment(self, experiment: ChaosExperiment) -> Dict[str, Any]:
         """Run chaos experiment"""
         allowed, msg = self._mesh.request_vote(experiment)
         if not allowed:
             return {"status": "rejected", "reason": msg}
-        
+
         self._mesh.start_experiment(experiment)
         self._active_experiment = experiment.experiment_id
-        
+
         if experiment.fault_type == FaultType.LATENCY:
             fault_id = self._injector.inject_latency(
                 experiment.target,
@@ -405,30 +401,30 @@ class DistributedChaosOrchestrator:
                 experiment.blast_radius / 100,
                 experiment.duration_seconds
             )
-        
+
         await asyncio.sleep(experiment.duration_seconds)
-        
+
         self._injector.stop_fault(fault_id)
-        
+
         self._mesh.end_experiment(
             experiment.experiment_id,
             {"duration": experiment.duration_seconds}
         )
-        
+
         self._active_experiment = None
-        
+
         return {
             "status": "completed",
             "experiment_id": experiment.experiment_id
         }
-    
+
     def validate_steady_state(self) -> Dict[str, Any]:
         """Validate steady state"""
         results = {
             "steady_state_met": True,
             "hypotheses": []
         }
-        
+
         with self._lock:
             for ss in self._config["steady_state"]:
                 met = self._validation_steady_state(ss)
@@ -438,13 +434,13 @@ class DistributedChaosOrchestrator:
                 })
                 if not met:
                     results["steady_state_met"] = False
-        
+
         return results
-    
+
     def _validation_steady_state(self, ss: SteadyState) -> bool:
         """Validate single steady state"""
         return True
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Get chaos status"""
         with self._lock:

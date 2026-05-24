@@ -4,14 +4,14 @@ Handles port scanning, conflict detection, and automatic recovery
 """
 
 import json
-import socket
-import os
-import time
 import logging
+import os
+import socket
 import threading
-from typing import Optional, List, Tuple
-from pathlib import Path
+import time
 from contextlib import contextmanager
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +40,13 @@ class PortManager:
         """Initialize port manager"""
         if self._initialized:
             return
-            
+
         # Try to load saved port
         saved_port = self._load_saved_port()
         if saved_port and self.is_port_available(saved_port):
             self.current_port = saved_port
             logger.info(f"Restored port from file: {saved_port}")
-        
+
         self._initialized = True
 
     def _load_saved_port(self) -> Optional[int]:
@@ -73,7 +73,7 @@ class PortManager:
         """Check if a port is available"""
         if not (1024 <= port <= 65535):
             return False
-            
+
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                 sock.settimeout(self.SCAN_TIMEOUT)
@@ -85,11 +85,11 @@ class PortManager:
     def scan_available_ports(self) -> List[int]:
         """Scan port range for available ports"""
         available = []
-        
+
         for port in range(self.port_range[0], self.port_range[1] + 1):
             if self.is_port_available(port):
                 available.append(port)
-        
+
         return available
 
     def find_available_port(self) -> Optional[int]:
@@ -143,7 +143,7 @@ class PortManager:
     def start_server(self, app, max_retries: int = None) -> Optional[int]:
         """Find and return available port"""
         max_retries = max_retries or self.MAX_RETRIES
-        
+
         for attempt in range(max_retries):
             port = self.find_available_port()
 
@@ -156,11 +156,11 @@ class PortManager:
             try:
                 with self.bind_to_port(port) as sock:
                     sock.getsockname()
-                
+
                 self.current_port = port
                 self.save_port(port)
                 return port
-                
+
             except OSError:
                 logger.warning(f"Port {port} became unavailable, retrying...")
                 time.sleep(1)
@@ -178,14 +178,14 @@ class PortManager:
     def recover_from_conflict(self) -> Optional[int]:
         """Attempt to recover from port conflict"""
         logger.info("Attempting port recovery...")
-        
+
         # Clear saved port
         try:
             if os.path.exists(self.port_file):
                 os.remove(self.port_file)
         except Exception:
             pass
-        
+
         self.current_port = None
         return self.start_server(None, max_retries=2)
 
@@ -201,7 +201,7 @@ class PortManager:
 
 class ServiceDiscovery:
     """Service discovery for extensions"""
-    
+
     DISCOVERY_FILE = "service.json"
     LEGACY_FILE = "localhost.json"
 
@@ -246,7 +246,7 @@ class ServiceDiscovery:
     def read_discovery(self) -> Optional[dict]:
         """Read service discovery file"""
         import json
-        
+
         discovery_path = self.data_dir / self.DISCOVERY_FILE
 
         if not discovery_path.exists():
@@ -273,7 +273,7 @@ class ServiceDiscovery:
             return discovery
 
         # Try to find service by probing ports
-        ports_to_try = list(range(4597, 4510))
+        ports_to_try = list(range(4597, 4509, -1))
 
         for port in ports_to_try:
             if self._test_port(port):
@@ -303,14 +303,14 @@ def initialize_port() -> int:
     try:
         port_manager.initialize()
         port = port_manager.find_available_port()
-        
+
         if port:
             discovery.write_discovery(port)
             return port
         else:
             logger.error("Could not find available port")
             return 4597  # Fallback
-            
+
     except Exception as e:
         logger.error(f"Port initialization error: {e}")
         return 4597

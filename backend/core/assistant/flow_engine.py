@@ -7,7 +7,6 @@ for the frontend in a format ready to render as visual cards.
 """
 from __future__ import annotations
 
-import dataclasses
 import logging
 from typing import Any, Dict, List, Optional
 

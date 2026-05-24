@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # type alias only; parsing uses defusedxml
 from html import escape
 from typing import Any
+
+from defusedxml.ElementTree import fromstring as _defused_fromstring
 
 
 def _text(node: ET.Element, *names: str) -> str:
@@ -27,7 +29,7 @@ def build_export_request(report_name: str, company: str | None = None) -> str:
 
 
 def _root(raw_xml: str) -> ET.Element:
-    return ET.fromstring(raw_xml.encode("utf-8"))
+    return _defused_fromstring(raw_xml.encode("utf-8"))
 
 
 def parse_companies(raw_xml: str) -> list[dict[str, Any]]:

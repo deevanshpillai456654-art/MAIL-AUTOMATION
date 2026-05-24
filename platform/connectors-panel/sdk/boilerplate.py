@@ -76,7 +76,7 @@ def _module_py_template(name: str, plugin_type: str) -> str:
 
     def exchange_code(self, tenant_id: str, code: str) -> dict:
         """Exchange authorization code for tokens."""
-        # TODO: implement token exchange with the provider
+        # IMPLEMENT: replace the example.com endpoint and credentials with the real provider token URL
         import httpx, os
         response = httpx.post(
             "https://example.com/oauth/token",
@@ -100,7 +100,7 @@ def _module_py_template(name: str, plugin_type: str) -> str:
         extra_methods = '''
     def handle_webhook(self, payload: dict, headers: dict, tenant_id: str) -> dict:
         """Process inbound webhook payload."""
-        # TODO: implement webhook payload handling
+        # IMPLEMENT: parse payload and publish domain events via self._publish_event()
         events_published = 0
         return {
             "processed": True,
@@ -177,7 +177,7 @@ class {class_name}({base_class}):
     def on_install(self, tenant_id: str, config: dict[str, Any]) -> bool:
         """One-time setup when installed for a tenant."""
         self._log("INFO", f"Installing {{self.name}} for tenant {{tenant_id}}", tenant_id)
-        # TODO: perform any one-time setup here
+        # IMPLEMENT: perform one-time tenant setup (e.g. create DB tables, register webhooks)
         return True
 
     def on_uninstall(self, tenant_id: str) -> bool:
@@ -199,7 +199,7 @@ class {class_name}({base_class}):
 
     def fetch_data(self, tenant_id: str, **kwargs: Any) -> list[dict[str, Any]]:
         """Fetch data from the external service."""
-        # TODO: implement data fetching
+        # IMPLEMENT: call the external API and return a list of normalized record dicts
         return []
 
     def get_permissions(self) -> list[str]:
@@ -213,7 +213,7 @@ class {class_name}({base_class}):
             "type": "object",
             "required": [],
             "properties": {{
-                # TODO: add your required config fields here
+                # IMPLEMENT: declare required config fields, e.g.:
                 # "api_key": {{"type": "string", "description": "API Key"}}
             }},
         }}

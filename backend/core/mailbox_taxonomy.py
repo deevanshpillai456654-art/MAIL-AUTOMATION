@@ -6,7 +6,6 @@ import imaplib
 import json
 import re
 import socket
-from datetime import datetime
 from typing import Any, Dict, List
 
 import requests

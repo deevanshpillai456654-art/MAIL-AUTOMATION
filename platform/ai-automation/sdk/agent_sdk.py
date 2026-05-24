@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import abc
 import json
+import logging
 import re
 from typing import Any, Callable, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class PromptTemplate:
@@ -140,8 +143,8 @@ class BuiltAgent:
             try:
                 out = await plugin.execute(full_context)
                 plugin_outputs[plugin.name] = out
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.warning("Plugin %s failed: %s", plugin.name, _e)
 
         enhanced_prompt = prompt
         if plugin_outputs:

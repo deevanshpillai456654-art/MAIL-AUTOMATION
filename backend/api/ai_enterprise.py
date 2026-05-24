@@ -6,26 +6,24 @@ from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from backend.auth.local_auth import require_local_auth_or_localhost
 from pydantic import BaseModel, Field
 
 from backend.ai.local_first import (
-    WorkflowEngine,
     WorkflowStep,
     get_agent_orchestrator,
-    get_execution_queue,
-    get_governance_engine,
-    get_runtime,
-    get_semantic_store,
-    get_workflow_engine,
     get_ai_cache,
     get_ai_telemetry,
+    get_execution_queue,
+    get_governance_engine,
     get_indexing_worker,
     get_nlp_pipeline,
+    get_runtime,
+    get_semantic_store,
     get_vector_db,
+    get_workflow_engine,
 )
 from backend.ai.onnx_control_plane import get_onnx_control_plane
-from backend.auth.local_auth import request_has_valid_local_auth
+from backend.auth.local_auth import request_has_valid_local_auth, require_local_auth_or_localhost
 from backend.core.ai_gateway import get_ai_gateway
 from backend.runtime_version import APP_VERSION, DISPLAY_VERSION, VERSION_INFO
 

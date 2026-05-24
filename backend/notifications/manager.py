@@ -2,13 +2,13 @@
 Notification system for AI Email Organizer
 """
 
+import json
 import logging
 import os
-import json
-from typing import List, Optional, Dict
-from pathlib import Path
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
+from typing import Dict, List, Optional
 
 _log = logging.getLogger(__name__)
 

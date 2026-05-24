@@ -14,18 +14,18 @@ Enterprise-grade durable event storage with:
 - Event audit trails
 """
 
-import os
-import json
-import time
 import hashlib
-import threading
-import sqlite3
+import json
 import logging
+import sqlite3
+import threading
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable, Set
 from enum import Enum
 from pathlib import Path
-from contextlib import contextmanager
+from typing import Any, Callable, Dict, List, Optional, Set
+
 from backend import config
 
 logger = logging.getLogger("event.store")
@@ -60,7 +60,7 @@ class DurableEvent:
     source: str = "system"
     timestamp: float = field(default_factory=time.time)
     expires_at: Optional[float] = None
-    
+
     # Processing metadata
     status: EventStatus = EventStatus.PENDING
     retry_count: int = 0
@@ -68,10 +68,10 @@ class DurableEvent:
     processed_at: Optional[float] = None
     completed_at: Optional[float] = None
     error: Optional[str] = None
-    
+
     # Idempotency
     idempotency_key: Optional[str] = None
-    
+
     # Snapshots
     snapshot_id: Optional[str] = None
 
@@ -112,31 +112,31 @@ class DurableEventStore:
     """
     Enterprise-grade durable event store.
     """
-    
+
     def __init__(self, db_path: str = None):
         self.db_path = db_path or config.DB_PATH
         self.data_dir = Path(self.db_path).parent / "event_store"
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        
+
         self.event_db = str(self.data_dir / "events.db")
         self.journal_db = str(self.data_dir / "journal.db")
         self.snapshot_db = str(self.data_dir / "snapshots.db")
         self.dlq_db = str(self.data_dir / "dlq.db")
-        
+
         self._lock = threading.RLock()
         self._idempotency_keys: Set[str] = set()
         self._max_idempotency_keys = 10000
-        
+
         self._init_databases()
-        
+
         logger.info(f"Event Store initialized at {self.data_dir}")
-    
+
     def _init_databases(self):
         """Initialize all event databases"""
         # Main event log
         conn = sqlite3.connect(self.event_db)
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS events (
                 event_id TEXT PRIMARY KEY,
@@ -160,19 +160,19 @@ class DurableEventStore:
                 created_at REAL DEFAULT (strftime('%s', 'now'))
             )
         """)
-        
+
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_topic ON events(topic)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_status ON events(status)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_idempotency ON events(idempotency_key)")
-        
+
         conn.commit()
         conn.close()
-        
+
         # Consumer offsets
         conn = sqlite3.connect(self.journal_db)
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS consumer_offsets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -184,7 +184,7 @@ class DurableEventStore:
                 UNIQUE(group_id, topic)
             )
         """)
-        
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS checkpoints (
                 checkpoint_id TEXT PRIMARY KEY,
@@ -196,7 +196,7 @@ class DurableEventStore:
                 is_complete INTEGER DEFAULT 0
             )
         """)
-        
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS event_journal (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -206,14 +206,14 @@ class DurableEventStore:
                 timestamp REAL
             )
         """)
-        
+
         conn.commit()
         conn.close()
-        
+
         # Snapshots
         conn = sqlite3.connect(self.snapshot_db)
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS snapshots (
                 snapshot_id TEXT PRIMARY KEY,
@@ -223,14 +223,14 @@ class DurableEventStore:
                 created_at REAL
             )
         """)
-        
+
         conn.commit()
         conn.close()
-        
+
         # Dead letter queue
         conn = sqlite3.connect(self.dlq_db)
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS dlq (
                 event_id TEXT PRIMARY KEY,
@@ -244,10 +244,10 @@ class DurableEventStore:
                 quarantined_at REAL
             )
         """)
-        
+
         conn.commit()
         conn.close()
-    
+
     @contextmanager
     def _get_connection(self, db_path: str):
         conn = sqlite3.connect(db_path, timeout=30)
@@ -256,7 +256,7 @@ class DurableEventStore:
             yield conn
         finally:
             conn.close()
-    
+
     def append(self, event: DurableEvent) -> bool:
         """Append event to durable log"""
         with self._lock:
@@ -266,10 +266,10 @@ class DurableEventStore:
                     logger.debug(f"Duplicate event skipped: {event.idempotency_key}")
                     return False
                 self._add_idempotency_key(event.idempotency_key)
-            
+
             # Calculate checksum
             checksum = self._calculate_checksum(event)
-            
+
             with self._get_connection(self.event_db) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -298,17 +298,17 @@ class DurableEventStore:
                     checksum
                 ))
                 conn.commit()
-            
+
             # Journal the append
             self._journal(event.event_id, "APPEND", f"Topic: {event.topic}")
-            
+
             logger.debug(f"Event appended: {event.event_id} to {event.topic}")
             return True
-    
+
     def _is_idempotent(self, key: str) -> bool:
         """Check if key was already processed"""
         return key in self._idempotency_keys
-    
+
     def _add_idempotency_key(self, key: str):
         """Add idempotency key to cache"""
         self._idempotency_keys.add(key)
@@ -317,12 +317,12 @@ class DurableEventStore:
             # Keep recent ones
             keys = list(self._idempotency_keys)
             self._idempotency_keys = set(keys[-self._max_idempotency_keys//2:])
-    
+
     def _calculate_checksum(self, event: DurableEvent) -> str:
         """Calculate event checksum"""
         content = f"{event.event_id}{event.topic}{json.dumps(event.payload, sort_keys=True)}"
         return hashlib.sha256(content.encode()).hexdigest()[:16]
-    
+
     def get(self, event_id: str) -> Optional[DurableEvent]:
         """Get event by ID"""
         with self._get_connection(self.event_db) as conn:
@@ -332,7 +332,7 @@ class DurableEventStore:
             if row:
                 return self._row_to_event(row)
         return None
-    
+
     def get_by_topic(self, topic: str, limit: int = 100, offset: int = 0) -> List[DurableEvent]:
         """Get events by topic"""
         events = []
@@ -347,7 +347,7 @@ class DurableEventStore:
             for row in cursor.fetchall():
                 events.append(self._row_to_event(row))
         return events
-    
+
     def get_pending(self, topic: str, limit: int = 100) -> List[DurableEvent]:
         """Get pending events for a topic"""
         events = []
@@ -362,7 +362,7 @@ class DurableEventStore:
             for row in cursor.fetchall():
                 events.append(self._row_to_event(row))
         return events
-    
+
     def update_status(self, event_id: str, status: EventStatus, error: str = None):
         """Update event status"""
         with self._lock:
@@ -387,16 +387,16 @@ class DurableEventStore:
                         WHERE event_id = ?
                     """, (status.value, error, event_id))
                 conn.commit()
-            
+
             self._journal(event_id, "STATUS_UPDATE", f"Status: {status.value}")
-    
+
     def mark_poison(self, event_id: str, reason: str):
         """Mark event as poison message"""
         with self._lock:
             event = self.get(event_id)
             if not event:
                 return
-            
+
             # Move to DLQ
             with self._get_connection(self.dlq_db) as conn:
                 cursor = conn.cursor()
@@ -414,16 +414,16 @@ class DurableEventStore:
                     time.time()
                 ))
                 conn.commit()
-            
+
             # Mark as poison in main log
             with self._get_connection(self.event_db) as conn:
                 cursor = conn.cursor()
                 cursor.execute("UPDATE events SET status = 'poison' WHERE event_id = ?", (event_id,))
                 conn.commit()
-            
+
             self._journal(event_id, "POISON_DETECTED", reason)
             logger.warning(f"Poison message detected: {event_id} - {reason}")
-    
+
     def _journal(self, event_id: str, action: str, details: str):
         """Log event action to journal"""
         try:
@@ -436,7 +436,7 @@ class DurableEventStore:
                 conn.commit()
         except Exception as e:
             logger.error(f"Journal write failed: {e}")
-    
+
     def save_checkpoint(self, checkpoint: EventCheckpoint):
         """Save workflow checkpoint"""
         with self._get_connection(self.journal_db) as conn:
@@ -455,7 +455,7 @@ class DurableEventStore:
                 1 if checkpoint.is_complete else 0
             ))
             conn.commit()
-    
+
     def get_checkpoint(self, checkpoint_id: str) -> Optional[EventCheckpoint]:
         """Get workflow checkpoint"""
         with self._get_connection(self.journal_db) as conn:
@@ -473,7 +473,7 @@ class DurableEventStore:
                     is_complete=bool(row["is_complete"])
                 )
         return None
-    
+
     def get_workflow_checkpoints(self, workflow_id: str) -> List[EventCheckpoint]:
         """Get all checkpoints for a workflow"""
         checkpoints = []
@@ -495,7 +495,7 @@ class DurableEventStore:
                     is_complete=bool(row["is_complete"])
                 ))
         return checkpoints
-    
+
     def commit_offset(self, group_id: str, topic: str, offset: int):
         """Commit consumer offset"""
         with self._get_connection(self.journal_db) as conn:
@@ -506,7 +506,7 @@ class DurableEventStore:
                 VALUES (?, ?, ?, ?, ?)
             """, (group_id, topic, offset, time.time(), time.time()))
             conn.commit()
-    
+
     def get_offset(self, group_id: str, topic: str) -> int:
         """Get consumer offset"""
         with self._get_connection(self.journal_db) as conn:
@@ -517,7 +517,7 @@ class DurableEventStore:
             """, (group_id, topic))
             row = cursor.fetchone()
             return row["offset"] if row else 0
-    
+
     def save_snapshot(self, snapshot: EventSnapshot):
         """Save event snapshot"""
         with self._get_connection(self.snapshot_db) as conn:
@@ -534,7 +534,7 @@ class DurableEventStore:
                 snapshot.created_at
             ))
             conn.commit()
-    
+
     def get_snapshot(self, snapshot_id: str) -> Optional[EventSnapshot]:
         """Get event snapshot"""
         with self._get_connection(self.snapshot_db) as conn:
@@ -550,7 +550,7 @@ class DurableEventStore:
                     created_at=row["created_at"]
                 )
         return None
-    
+
     def _row_to_event(self, row) -> DurableEvent:
         """Convert database row to event"""
         return DurableEvent(
@@ -572,32 +572,32 @@ class DurableEventStore:
             idempotency_key=row["idempotency_key"],
             snapshot_id=row["snapshot_id"]
         )
-    
+
     def get_stats(self) -> Dict:
         """Get event store statistics"""
         with self._get_connection(self.event_db) as conn:
             cursor = conn.cursor()
-            
+
             cursor.execute("SELECT COUNT(*) as total FROM events")
             total = cursor.fetchone()["total"]
-            
+
             cursor.execute("SELECT COUNT(*) as count FROM events WHERE status = 'pending'")
             pending = cursor.fetchone()["count"]
-            
+
             cursor.execute("SELECT COUNT(*) as count FROM events WHERE status = 'completed'")
             completed = cursor.fetchone()["count"]
-            
+
             cursor.execute("SELECT COUNT(*) as count FROM events WHERE status = 'failed'")
             failed = cursor.fetchone()["count"]
-            
+
             cursor.execute("SELECT COUNT(*) as count FROM events WHERE status = 'poison'")
             poison = cursor.fetchone()["count"]
-        
+
         with self._get_connection(self.dlq_db) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) as count FROM dlq")
             dlq_count = cursor.fetchone()["count"]
-        
+
         return {
             "total_events": total,
             "pending": pending,
@@ -607,11 +607,11 @@ class DurableEventStore:
             "dlq_size": dlq_count,
             "idempotency_keys": len(self._idempotency_keys)
         }
-    
+
     def cleanup_old_events(self, days: int = 30):
         """Clean up old completed events"""
         cutoff = time.time() - (days * 86400)
-        
+
         with self._get_connection(self.event_db) as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -620,20 +620,20 @@ class DurableEventStore:
             """, (cutoff,))
             deleted = cursor.rowcount
             conn.commit()
-        
+
         logger.info(f"Cleaned up {deleted} old events")
         return deleted
-    
+
     def replay_from_offset(self, topic: str, group_id: str, handler: Callable[[DurableEvent], None]):
         """Replay events from offset with handler"""
         offset = self.get_offset(group_id, topic)
-        
+
         events = self.get_by_topic(topic, limit=1000)
-        
+
         for i, event in enumerate(events):
             if i < offset:
                 continue
-            
+
             try:
                 handler(event)
                 self.commit_offset(group_id, topic, i + 1)

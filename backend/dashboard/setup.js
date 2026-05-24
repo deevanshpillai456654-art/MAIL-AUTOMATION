@@ -100,7 +100,11 @@
       yandex: API + '/api/v1/oauth/yandex/callback',
     }[p]) || API + '/api/v1/oauth/google/callback');
     const consoleUrl = String(s.cloud_console_url || '');
-    document.getElementById('consoleLink').href = consoleUrl.startsWith('https://') ? consoleUrl : '#';
+    const consoleLink = document.getElementById('consoleLink');
+    const hasConsoleUrl = consoleUrl.startsWith('https://');
+    consoleLink.href = hasConsoleUrl ? consoleUrl : 'about:blank';
+    consoleLink.setAttribute('aria-disabled', hasConsoleUrl ? 'false' : 'true');
+    consoleLink.tabIndex = hasConsoleUrl ? 0 : -1;
     document.getElementById('providerNotes').textContent = s.notes || '';
     document.getElementById('tenantId').value = s.tenant_id || 'common';
   }
@@ -161,6 +165,9 @@
   attach('setupRefreshBtn', 'click', loadStatus);
   attach('setupSaveOAuthBtn', 'click', saveOAuth);
   attach('setupTestOAuthBtn', 'click', testOAuth);
+  attach('consoleLink', 'click', (event) => {
+    if (event.currentTarget.getAttribute('aria-disabled') === 'true') event.preventDefault();
+  });
   attach('oauthProvider', 'change', selectProvider);
 
   loadStatus();

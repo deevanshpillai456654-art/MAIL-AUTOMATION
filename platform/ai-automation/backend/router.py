@@ -1,4 +1,4 @@
-"""AI Automation Platform – Main Router."""
+﻿"""AI Automation Platform – Main Router."""
 from __future__ import annotations
 
 import logging
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/ai-automation", tags=["ai-automation"])
 @router.get("/", summary="Platform status")
 async def platform_root():
     return {
-        "name": "MailPilot AI Automation Platform",
+        "name": "INTEMO AI Automation Platform",
         "version": "1.0.0",
         "status": "running",
         "endpoints": {
@@ -79,4 +79,4 @@ def setup_ai_automation(app, *, db_path: str | None = None) -> None:
     else:
         log.warning("AI Automation frontend not found at %s", _frontend)
 
-    log.info("MailPilot AI Automation Platform ready — API: /api/ai-automation")
+    log.info("INTEMO AI Automation Platform ready - API: /api/ai-automation")

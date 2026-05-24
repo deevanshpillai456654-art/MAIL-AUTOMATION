@@ -249,8 +249,9 @@ async def list_certificates(
             params + [limit, offset],
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "certificates": [_enrich(dict(zip(_CERT_COLS, r))) for r in rows],
         "total": total, "limit": limit, "offset": offset,
@@ -277,8 +278,9 @@ async def create_certificate(body: CertCreate, _auth=Depends(require_local_auth)
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": cert_id, "name": body.name, "status": "pending"}
 
 
@@ -316,8 +318,9 @@ async def cert_stats(_auth=Depends(require_local_auth)):
             "SELECT status, COUNT(*) FROM certificates GROUP BY status"
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total":       total,
         "active":      active,
@@ -350,8 +353,9 @@ async def expiring_certs(
             (interval,),
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"certificates": [_enrich(dict(zip(_CERT_COLS, r))) for r in rows]}
 
 
@@ -365,8 +369,9 @@ async def get_certificate(cert_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return _enrich(dict(zip(_CERT_COLS, row)))
 
 
@@ -397,8 +402,9 @@ async def patch_certificate(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return _enrich(dict(zip(_CERT_COLS, row)))
 
 
@@ -414,8 +420,9 @@ async def delete_certificate(cert_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Transitions ───────────────────────────────────────────────────────────────
@@ -448,8 +455,9 @@ async def transition_certificate(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True, "status": body.status}
 
 
@@ -468,8 +476,9 @@ async def list_renewals(cert_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"renewals": [dict(zip(_REN_COLS, r)) for r in rows]}
 
 
@@ -499,8 +508,9 @@ async def renew_certificate(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "id": ren_id,
         "old_expires_at": old_expires,

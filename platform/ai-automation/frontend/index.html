@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>MailPilot AI Automation Platform</title>
+  <title>INTEMO AI Automation Platform</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -11,66 +11,66 @@
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-logo">
-      <div class="logo-icon">⚡</div>
+      <img class="logo-img" src="/dashboard/assets/intemo-logo-mark.png" alt="INTEMO" width="522" height="141">
       <div>
         <div class="logo-text">AI Automation</div>
-        <div class="logo-sub">MailPilot Platform</div>
+        <div class="logo-sub">INTEMO Platform</div>
       </div>
     </div>
 
     <div class="nav-section">
       <div class="nav-label">Overview</div>
-      <div class="nav-item active" data-page="dashboard">
-        <span class="nav-icon">📊</span><span>Dashboard</span>
-      </div>
-      <div class="nav-item" data-page="analytics">
-        <span class="nav-icon">📈</span><span>Analytics</span>
-      </div>
+      <button class="nav-item active" type="button" data-page="dashboard" aria-current="page">
+        <span class="nav-icon" aria-hidden="true"></span><span>Dashboard</span>
+      </button>
+      <button class="nav-item" type="button" data-page="analytics">
+        <span class="nav-icon" aria-hidden="true"></span><span>Analytics</span>
+      </button>
     </div>
 
     <div class="nav-section">
       <div class="nav-label">Workflows</div>
-      <div class="nav-item" data-page="workflows">
-        <span class="nav-icon">🔄</span><span>Workflows</span>
-      </div>
-      <div class="nav-item" data-page="builder">
-        <span class="nav-icon">🎨</span><span>Builder</span>
-      </div>
-      <div class="nav-item" data-page="templates">
-        <span class="nav-icon">📋</span><span>Templates</span>
-      </div>
-      <div class="nav-item" data-page="executions">
-        <span class="nav-icon">▶️</span><span>Executions</span>
-      </div>
+      <button class="nav-item" type="button" data-page="workflows">
+        <span class="nav-icon" aria-hidden="true"></span><span>Workflows</span>
+      </button>
+      <button class="nav-item" type="button" data-page="builder">
+        <span class="nav-icon" aria-hidden="true"></span><span>Builder</span>
+      </button>
+      <button class="nav-item" type="button" data-page="templates">
+        <span class="nav-icon" aria-hidden="true"></span><span>Templates</span>
+      </button>
+      <button class="nav-item" type="button" data-page="executions">
+        <span class="nav-icon" aria-hidden="true"></span><span>Executions</span>
+      </button>
     </div>
 
     <div class="nav-section">
       <div class="nav-label">Intelligence</div>
-      <div class="nav-item" data-page="ai-monitor">
-        <span class="nav-icon">🤖</span><span>AI Providers</span>
-      </div>
-      <div class="nav-item" data-page="ocr">
-        <span class="nav-icon">📄</span><span>OCR Review</span>
-        <span class="nav-badge" id="ocrBadge" style="display:none">0</span>
-      </div>
-      <div class="nav-item" data-page="search">
-        <span class="nav-icon">🔍</span><span>Search</span>
-      </div>
+      <button class="nav-item" type="button" data-page="ai-monitor">
+        <span class="nav-icon" aria-hidden="true"></span><span>AI Providers</span>
+      </button>
+      <button class="nav-item" type="button" data-page="ocr">
+        <span class="nav-icon" aria-hidden="true"></span><span>OCR Review</span>
+        <span class="nav-badge d-none" id="ocrBadge">0</span>
+      </button>
+      <button class="nav-item" type="button" data-page="search">
+        <span class="nav-icon" aria-hidden="true"></span><span>Search</span>
+      </button>
     </div>
 
     <div class="nav-section">
       <div class="nav-label">Governance</div>
-      <div class="nav-item" data-page="approvals">
-        <span class="nav-icon">✅</span><span>Approvals</span>
-        <span class="nav-badge" id="approvalBadge" style="display:none">0</span>
-      </div>
+      <button class="nav-item" type="button" data-page="approvals">
+        <span class="nav-icon" aria-hidden="true"></span><span>Approvals</span>
+        <span class="nav-badge d-none" id="approvalBadge">0</span>
+      </button>
     </div>
 
     <div class="nav-section">
       <div class="nav-label">Settings</div>
-      <div class="nav-item" data-page="settings">
-        <span class="nav-icon">⚙️</span><span>Settings</span>
-      </div>
+      <button class="nav-item" type="button" data-page="settings">
+        <span class="nav-icon" aria-hidden="true"></span><span>Settings</span>
+      </button>
     </div>
   </aside>
 
@@ -97,7 +97,7 @@
           </div>
         </div>
         <div class="stats-grid" id="dashStats"></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:4px;">
+        <div class="two-col-grid">
           <div class="card">
             <div class="card-header"><div class="card-title">Recent Executions</div></div>
             <div id="recentExecs"><div class="loading"><div class="spinner"></div></div></div>
@@ -117,7 +117,7 @@
             <div class="section-sub">Manage your automation workflows</div>
           </div>
           <div class="section-actions">
-            <select class="form-select" style="width:130px" id="wfStatusFilter" onchange="loadWorkflows()">
+            <select class="form-select select-w-130" id="wfStatusFilter" aria-label="Workflow status" title="Workflow status" onchange="loadWorkflows()">
               <option value="">All Status</option>
               <option value="active">Active</option>
               <option value="draft">Draft</option>
@@ -131,12 +131,12 @@
       </div>
 
       <!-- Builder -->
-      <div class="page" id="page-builder" style="padding:0;margin:-20px;overflow:hidden;">
+      <div class="page page-builder-shell" id="page-builder">
         <div class="builder-toolbar" id="builderToolbar">
           <button class="btn btn-ghost btn-sm" onclick="showPage('workflows')">← Back</button>
-          <span style="font-size:13px;font-weight:600;margin-left:4px;" id="builderWfName">Untitled Workflow</span>
-          <div style="flex:1"></div>
-          <select class="form-select" style="width:110px;font-size:12px;" id="builderZoom">
+          <span class="builder-wf-name" id="builderWfName">Untitled Workflow</span>
+          <div class="flex-spacer"></div>
+          <select class="form-select select-zoom" id="builderZoom" aria-label="Canvas zoom" title="Canvas zoom">
             <option value="0.5">50%</option>
             <option value="0.75">75%</option>
             <option value="1" selected>100%</option>
@@ -146,7 +146,7 @@
           <button class="btn btn-success btn-sm" onclick="saveWorkflow()">💾 Save</button>
           <button class="btn btn-primary btn-sm" onclick="activateWorkflow()">▶ Activate</button>
         </div>
-        <div class="builder-layout" style="height:calc(100vh - 100px);">
+        <div class="builder-layout">
           <div class="builder-sidebar" id="nodePalette"></div>
           <div class="builder-canvas-wrap" id="canvasWrap">
             <div class="canvas-grid"></div>
@@ -156,7 +156,7 @@
           <div class="builder-props" id="propsPanel">
             <div class="panel">
               <div class="panel-title">Properties</div>
-              <div id="propsContent" style="color:var(--text3);font-size:12px;">Select a node to edit properties</div>
+              <div id="propsContent" class="props-placeholder">Select a node to edit properties</div>
             </div>
           </div>
         </div>
@@ -175,7 +175,7 @@
         <div class="section-header">
           <div><div class="section-title">Executions</div><div class="section-sub">Workflow run history and live status</div></div>
           <div class="section-actions">
-            <select class="form-select" style="width:130px" id="execStatusFilter" onchange="loadExecutions()">
+            <select class="form-select select-w-130" id="execStatusFilter" aria-label="Execution status" title="Execution status" onchange="loadExecutions()">
               <option value="">All Status</option>
               <option value="running">Running</option>
               <option value="completed">Completed</option>
@@ -203,7 +203,7 @@
           <button class="btn btn-primary btn-sm" onclick="showAddProvider()">+ Add Provider</button>
         </div>
         <div class="provider-grid" id="providerGrid"></div>
-        <div style="margin-top:20px;">
+        <div class="mt-20">
           <div class="card">
             <div class="card-header"><div class="card-title">Usage (Last 7 Days)</div></div>
             <div id="aiUsageChart"></div>
@@ -216,7 +216,7 @@
         <div class="section-header">
           <div><div class="section-title">OCR Review Queue</div><div class="section-sub">Documents requiring manual verification</div></div>
           <div class="section-actions">
-            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);">
+            <label class="checkbox-label">
               <input type="checkbox" id="ocrReviewOnly" onchange="loadOCR()"> Review only
             </label>
             <button class="btn btn-secondary btn-sm" onclick="loadOCR()">↻ Refresh</button>
@@ -243,7 +243,7 @@
         <div class="section-header">
           <div><div class="section-title">Approval Requests</div><div class="section-sub">Review and decide on pending approvals</div></div>
           <div class="section-actions">
-            <select class="form-select" style="width:130px" id="approvalStatusFilter" onchange="loadApprovals()">
+            <select class="form-select select-w-130" id="approvalStatusFilter" aria-label="Approval status" title="Approval status" onchange="loadApprovals()">
               <option value="">All</option>
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
@@ -264,7 +264,7 @@
               <div class="section-sub">Workflow performance, reliability, and run trends</div>
             </div>
             <div class="analytics-toolbar">
-              <select class="form-select analytics-range-select" id="analyticsDays" onchange="loadAnalytics()">
+              <select class="form-select analytics-range-select" id="analyticsDays" aria-label="Analytics date range" title="Analytics date range" onchange="loadAnalytics()">
                 <option value="7">Last 7 days</option>
                 <option value="14">Last 14 days</option>
                 <option value="30">Last 30 days</option>
@@ -324,12 +324,12 @@
           <div><div class="section-title">Settings</div></div>
         </div>
         <div class="tabs">
-          <div class="tab active" data-settings-tab="general">General</div>
-          <div class="tab" data-settings-tab="ai">AI Providers</div>
-          <div class="tab" data-settings-tab="integrations">Integrations</div>
+          <button class="tab active" type="button" data-settings-tab="general">General</button>
+          <button class="tab" type="button" data-settings-tab="ai">AI Providers</button>
+          <button class="tab" type="button" data-settings-tab="integrations">Integrations</button>
         </div>
         <div id="settingsContent">
-          <div class="card" style="max-width:600px;">
+          <div class="card card-constrained">
             <div class="card-header"><div class="card-title">General Settings</div></div>
             <div class="form-group">
               <label class="form-label">Tenant ID</label>
@@ -337,7 +337,7 @@
             </div>
             <div class="form-group">
               <label class="form-label">Default AI Provider</label>
-              <select class="form-select" id="settingsDefaultProvider">
+              <select class="form-select" id="settingsDefaultProvider" aria-label="Default AI provider" title="Default AI provider">
                 <option value="openai">OpenAI</option>
                 <option value="claude">Claude (Anthropic)</option>
                 <option value="gemini">Google Gemini</option>
@@ -345,7 +345,7 @@
                 <option value="local">Local (Ollama)</option>
               </select>
             </div>
-            <div style="margin-top:4px;">
+            <div class="mt-4">
               <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
             </div>
           </div>
@@ -356,11 +356,11 @@
 </div>
 
 <!-- Modals -->
-<div class="modal-overlay" id="modalOverlay" style="display:none">
+<div class="modal-overlay d-none" id="modalOverlay">
   <div class="modal" id="modal">
     <div class="modal-header">
       <span id="modalTitle">Modal</span>
-      <button class="modal-close" onclick="closeModal()">✕</button>
+      <button class="modal-close" type="button" aria-label="Close modal" onclick="closeModal()">×</button>
     </div>
     <div class="modal-body" id="modalBody"></div>
     <div class="modal-footer" id="modalFooter"></div>

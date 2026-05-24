@@ -7,9 +7,8 @@ import os
 import sys
 import threading
 import time
+
 import requests
-from pathlib import Path
-from typing import Optional
 
 
 class SystemTray:
@@ -21,8 +20,8 @@ class SystemTray:
 
     def create_tray(self):
         try:
-            from pystray import Icon, Menu, MenuItem
             from PIL import Image, ImageDraw
+            from pystray import Icon, Menu, MenuItem
         except ImportError:
             print("pystray not available. Run: pip install pystray")
             return None
@@ -180,7 +179,8 @@ def create_tray_menu():
 
 def open_dashboard():
     import webbrowser
-    webbrowser.open("http://127.0.0.1:4597/dashboard")
+    port = os.environ.get("API_PORT", "4597")
+    webbrowser.open(f"http://127.0.0.1:{port}/dashboard")
 
 
 def toggle_processing():

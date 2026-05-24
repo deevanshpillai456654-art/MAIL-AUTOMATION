@@ -9,13 +9,13 @@ Aggregates health from multiple sources:
 - Health history
 """
 
-import time
-import threading
 import logging
-from typing import Any, Callable, Dict, List, Optional
+import threading
+import time
+from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from collections import deque
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger("health.aggregator")
 
@@ -42,37 +42,37 @@ class HealthCheckAggregator:
     """
     Aggregates health from multiple sources.
     """
-    
+
     def __init__(self):
         self._checks: Dict[str, Callable] = {}
         self._history: deque = deque(maxlen=100)
         self._lock = threading.Lock()
-        
+
         logger.info("HealthCheckAggregator initialized")
-    
+
     def register_check(self, name: str, check: Callable):
         """Register health check"""
         self._checks[name] = check
-    
+
     def run_checks(self) -> Dict[str, HealthCheck]:
         """Run all health checks"""
         results = {}
-        
+
         for name, check in self._checks.items():
             start = time.time()
-            
+
             try:
                 result = check()
-                
+
                 if isinstance(result, dict):
                     level = HealthLevel(result.get("level", "unknown"))
                     message = result.get("message", "")
                 else:
                     level = HealthLevel.HEALTHY if result else HealthLevel.UNHEALTHY
                     message = "OK" if result else "Failed"
-                
+
                 duration_ms = (time.time() - start) * 1000
-                
+
                 results[name] = HealthCheck(
                     name=name,
                     level=level,
@@ -87,33 +87,33 @@ class HealthCheckAggregator:
                     message=str(e),
                     duration_ms=duration_ms
                 )
-        
+
         # Store in history
         self._history.append((time.time(), results))
-        
+
         return results
-    
+
     def get_overall(self) -> HealthLevel:
         """Get overall health level"""
         results = self.run_checks()
-        
+
         if not results:
             return HealthLevel.UNKNOWN
-        
+
         levels = [r.level for r in results.values()]
-        
+
         if all(l == HealthLevel.HEALTHY for l in levels):
             return HealthLevel.HEALTHY
         elif any(l == HealthLevel.UNHEALTHY for l in levels):
             return HealthLevel.UNHEALTHY
         else:
             return HealthLevel.DEGRADED
-    
+
     def get_summary(self) -> Dict:
         """Get health summary"""
         results = self.run_checks()
         overall = self.get_overall()
-        
+
         return {
             "overall": overall.value,
             "total": len(results),

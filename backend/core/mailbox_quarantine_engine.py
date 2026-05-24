@@ -1,7 +1,9 @@
 """Quarantine corrupted or storming mailboxes instead of retrying forever."""
 from __future__ import annotations
+
 from datetime import datetime
 from typing import Dict
+
 from backend.db.database import Database
 
 

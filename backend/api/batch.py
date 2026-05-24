@@ -2,13 +2,11 @@
 Batch processing for AI Email Organizer
 """
 
-import asyncio
 import time
-from typing import List, Dict, Optional, Callable
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from enum import Enum
-import threading
+from typing import Callable, Dict, List, Optional
 
 
 class BatchStatus(str, Enum):

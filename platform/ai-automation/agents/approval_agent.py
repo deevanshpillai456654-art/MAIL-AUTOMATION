@@ -1,9 +1,12 @@
 """Approval Agent – risk assessment and approval routing."""
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, Optional
 
 from .base import BaseAgent
+
+logger = logging.getLogger(__name__)
 
 
 class ApprovalAgent(BaseAgent):
@@ -49,8 +52,8 @@ class ApprovalAgent(BaseAgent):
             if levels.index(ai_risk) > levels.index(risk):
                 risk = ai_risk
                 reasons.append(f"AI assessment: {ai_risk}")
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("AI risk assessment failed, using rule-based result: %s", _e)
 
         return {"risk_level": risk, "reasons": reasons, "requires_approval": risk != "low"}
 

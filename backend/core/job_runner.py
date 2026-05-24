@@ -165,7 +165,11 @@ class JobRunner:
                     "Job %s failed (queue=%s, attempt=%d, backoff=%.0fs): %s",
                     job_id, queue_name, attempts, delay, exc,
                 )
-                await loop.run_in_executor(None, lambda: self._queue.fail(job_id, str(exc)))
+                # Bind exc to a local before the executor runs — `exc` is
+                # cleared when the except block exits, but the lambda may
+                # execute later.
+                exc_msg = str(exc)
+                await loop.run_in_executor(None, lambda: self._queue.fail(job_id, exc_msg))
 
 
 # ── module-level singleton ────────────────────────────────────────────────────

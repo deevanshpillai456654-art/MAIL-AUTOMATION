@@ -1,6 +1,37 @@
 import logging
+import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+
+
+class WindowsSafeRotatingFileHandler(RotatingFileHandler):
+    """RotatingFileHandler that survives Windows file-locking on rollover.
+
+    Standard `RotatingFileHandler.doRollover()` uses `os.rename`, which fails
+    on Windows with PermissionError (WinError 32) when another process or
+    pytest plugin holds an open handle on the log file. When that happens we
+    truncate the live file instead of rolling — losing the rotated archive
+    but keeping the application running and the log file bounded.
+    """
+
+    def doRollover(self) -> None:  # type: ignore[override]
+        try:
+            super().doRollover()
+        except PermissionError:
+            # Another process holds the file open — truncate in place.
+            try:
+                if self.stream:
+                    self.stream.close()
+                    self.stream = None  # type: ignore[assignment]
+                # Open for truncation, then re-open for append via the parent's
+                # `_open` so future writes work normally.
+                with open(self.baseFilename, "w", encoding=self.encoding or "utf-8"):
+                    pass
+                if not self.delay:
+                    self.stream = self._open()
+            except OSError:
+                # Last-resort: silently swallow so logging never crashes the app.
+                pass
 
 
 def configure_logging(
@@ -39,7 +70,10 @@ def configure_logging(
             existing_file_handler.close()
             existing_file_handler = None
     if not existing_file_handler:
-        file_handler = RotatingFileHandler(
+        # On Windows, file rotation can race with other handles on the same
+        # file; use the safe subclass to keep logging alive across rollovers.
+        handler_cls = WindowsSafeRotatingFileHandler if sys.platform == "win32" else RotatingFileHandler
+        file_handler = handler_cls(
             log_file,
             maxBytes=max(1024, int(max_bytes)),
             backupCount=max(1, int(backup_count)),

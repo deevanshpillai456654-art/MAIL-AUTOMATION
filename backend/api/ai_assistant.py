@@ -30,9 +30,9 @@ import logging
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from backend.auth.local_auth import require_local_auth_or_localhost
 from pydantic import BaseModel
 
+from backend.auth.local_auth import require_local_auth_or_localhost
 from backend.core.assistant import (
     get_action_handler,
     get_diagnostics_engine,

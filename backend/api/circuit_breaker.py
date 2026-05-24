@@ -9,11 +9,11 @@ Circuit breaker pattern for provider resilience:
 - State callbacks
 """
 
-import time
-import threading
 import logging
-from typing import Callable, Optional
+import threading
+import time
 from enum import Enum
+from typing import Callable, Optional
 
 logger = logging.getLogger("circuit.breaker")
 
@@ -28,7 +28,7 @@ class CircuitBreaker:
     """
     Circuit breaker for fault tolerance.
     """
-    
+
     def __init__(
         self,
         name: str,
@@ -40,20 +40,20 @@ class CircuitBreaker:
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.success_threshold = success_threshold
-        
+
         self._state = CircuitState.CLOSED
         self._failure_count = 0
         self._success_count = 0
         self._last_failure_time = 0
         self._lock = threading.Lock()
-        
+
         # Callbacks
         self.on_open: Optional[Callable] = None
         self.on_close: Optional[Callable] = None
         self.on_half_open: Optional[Callable] = None
-        
+
         logger.info(f"CircuitBreaker '{name}' initialized")
-    
+
     @property
     def state(self) -> CircuitState:
         """Get current state"""
@@ -66,20 +66,20 @@ class CircuitBreaker:
                     if self.on_half_open:
                         self.on_half_open()
             return self._state
-    
+
     def call(self, func: Callable, *args, **kwargs):
         """Execute function through circuit breaker"""
         if self.state == CircuitState.OPEN:
             raise CircuitOpenError(f"Circuit '{self.name}' is open")
-        
+
         try:
             result = func(*args, **kwargs)
             self._on_success()
             return result
-        except Exception as e:
+        except Exception:
             self._on_failure()
             raise
-    
+
     def _on_success(self):
         """Handle success"""
         with self._lock:
@@ -92,13 +92,13 @@ class CircuitBreaker:
                     logger.info(f"CircuitBreaker '{self.name}' closed")
                     if self.on_close:
                         self.on_close()
-    
+
     def _on_failure(self):
         """Handle failure"""
         with self._lock:
             self._failure_count += 1
             self._last_failure_time = time.time()
-            
+
             if self._state == CircuitState.HALF_OPEN:
                 self._state = CircuitState.OPEN
                 logger.warning(f"CircuitBreaker '{self.name}' open after half-open failure")
@@ -107,7 +107,7 @@ class CircuitBreaker:
                 logger.warning(f"CircuitBreaker '{self.name}' open after {self._failure_count} failures")
                 if self.on_open:
                     self.on_open()
-    
+
     def reset(self):
         """Manually reset circuit breaker"""
         with self._lock:
@@ -115,7 +115,7 @@ class CircuitBreaker:
             self._failure_count = 0
             self._success_count = 0
             logger.info(f"CircuitBreaker '{self.name}' manually reset")
-    
+
     def get_stats(self) -> dict:
         """Get circuit breaker stats"""
         return {

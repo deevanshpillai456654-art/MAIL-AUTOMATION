@@ -10,15 +10,13 @@ Multi-level caching:
 - TTL management
 """
 
-import time
-import threading
-import hashlib
-import json
 import logging
-from typing import Any, Optional, Dict
-from dataclasses import dataclass, field
+import threading
+import time
 from collections import OrderedDict
+from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger("cache.manager")
 
@@ -41,47 +39,47 @@ class CacheEntry:
 
 class MemoryCache:
     """In-memory LRU cache"""
-    
+
     def __init__(self, max_size: int = 1000, ttl_seconds: float = 3600):
         self.max_size = max_size
         self.ttl_seconds = ttl_seconds
         self._cache: OrderedDict = OrderedDict()
         self._lock = threading.RLock()
-    
+
     def get(self, key: str) -> Optional[Any]:
         """Get value"""
         with self._lock:
             if key not in self._cache:
                 return None
-            
+
             entry = self._cache[key]
-            
+
             # Check expiration
             if entry.expires_at and time.time() > entry.expires_at:
                 del self._cache[key]
                 return None
-            
+
             # Update access order
             self._cache.move_to_end(key)
             entry.hits += 1
-            
+
             return entry.value
-    
+
     def set(self, key: str, value: Any, ttl: Optional[float] = None):
         """Set value"""
         with self._lock:
             # Evict if full
             while len(self._cache) >= self.max_size:
                 self._cache.popitem(last=False)
-            
+
             expires_at = time.time() + (ttl or self.ttl_seconds)
-            
+
             self._cache[key] = CacheEntry(
                 key=key,
                 value=value,
                 expires_at=expires_at
             )
-    
+
     def delete(self, key: str) -> bool:
         """Delete value"""
         with self._lock:
@@ -89,12 +87,12 @@ class MemoryCache:
                 del self._cache[key]
                 return True
             return False
-    
+
     def clear(self):
         """Clear cache"""
         with self._lock:
             self._cache.clear()
-    
+
     def stats(self) -> Dict:
         """Get cache stats"""
         with self._lock:
@@ -110,18 +108,18 @@ class MultiLevelCache:
     """
     Multi-level cache manager.
     """
-    
+
     def __init__(self):
         self._memory = MemoryCache(max_size=1000)
         self._disk_cache: Dict[str, Any] = {}
         self._lock = threading.RLock()
-        
+
         # Metrics
         self._hits = 0
         self._misses = 0
-        
+
         logger.info("MultiLevelCache initialized")
-    
+
     def get(self, key: str, level: CacheLevel = CacheLevel.MEMORY) -> Optional[Any]:
         """Get from cache"""
         # Try memory first
@@ -131,25 +129,25 @@ class MultiLevelCache:
                 self._hits += 1
                 return value
             self._misses += 1
-        
+
         return None
-    
+
     def set(self, key: str, value: Any, level: CacheLevel = CacheLevel.MEMORY, ttl: Optional[float] = None):
         """Set in cache"""
         if level == CacheLevel.MEMORY:
             self._memory.set(key, value, ttl)
-    
+
     def delete(self, key: str):
         """Delete from all levels"""
         self._memory.delete(key)
         self._disk_cache.pop(key, None)
-    
+
     def invalidate_pattern(self, pattern: str):
         """Invalidate keys matching pattern"""
         keys = [k for k in self._memory._cache.keys() if pattern in k]
         for key in keys:
             self.delete(key)
-    
+
     def get_stats(self) -> Dict:
         """Get cache statistics"""
         return {

@@ -12,19 +12,19 @@ OAuth strategies never require mailbox passwords or app passwords.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
 import json
 import logging
 import socket
 import subprocess
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
-from backend.auth.provider_config import ProviderConfigManager, oauth_group_for, normalize_provider
+from backend.auth.provider_config import ProviderConfigManager, normalize_provider, oauth_group_for
 from backend.auth.validation import ProviderAuthValidator
-from backend.core.account_persistence import detect_mail_settings, account_metadata
-from backend.core.provider_capability_registry import ProviderCapability, ProviderCapabilityRegistry
+from backend.core.account_persistence import account_metadata, detect_mail_settings
+from backend.core.provider_capability_registry import ProviderCapabilityRegistry
 
 logger = logging.getLogger(__name__)
 

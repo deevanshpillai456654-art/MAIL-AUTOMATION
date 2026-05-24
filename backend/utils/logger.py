@@ -4,8 +4,7 @@ Logging utilities for AI Email Organizer
 
 import logging
 import os
-from pathlib import Path
-from datetime import datetime
+import sys
 from logging.handlers import RotatingFileHandler
 
 try:
@@ -49,7 +48,14 @@ def setup_logger(
 
     if log_path:
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        file_handler = RotatingFileHandler(
+        # On Windows, the standard RotatingFileHandler crashes on rollover if
+        # another handle (test worker, previous run) is open on the file.
+        try:
+            from backend.app.logging_config import WindowsSafeRotatingFileHandler
+            handler_cls = WindowsSafeRotatingFileHandler if sys.platform == "win32" else RotatingFileHandler
+        except ImportError:
+            handler_cls = RotatingFileHandler
+        file_handler = handler_cls(
             log_path,
             maxBytes=max_bytes,
             backupCount=backup_count,

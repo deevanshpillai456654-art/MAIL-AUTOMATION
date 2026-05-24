@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, Iterable, List, Tuple
-
+from typing import Any, Dict, List, Tuple
 
 SYSTEM_PREFIX_RE = re.compile(r"^(?:ai|smart|auto|system|intemo)[\s_.:-]+", re.I)
 NON_KEY_RE = re.compile(r"[^a-z0-9]+", re.I)

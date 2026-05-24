@@ -12,7 +12,7 @@ import json
 import os
 import secrets
 import sqlite3
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -166,7 +166,7 @@ def initialize_offline_first_run(runtime_home: Path | None = None, app_root: Pat
         handshake,
         {
             "bridge": "localhost",
-            "base_urls": ["http://127.0.0.1:4597/api/v1", "http://localhost:4597/api/v1"],
+            "base_urls": [f"http://127.0.0.1:{os.environ.get('API_PORT', '4597')}/api/v1", f"http://localhost:{os.environ.get('API_PORT', '4597')}/api/v1"],
             "created_at": _utc_now(),
             "offline_safe": True,
         },

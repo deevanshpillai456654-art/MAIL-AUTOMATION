@@ -1,4 +1,4 @@
-/* ── Connector & Plugin Panel – Frontend Application ─────────────────────── */
+﻿/* ── Connector & Plugin Panel – Frontend Application ─────────────────────── */
 'use strict';
 
 const API = '/api/connector-panel';
@@ -19,7 +19,8 @@ async function apiFetch(path, opts = {}) {
   try {
     const res = await fetch(url, { ...opts, credentials: 'same-origin', headers });
     const text = await res.text();
-    const data = text ? JSON.parse(text) : {};
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; } catch (_) { data = {}; }
     return res.ok ? { ok: true, data } : { ok: false, error: data.detail || data.message || 'Request failed', status: res.status };
   } catch (e) {
     return { ok: false, error: e.message || 'Network error', status: 0 };
@@ -36,7 +37,8 @@ async function apiV1Fetch(path, opts = {}) {
   try {
     const res = await fetch(`/api/v1${path}`, { ...opts, credentials: 'same-origin', headers });
     const text = await res.text();
-    const data = text ? JSON.parse(text) : {};
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; } catch (_) { data = {}; }
     return res.ok ? { ok: true, data } : { ok: false, error: data.detail || data.message || 'Request failed', status: res.status };
   } catch (e) {
     return { ok: false, error: e.message || 'Network error', status: 0 };
@@ -91,7 +93,13 @@ function toast(msg, type = 'info', duration = 3500) {
   if (!wrap) return;
   const el = document.createElement('div');
   el.className = `toast toast-${type}`;
-  el.innerHTML = `<span>${esc(msg)}</span><button class="toast-close" onclick="this.parentElement.remove()">×</button>`;
+  el.innerHTML = `<span>${esc(msg)}</span>`;
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'toast-close';
+  closeBtn.setAttribute('aria-label', 'Dismiss notification');
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', () => el.remove());
+  el.appendChild(closeBtn);
   wrap.appendChild(el);
   setTimeout(() => el.remove(), duration);
 }
@@ -114,7 +122,7 @@ function closeModal() {
 
 function confirm(msg, onYes) {
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">Confirm</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">Confirm</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <p>${esc(msg)}</p>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
@@ -245,6 +253,13 @@ async function loadDashboard() {
 
   // Installed connectors list
   const conns = connRes.ok ? (connRes.data.connectors || connRes.data || []) : [];
+  // Zero out stats when no connectors are installed to avoid contradictory display
+  if (!conns.length) {
+    _setEl('statTotal', 0);
+    _setEl('statActive', 0);
+    _setEl('statQueued', 0);
+    _setEl('statDead', 0);
+  }
   const listEl = document.getElementById('dashInstalledList');
   if (listEl) {
     if (!conns.length) {
@@ -453,7 +468,7 @@ async function installConnector(connectorId, name) {
   showModal(`
     <div class="modal-header">
       <h3 class="modal-title">Install ${esc(name)}</h3>
-      <button class="modal-close" onclick="closeModal()">×</button>
+      <button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button>
     </div>
     <p>Configure this connector before installation.</p>
     <div class="form-group">
@@ -503,7 +518,7 @@ async function viewConnectorDetails(id) {
   showModal(`
     <div class="modal-header">
       <h3 class="modal-title">${esc(c.name)} v${esc(c.version)}</h3>
-      <button class="modal-close" onclick="closeModal()">×</button>
+      <button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button>
     </div>
     <p>${esc(c.description)}</p>
     <div class="two-col">
@@ -606,7 +621,7 @@ async function configureConnector(id) {
   showModal(`
     <div class="modal-header">
       <h3 class="modal-title">Configure ${esc(c.name)}</h3>
-      <button class="modal-close" onclick="closeModal()">×</button>
+      <button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button>
     </div>
     <div>
       ${statusBadge(c.status)}
@@ -745,11 +760,11 @@ function showTallyConfigureModal() {
   showModal(`
     <div class="modal-header">
       <h3 class="modal-title">Connect Tally</h3>
-      <button class="modal-close" onclick="closeModal()">Ã—</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="Close">&times;</button>
     </div>
     <div class="two-col">
-      <div class="form-group"><label>Connection Method</label><select id="tallyMode"><option value="localhost">Localhost Connection</option><option value="remote">Remote Server Connection</option></select></div>
-      <div class="form-group"><label>Sync Interval</label><select id="tallySyncInterval"><option value="1m">Every 1 minute</option><option value="5m">Every 5 minutes</option><option value="15m" selected>Every 15 minutes</option><option value="30m">Every 30 minutes</option><option value="hourly">Hourly</option><option value="daily">Daily</option></select></div>
+      <div class="form-group"><label>Connection Method</label><select id="tallyMode" aria-label="Connection method" title="Connection method"><option value="localhost">Localhost Connection</option><option value="remote">Remote Server Connection</option></select></div>
+      <div class="form-group"><label>Sync Interval</label><select id="tallySyncInterval" aria-label="Sync interval" title="Sync interval"><option value="1m">Every 1 minute</option><option value="5m">Every 5 minutes</option><option value="15m" selected>Every 15 minutes</option><option value="30m">Every 30 minutes</option><option value="hourly">Hourly</option><option value="daily">Daily</option></select></div>
     </div>
     <div class="two-col">
       <div class="form-group"><label>Tally Host</label><input id="tallyHost" value="localhost" placeholder="localhost or remote host" /></div>
@@ -877,7 +892,7 @@ function renderOAuthProviders(providers, tokens) {
            <button class="btn btn-sm btn-secondary" onclick="revokeToken('${esc(tok.token_id)}')">Disconnect</button>
            ${!tok.is_valid ? `<button class="btn btn-sm btn-primary" onclick="refreshToken('${esc(tok.token_id)}')">Refresh</button>` : ''}`
         : `<span class="badge badge-inactive">Not connected</span>
-           <button class="btn btn-sm btn-primary" onclick="startOAuth('${esc(p.id)}')">Connect</button>`
+           <button class="btn btn-sm btn-primary" onclick="promptAndStartOAuth('${esc(p.id)}')">Connect</button>`
       }
     </div>`;
   }).join('');
@@ -905,8 +920,16 @@ function renderOAuthTokens(tokens) {
     </tr>`).join('');
 }
 
-async function startOAuth(provider) {
-  const res = await apiFetch(`/oauth/authorize/${provider}?tenant_id=${_tenantId}`, { method:'GET' });
+function promptAndStartOAuth(provider) {
+  const email = (prompt('Enter the account email address for this connection:') || '').trim();
+  if (!email) return;
+  startOAuth(provider, email);
+}
+
+async function startOAuth(provider, email) {
+  const params = new URLSearchParams({ tenant_id: _tenantId });
+  if (email) params.set('login_hint', email);
+  const res = await apiFetch(`/oauth/authorize/${provider}?${params}`, { method:'GET' });
   if (res.ok && res.data.auth_url) {
     window.open(res.data.auth_url, '_blank', 'width=600,height=700');
     toast(`OAuth flow started for ${provider}`, 'info');
@@ -954,7 +977,7 @@ async function loadWebhooks() {
 
 function createWebhookModal() {
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">Create Webhook</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">Create Webhook</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div class="form-group"><label>Connector ID</label><input id="wkConnector" placeholder="connector_id" /></div>
     <div class="form-group"><label>Endpoint URL</label><input id="wkUrl" type="url" placeholder="https://your-server.com/webhook" /></div>
     <div class="form-group"><label>Events (comma-separated)</label><input id="wkEvents" placeholder="invoice.created,shipment.updated" /></div>
@@ -1196,7 +1219,7 @@ async function viewPluginPerms(id) {
   const res = await apiFetch(`/plugins/${id}/permissions`);
   const perms = res.ok ? (res.data.permissions||res.data||[]) : [];
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">Permissions: ${esc(id)}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">Permissions: ${esc(id)}</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div>
       ${perms.length ? perms.map(p=>`
         <div>
@@ -1396,7 +1419,7 @@ async function loadVendors() {
 function createVendorModal(v = {}) {
   const edit = !!v.id;
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'Add'} Vendor</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'Add'} Vendor</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div class="two-col">
       <div class="form-group"><label>Vendor Name *</label><input id="vnName" value="${esc(v.name||'')}" placeholder="Acme Corp" /></div>
       <div class="form-group"><label>Vendor Code</label><input id="vnCode" value="${esc(v.code||'')}" placeholder="VND-001" /></div>
@@ -1407,7 +1430,7 @@ function createVendorModal(v = {}) {
     </div>
     <div class="two-col">
       <div class="form-group"><label>Category</label>
-        <select id="vnCategory">
+        <select id="vnCategory" aria-label="Vendor category" title="Vendor category">
           ${['supplier','manufacturer','distributor','service'].map(c=>`<option ${v.category===c?'selected':''}>${c}</option>`).join('')}
         </select>
       </div>
@@ -1487,7 +1510,7 @@ async function loadPurchaseOrders() {
 function createPOModal(po = {}) {
   const edit = !!po.id;
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Purchase Order</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Purchase Order</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div class="two-col">
       <div class="form-group"><label>PO Number</label><input id="poNum" value="${esc(po.po_number||'')}" placeholder="PO-2026-001" /></div>
       <div class="form-group"><label>Vendor ID *</label><input id="poVendor" value="${esc(po.vendor_id||'')}" placeholder="vendor_id" /></div>
@@ -1539,9 +1562,9 @@ async function submitPO(id) {
 async function updatePOStatus(id, current) {
   const statuses = ['draft','pending','approved','received','cancelled'];
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">Update PO Status</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">Update PO Status</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div class="form-group"><label>New Status</label>
-      <select id="poStatusSel">${statuses.map(s=>`<option value="${s}" ${s===current?'selected':''}>${s}</option>`).join('')}</select>
+      <select id="poStatusSel" aria-label="Purchase order status" title="Purchase order status">${statuses.map(s=>`<option value="${s}" ${s===current?'selected':''}>${s}</option>`).join('')}</select>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
@@ -1580,7 +1603,7 @@ async function loadInvoices() {
 function createInvoiceModal(inv = {}) {
   const edit = !!inv.id;
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Invoice</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Invoice</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div class="two-col">
       <div class="form-group"><label>Invoice Number</label><input id="invNum" value="${esc(inv.invoice_number||'')}" placeholder="INV-2026-001" /></div>
       <div class="form-group"><label>Vendor ID *</label><input id="invVendor" value="${esc(inv.vendor_id||'')}" /></div>
@@ -1666,7 +1689,7 @@ async function loadInventory() {
 function createInventoryModal(item = {}) {
   const edit = !!item.id;
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'Add'} Inventory Item</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'Add'} Inventory Item</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div class="two-col">
       <div class="form-group"><label>SKU</label><input id="invISku" value="${esc(item.sku||'')}" placeholder="SKU-001" /></div>
       <div class="form-group"><label>Item Name *</label><input id="invIName" value="${esc(item.name||'')}" /></div>
@@ -1716,7 +1739,7 @@ async function submitInventoryItem(id) {
 function adjustStockModal(id, name, current) {
   const _adjustClasses = 'inventory-current';
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">Adjust Stock: ${esc(name)}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">Adjust Stock: ${esc(name)}</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <p>Current quantity: <strong>${current}</strong></p>
     <div class="form-group"><label>Adjustment (+ or -)</label><input id="adjQty" type="number" placeholder="+50 or -10" /></div>
     <div class="form-group"><label>Reason</label><input id="adjReason" placeholder="Stock receipt, correction…" /></div>
@@ -1767,7 +1790,7 @@ async function loadWarehouses() {
 function createWarehouseModal(wh = {}) {
   const edit = !!wh.id;
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'Add'} Warehouse</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'Add'} Warehouse</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div class="two-col">
       <div class="form-group"><label>Name *</label><input id="whName" value="${esc(wh.name||'')}" placeholder="Main Warehouse" /></div>
       <div class="form-group"><label>Code</label><input id="whCode" value="${esc(wh.code||'')}" placeholder="WH-001" /></div>
@@ -1926,7 +1949,7 @@ async function loadLeads() {
 function createLeadModal(lead = {}) {
   const edit = !!lead.id;
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Lead</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Lead</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div class="form-group"><label>Title *</label><input id="ldTitle" value="${esc(lead.title||'')}" placeholder="Lead from website" /></div>
     <div class="two-col">
       <div class="form-group"><label>Contact Name</label><input id="ldContact" value="${esc(lead.contact_name||'')}" /></div>
@@ -1934,7 +1957,7 @@ function createLeadModal(lead = {}) {
     </div>
     <div class="two-col">
       <div class="form-group"><label>Source</label>
-        <select id="ldSource">
+        <select id="ldSource" aria-label="Lead source" title="Lead source">
           ${['website','email','phone','referral','social','other'].map(s=>`<option ${lead.source===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </div>
@@ -2014,7 +2037,7 @@ async function loadContacts() {
 function createContactModal(c = {}) {
   const edit = !!c.id;
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Contact</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Contact</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div class="two-col">
       <div class="form-group"><label>First Name *</label><input id="ctFirst" value="${esc(c.first_name||'')}" /></div>
       <div class="form-group"><label>Last Name</label><input id="ctLast" value="${esc(c.last_name||'')}" /></div>
@@ -2103,11 +2126,11 @@ async function loadOpportunities() {
 function createOpportunityModal(opp = {}) {
   const edit = !!opp.id;
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Opportunity</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Opportunity</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div class="form-group"><label>Title *</label><input id="opTitle" value="${esc(opp.title||'')}" placeholder="Enterprise Deal — Acme Corp" /></div>
     <div class="two-col">
       <div class="form-group"><label>Stage</label>
-        <select id="opStage">
+        <select id="opStage" aria-label="Opportunity stage" title="Opportunity stage">
           ${PIPELINE_STAGES.map(s=>`<option ${opp.stage===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </div>
@@ -2215,11 +2238,11 @@ async function loadTracking() {
 
 function addShipmentModal() {
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">Add Shipment</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">Add Shipment</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div class="two-col">
       <div class="form-group"><label>Tracking Number *</label><input id="shTrack" placeholder="AWB / BL / Container" /></div>
       <div class="form-group"><label>Carrier</label>
-        <select id="shCarrier">
+        <select id="shCarrier" aria-label="Shipment carrier" title="Shipment carrier">
           <option value="fedex">FedEx</option><option value="ups">UPS</option>
           <option value="dhl">DHL</option><option value="delhivery">Delhivery</option>
           <option value="shiprocket">Shiprocket</option><option value="aftership">AfterShip</option>
@@ -2229,7 +2252,7 @@ function addShipmentModal() {
     </div>
     <div class="two-col">
       <div class="form-group"><label>Tracking Type</label>
-        <select id="shType">
+        <select id="shType" aria-label="Shipment type" title="Shipment type">
           <option value="awb">AWB (Air)</option><option value="bl">BL (Sea)</option>
           <option value="container">Container</option><option value="order">Order</option>
         </select>
@@ -2280,7 +2303,7 @@ async function viewShipmentModal(id) {
   showModal(`
     <div class="modal-header">
       <h3 class="modal-title">${esc(s.tracking_number)}</h3>
-      <button class="modal-close" onclick="closeModal()">×</button>
+      <button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button>
     </div>
     <div>
       ${statusBadge(s.status)} <span class="badge badge-info">${esc(s.carrier)}</span>
@@ -2313,9 +2336,9 @@ async function viewShipmentModal(id) {
 
 function addTrackingEventModal(shipmentId) {
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">Add Tracking Event</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">Add Tracking Event</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div class="form-group"><label>Status *</label>
-      <select id="tevStatus">
+      <select id="tevStatus" aria-label="Tracking event status" title="Tracking event status">
         <option value="pending">Pending</option><option value="in_transit">In Transit</option>
         <option value="out_for_delivery">Out for Delivery</option><option value="delivered">Delivered</option>
         <option value="exception">Exception</option><option value="returned">Returned</option>
@@ -2395,12 +2418,12 @@ function createWorkflowModal(wf = {}) {
   const edit = !!wf.id;
   const stepsJson = wf.steps_json || '[{"type":"action","name":"Step 1","config":{}}]';
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Workflow</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">${edit ? 'Edit' : 'New'} Workflow</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div class="form-group"><label>Workflow Name *</label><input id="wfName" value="${esc(wf.name||'')}" placeholder="Invoice Auto-Process" /></div>
     <div class="form-group"><label>Description</label><input id="wfDesc" value="${esc(wf.description||'')}" placeholder="Optional description" /></div>
     <div class="two-col">
       <div class="form-group"><label>Trigger Type</label>
-        <select id="wfTrigger">
+        <select id="wfTrigger" aria-label="Workflow trigger" title="Workflow trigger">
           ${['manual','event','schedule','webhook','condition'].map(t=>`<option ${wf.trigger_type===t?'selected':''}>${t}</option>`).join('')}
         </select>
       </div>
@@ -2452,7 +2475,7 @@ async function viewExecutions(id, name) {
   const res = await apiFetch(`/workflows/${id}/executions`);
   const execs = res.ok ? (res.data.executions || res.data || []) : [];
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">Executions: ${esc(name)}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">Executions: ${esc(name)}</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div>
       ${execs.length ? `
         <table>
@@ -2540,7 +2563,7 @@ async function loadTickets() {
 
 function createTicketModal() {
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">New Ticket</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">New Ticket</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div class="form-group"><label>Subject *</label><input id="tkSubject" placeholder="Shipment not received…" /></div>
     <div class="two-col">
       <div class="form-group"><label>Customer Name</label><input id="tkCustomer" /></div>
@@ -2548,13 +2571,13 @@ function createTicketModal() {
     </div>
     <div class="two-col">
       <div class="form-group"><label>Priority</label>
-        <select id="tkPriority">
+        <select id="tkPriority" aria-label="Ticket priority" title="Ticket priority">
           <option value="low">Low</option><option value="normal" selected>Normal</option>
           <option value="high">High</option><option value="urgent">Urgent</option>
         </select>
       </div>
       <div class="form-group"><label>Channel</label>
-        <select id="tkChannel">
+        <select id="tkChannel" aria-label="Ticket channel" title="Ticket channel">
           <option value="email">Email</option><option value="whatsapp">WhatsApp</option>
           <option value="phone">Phone</option><option value="chat">Chat</option><option value="portal">Portal</option>
         </select>
@@ -2596,7 +2619,7 @@ async function viewTicketModal(id) {
   showModal(`
     <div class="modal-header">
       <h3 class="modal-title">${esc(t.subject)}</h3>
-      <button class="modal-close" onclick="closeModal()">×</button>
+      <button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button>
     </div>
     <div>
       ${statusBadge(t.status)} <span class="badge badge-info">${esc(t.channel||'email')}</span>
@@ -2626,10 +2649,10 @@ async function viewTicketModal(id) {
 
 function replyTicketModal(ticketId, subject) {
   showModal(`
-    <div class="modal-header"><h3 class="modal-title">Reply: ${esc(subject)}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3 class="modal-title">Reply: ${esc(subject)}</h3><button class="modal-close" type="button" aria-label="Close dialog" title="Close dialog" onclick="closeModal()">x</button></div>
     <div class="form-group"><label>Message *</label><textarea id="replyMsg" rows="5" placeholder="Type your reply…"></textarea></div>
     <div class="form-group"><label>Update Status</label>
-      <select id="replyStatus">
+      <select id="replyStatus" aria-label="Reply status" title="Reply status">
         <option value="">No change</option><option value="open">Open</option>
         <option value="in_progress">In Progress</option><option value="pending">Pending</option>
         <option value="resolved">Resolved</option>
@@ -2743,3 +2766,5 @@ async function publishEvent() {
   if (res.ok) toast(`Event "${type}" published`, 'success');
   else toast('Publish failed: ' + res.error, 'error');
 }
+
+

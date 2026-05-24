@@ -1,8 +1,10 @@
 from __future__ import annotations
-import json, zipfile, shutil
+
+import json
+import zipfile
 from pathlib import Path
-from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict
+
 REQUIRED_PATCH_ENTRIES = {"manifest.json"}
 
 def validate_patch_zip(path: str | Path) -> Dict[str, Any]:

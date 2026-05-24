@@ -245,8 +245,9 @@ async def list_resources(
             params + [limit, offset],
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "resources": [dict(zip(_RES_COLS, r)) for r in rows],
         "total": total, "limit": limit, "offset": offset,
@@ -271,8 +272,9 @@ async def create_resource(body: ResourceCreate, _auth=Depends(require_local_auth
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": res_id, "name": body.name, "status": "active"}
 
 
@@ -301,8 +303,9 @@ async def capacity_stats(_auth=Depends(require_local_auth)):
             "WHERE recorded_at >= datetime('now','-24 hours')"
         ).fetchone()[0]
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total":        total,
         "critical":     critical,
@@ -323,8 +326,9 @@ async def get_resource(resource_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return dict(zip(_RES_COLS, row))
 
 
@@ -359,8 +363,9 @@ async def patch_resource(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return dict(zip(_RES_COLS, row))
 
 
@@ -376,8 +381,9 @@ async def delete_resource(resource_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Transitions ───────────────────────────────────────────────────────────────
@@ -410,8 +416,9 @@ async def transition_resource(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True, "status": body.status}
 
 
@@ -440,8 +447,9 @@ async def list_snapshots(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"snapshots": [dict(zip(_SNAP_COLS, r)) for r in rows], "total": total}
 
 
@@ -472,8 +480,9 @@ async def add_snapshot(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": snap_id, "utilization_pct": pct, "ok": True}
 
 
@@ -492,6 +501,7 @@ async def recent_snapshots(
             (limit,),
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"snapshots": [dict(zip(_SNAP_COLS, r)) for r in rows]}

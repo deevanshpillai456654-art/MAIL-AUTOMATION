@@ -7,12 +7,12 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.runtime_version import APP_VERSION, DISPLAY_VERSION
 
-
 STATIC_PAGE_ROUTE_PATHS = (
     "/dashboard",
     "/assistant",
     "/setup",
     "/ai",
+    "/ai-automation",
     "/ai-command-center.js",
     "/admin",
     "/security",
@@ -51,6 +51,19 @@ def register_static_dashboard_routes(
     frontend_path = paths.project_root / "frontend"
     if frontend_path.exists():
         app.mount("/frontend", StaticFiles(directory=str(frontend_path)), name="frontend_design_system")
+    ai_automation_frontend_path = paths.project_root / "platform" / "ai-automation" / "frontend"
+    if ai_automation_frontend_path.exists():
+        app.mount(
+            "/ai-automation",
+            StaticFiles(directory=str(ai_automation_frontend_path), html=True),
+            name="ai_automation_frontend",
+        )
+    try:
+        from backend.app.ai_automation_bridge import register_ai_automation_api
+        register_ai_automation_api(app)
+    except Exception as _ai_err:
+        import logging as _log
+        _log.getLogger(__name__).warning("AI automation API not loaded: %s", _ai_err)
     if outlook_path.exists():
         app.mount("/outlook", StaticFiles(directory=str(outlook_path)), name="outlook_addin")
         icons_path = outlook_path / "icons"

@@ -249,8 +249,9 @@ async def list_assets(
             params + [limit, offset],
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "assets": [dict(zip(_ASSET_COLS, r)) for r in rows],
         "total": total, "limit": limit, "offset": offset,
@@ -279,8 +280,9 @@ async def create_asset(body: AssetCreate, _auth=Depends(require_local_auth)):
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": asset_id, "name": body.name, "status": "discovered"}
 
 
@@ -303,8 +305,9 @@ async def asset_stats(_auth=Depends(require_local_auth)):
             "GROUP BY environment ORDER BY COUNT(*) DESC"
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total":     total,
         "active":    active,
@@ -324,8 +327,9 @@ async def get_asset(asset_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return dict(zip(_ASSET_COLS, row))
 
 
@@ -356,8 +360,9 @@ async def patch_asset(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return dict(zip(_ASSET_COLS, row))
 
 
@@ -376,8 +381,9 @@ async def delete_asset(asset_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Transitions ───────────────────────────────────────────────────────────────
@@ -413,8 +419,9 @@ async def transition_asset(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True, "status": body.status}
 
 
@@ -433,8 +440,9 @@ async def list_relationships(asset_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"relationships": [dict(zip(_REL_COLS, r)) for r in rows]}
 
 
@@ -472,8 +480,9 @@ async def add_relationship(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": rel_id, "ok": True}
 
 
@@ -504,8 +513,9 @@ async def delete_relationship(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Events ────────────────────────────────────────────────────────────────────
@@ -532,8 +542,9 @@ async def list_events(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"events": [dict(zip(_EVT_COLS, r)) for r in rows], "total": total}
 
 
@@ -559,6 +570,7 @@ async def add_event(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": evt_id, "ok": True}

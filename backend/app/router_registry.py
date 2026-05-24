@@ -19,7 +19,7 @@ existing tests that iterate the registry continue to work.
 from __future__ import annotations
 
 import importlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Iterable, Optional
 
 from fastapi import APIRouter, FastAPI

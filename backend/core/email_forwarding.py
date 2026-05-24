@@ -16,11 +16,11 @@ import smtplib
 from email.message import EmailMessage
 from typing import Any, Dict, Iterable, List, Optional
 
-from backend.auth.token_crypto import TokenCipher
 from backend.auth.gmail_auth import GmailOAuth
 from backend.auth.outlook_auth import OutlookOAuth
-from backend.core.provider_capability_registry import ProviderCapabilityRegistry
+from backend.auth.token_crypto import TokenCipher
 from backend.core.mailbox_infrastructure_guard import recipient_list
+from backend.core.provider_capability_registry import ProviderCapabilityRegistry
 
 _log = logging.getLogger(__name__)
 _EMAIL_RE = re.compile(r"^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$")

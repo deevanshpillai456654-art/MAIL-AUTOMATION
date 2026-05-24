@@ -12,25 +12,27 @@ Enterprise token security:
 - Refresh reuse detection
 """
 import os
+
 __path__ = [os.path.join(os.path.dirname(__file__), "token_vault")]
 
 import base64
-import json
-import time
-import secrets
 import hashlib
-import hmac
-import threading
+import json
 import logging
+import secrets
 import sqlite3
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Callable
-from dataclasses import dataclass, field
+import threading
+import time
+from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 from cryptography.fernet import Fernet
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.backends import default_backend
+
 from backend import config
 
 try:
@@ -103,27 +105,27 @@ class TokenVault:
     """
     Enterprise encrypted token vault with rotating keys.
     """
-    
+
     def __init__(self, db_path: str = None, master_password: str = None):
         self.db_path = db_path or (Path(config.DATA_DIR) / "token_vault.db")
         self._master_password = master_password or self._get_or_create_master_password()
-        
+
         # Encryption
         self._current_key: Optional[EncryptionKey] = None
         self._key_rotation_days = 30
         self._keys: Dict[str, EncryptionKey] = {}
-        
+
         # Token tracking
         self._tokens: Dict[str, TokenRecord] = {}
         self._refresh_token_hashes: Dict[str, str] = {}  # hash -> token_id
         self._lock = threading.RLock()
-        
+
         # Initialize
         self._init_vault()
         self._load_or_create_key()
-        
+
         logger.info("Token Vault initialized")
-    
+
     def _get_or_create_master_password(self) -> str:
         """Get or create master password using OS keychain (Windows Credential Manager,
         macOS Keychain, libsecret on Linux).  Falls back to a permission-restricted file
@@ -148,13 +150,13 @@ class TokenVault:
         password_file.write_bytes(password.encode())
         try:
             os.chmod(password_file, 0o600)
-        except Exception:
-            pass
+        except Exception as _chmod_exc:
+            logger.warning("Could not restrict vault key file permissions (%s)", _chmod_exc)
         logger.warning(
             "Master vault password stored in file — install 'keyring' for OS-backed secure storage"
         )
         return password
-    
+
     def _derive_key(self, password: str, salt: bytes) -> bytes:
         """Derive encryption key from password"""
         kdf = PBKDF2HMAC(
@@ -165,12 +167,12 @@ class TokenVault:
             backend=default_backend()
         )
         return kdf.derive(password.encode())
-    
+
     def _init_vault(self):
         """Initialize vault database"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
-        
+
         # Tokens table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS tokens (
@@ -190,7 +192,7 @@ class TokenVault:
                 key_id TEXT
             )
         """)
-        
+
         # Encryption keys table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS encryption_keys (
@@ -202,7 +204,7 @@ class TokenVault:
                 is_active INTEGER DEFAULT 1
             )
         """)
-        
+
         # Compromise alerts table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS compromise_alerts (
@@ -215,7 +217,7 @@ class TokenVault:
                 resolved INTEGER DEFAULT 0
             )
         """)
-        
+
         # Refresh token reuse tracking
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS refresh_token_hashes (
@@ -225,10 +227,10 @@ class TokenVault:
                 used_count INTEGER DEFAULT 1
             )
         """)
-        
+
         conn.commit()
         conn.close()
-    
+
     def _load_or_create_key(self):
         """Load existing key or create new one.
 
@@ -263,7 +265,7 @@ class TokenVault:
             )
         else:
             self._rotate_key()
-    
+
     def _rotate_key(self):
         """Rotate encryption key.
 
@@ -302,46 +304,46 @@ class TokenVault:
             self._current_key.is_active = False
         self._current_key = new_key
         logger.info(f"Encryption key rotated: {key_id}")
-    
+
     def _encrypt(self, data: str) -> bytes:
         """Encrypt data with current key"""
         if not self._current_key:
             raise Exception("No encryption key available")
-        
+
         f = Fernet(self._current_key.key)
         return f.encrypt(data.encode())
-    
+
     def _decrypt(self, encrypted_data: bytes) -> str:
         """Decrypt data with current key"""
         if not self._current_key:
             raise Exception("No encryption key available")
-        
+
         f = Fernet(self._current_key.key)
         return f.decrypt(encrypted_data).decode()
-    
+
     def store_token(self, account_id: int, provider: str,
                    access_token: str, refresh_token: Optional[str] = None,
                    expires_in: int = 3600) -> str:
         """Store token with encryption"""
         with self._lock:
             token_id = f"token_{secrets.token_hex(8)}"
-            
+
             # Generate family ID if this is first token
             family_id = self._get_or_create_family(account_id, provider)
-            
+
             created_at = time.time()
             expires_at = created_at + expires_in if expires_in else None
-            
+
             # Encrypt tokens
             encrypted_access = self._encrypt(access_token)
             encrypted_refresh = self._encrypt(refresh_token) if refresh_token else None
-            
+
             # Hash refresh token for reuse detection
             refresh_hash = None
             if refresh_token:
                 refresh_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
                 self._refresh_token_hashes[refresh_hash] = token_id
-            
+
             token_record = TokenRecord(
                 token_id=token_id,
                 account_id=account_id,
@@ -354,7 +356,7 @@ class TokenVault:
                 last_used=created_at,
                 family_id=family_id
             )
-            
+
             # Store in database
             conn = sqlite3.connect(str(self.db_path))
             cursor = conn.cursor()
@@ -370,75 +372,75 @@ class TokenVault:
                 created_at, expires_at, created_at, family_id,
                 self._current_key.key_id
             ))
-            
+
             if refresh_hash:
                 cursor.execute("""
                     INSERT OR REPLACE INTO refresh_token_hashes (hash, token_id, created_at)
                     VALUES (?, ?, ?)
                 """, (refresh_hash, token_id, created_at))
-            
+
             conn.commit()
             conn.close()
-            
+
             self._tokens[token_id] = token_record
-            
+
             logger.info(f"Token stored for account {account_id} ({provider})")
-            
+
             return token_id
-    
+
     def _get_or_create_family(self, account_id: int, provider: str) -> str:
         """Get or create token family"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             SELECT family_id FROM tokens
             WHERE account_id = ? AND provider = ? AND family_id IS NOT NULL
             LIMIT 1
         """, (account_id, provider))
-        
+
         row = cursor.fetchone()
-        
+
         if row:
             family_id = row[0]
         else:
             family_id = f"family_{secrets.token_hex(8)}"
-        
+
         conn.close()
-        
+
         return family_id
-    
+
     def get_token(self, token_id: str) -> Optional[str]:
         """Get decrypted access token"""
         with self._lock:
             # Load from DB if not in memory
             if token_id not in self._tokens:
                 self._load_token(token_id)
-            
+
             if token_id not in self._tokens:
                 return None
-            
+
             token_record = self._tokens[token_id]
-            
+
             # Check expiration
             if token_record.expires_at and time.time() > token_record.expires_at:
                 token_record.is_revoked = True
                 return None
-            
+
             # Update last used
             token_record.last_used = time.time()
-            
+
             return self._decrypt(token_record.encrypted_token)
-    
+
     def _load_token(self, token_id: str):
         """Load token from database"""
         conn = sqlite3.connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        
+
         cursor.execute("SELECT * FROM tokens WHERE token_id = ?", (token_id,))
         row = cursor.fetchone()
-        
+
         if row:
             self._tokens[token_id] = TokenRecord(
                 token_id=row["token_id"],
@@ -455,9 +457,9 @@ class TokenVault:
                 revocation_reason=row["revocation_reason"],
                 family_id=row["family_id"]
             )
-        
+
         conn.close()
-    
+
     def rotate_token(self, token_id: str, new_access_token: str,
                     new_refresh_token: Optional[str] = None,
                     expires_in: int = 3600) -> bool:
@@ -466,20 +468,20 @@ class TokenVault:
             # Load current token
             if token_id not in self._tokens:
                 self._load_token(token_id)
-            
+
             if token_id not in self._tokens:
                 return False
-            
+
             old_token = self._tokens[token_id]
-            
+
             # Revoke old token
             old_token.is_revoked = True
             old_token.revocation_reason = "rotated"
-            
+
             # Check refresh token reuse
             if new_refresh_token:
                 new_hash = hashlib.sha256(new_refresh_token.encode()).hexdigest()
-                
+
                 if new_hash in self._refresh_token_hashes:
                     # Refresh token reuse detected - possible attack
                     logger.critical(f"Refresh token reuse detected for token {token_id}")
@@ -489,11 +491,11 @@ class TokenVault:
                         "refresh_token_reuse",
                         {"token_id": token_id, "new_hash": new_hash[:16]}
                     )
-                    
+
                     # Invalidate entire family
                     self._invalidate_family(old_token.family_id)
                     return False
-            
+
             # Store new token
             new_token_id = self.store_token(
                 old_token.account_id,
@@ -502,7 +504,7 @@ class TokenVault:
                 new_refresh_token,
                 expires_in
             )
-            
+
             # Update family
             if old_token.family_id:
                 conn = sqlite3.connect(str(self.db_path))
@@ -513,31 +515,31 @@ class TokenVault:
                 """, (old_token.family_id,))
                 conn.commit()
                 conn.close()
-            
+
             logger.info(f"Token rotated: {token_id} -> {new_token_id}")
-            
+
             return True
-    
+
     def _invalidate_family(self, family_id: str):
         """Invalidate all tokens in a family"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             UPDATE tokens SET is_revoked = 1, revocation_reason = 'family_invalidated'
             WHERE family_id = ?
         """, (family_id,))
-        
+
         conn.commit()
         conn.close()
-        
+
         logger.warning(f"Token family invalidated: {family_id}")
-    
+
     def _log_compromise(self, account_id: int, provider: str,
                        alert_type: str, details: Dict):
         """Log token compromise alert"""
         alert_id = f"alert_{secrets.token_hex(8)}"
-        
+
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
         cursor.execute("""
@@ -546,19 +548,19 @@ class TokenVault:
         """, (alert_id, account_id, provider, alert_type, json.dumps(details), time.time()))
         conn.commit()
         conn.close()
-        
+
         logger.critical(f"Token compromise alert: {alert_type} for account {account_id}")
-    
+
     def revoke_token(self, token_id: str, reason: str = "manual"):
         """Revoke a token"""
         with self._lock:
             if token_id not in self._tokens:
                 self._load_token(token_id)
-            
+
             if token_id in self._tokens:
                 self._tokens[token_id].is_revoked = True
                 self._tokens[token_id].revocation_reason = reason
-                
+
                 conn = sqlite3.connect(str(self.db_path))
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -567,41 +569,41 @@ class TokenVault:
                 """, (reason, token_id))
                 conn.commit()
                 conn.close()
-                
+
                 logger.info(f"Token revoked: {token_id} ({reason})")
-    
+
     def revoke_all_for_account(self, account_id: int, reason: str = "account_deleted"):
         """Revoke all tokens for an account"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             UPDATE tokens SET is_revoked = 1, revocation_reason = ?
             WHERE account_id = ?
         """, (reason, account_id))
-        
+
         count = cursor.rowcount
         conn.commit()
         conn.close()
-        
+
         logger.info(f"Revoked {count} tokens for account {account_id}")
-        
+
         return count
-    
+
     def get_active_tokens(self, account_id: int) -> List[Dict]:
         """Get active tokens for account"""
         tokens = []
-        
+
         conn = sqlite3.connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             SELECT * FROM tokens
             WHERE account_id = ? AND is_revoked = 0
             ORDER BY last_used DESC
         """, (account_id,))
-        
+
         for row in cursor.fetchall():
             tokens.append({
                 "token_id": row["token_id"],
@@ -612,16 +614,16 @@ class TokenVault:
                 "last_used": row["last_used"],
                 "rotation_count": row["rotation_count"]
             })
-        
+
         conn.close()
-        
+
         return tokens
-    
+
     def check_token_health(self, account_id: int) -> Dict:
         """Check token health for account"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             SELECT 
                 COUNT(*) as total,
@@ -629,26 +631,26 @@ class TokenVault:
                 SUM(CASE WHEN expires_at IS NOT NULL AND expires_at < ? THEN 1 ELSE 0 END) as expired
             FROM tokens WHERE account_id = ?
         """, (time.time(), account_id))
-        
+
         row = cursor.fetchone()
-        
+
         conn.close()
-        
+
         return {
             "total_tokens": row[0] or 0,
             "revoked_tokens": row[1] or 0,
             "expired_tokens": row[2] or 0,
             "healthy_tokens": (row[0] or 0) - (row[1] or 0) - (row[2] or 0)
         }
-    
+
     def get_compromise_alerts(self, account_id: int = None) -> List[TokenCompromiseAlert]:
         """Get compromise alerts"""
         alerts = []
-        
+
         conn = sqlite3.connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        
+
         if account_id:
             cursor.execute("""
                 SELECT * FROM compromise_alerts
@@ -661,7 +663,7 @@ class TokenVault:
                 WHERE resolved = 0
                 ORDER BY timestamp DESC
             """)
-        
+
         for row in cursor.fetchall():
             alerts.append(TokenCompromiseAlert(
                 alert_id=row["alert_id"],
@@ -672,11 +674,11 @@ class TokenVault:
                 timestamp=row["timestamp"],
                 resolved=bool(row["resolved"])
             ))
-        
+
         conn.close()
-        
+
         return alerts
-    
+
     def resolve_alert(self, alert_id: str):
         """Resolve a compromise alert"""
         conn = sqlite3.connect(str(self.db_path))

@@ -284,8 +284,9 @@ async def list_licenses(
             params + [limit, offset],
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "licenses": [_enrich(dict(zip(_LIC_COLS, r))) for r in rows],
         "total": total, "limit": limit, "offset": offset,
@@ -312,8 +313,9 @@ async def create_license(body: LicenseCreate, _auth=Depends(require_local_auth))
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": lic_id, "name": body.name, "status": "draft"}
 
 
@@ -348,8 +350,9 @@ async def license_stats(_auth=Depends(require_local_auth)):
             "SELECT type, COUNT(*) FROM licenses GROUP BY type ORDER BY COUNT(*) DESC"
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total":        total,
         "active":       active,
@@ -381,8 +384,9 @@ async def expiring_licenses(
             (interval,),
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"licenses": [_enrich(dict(zip(_LIC_COLS, r))) for r in rows]}
 
 
@@ -396,8 +400,9 @@ async def get_license(license_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return _enrich(dict(zip(_LIC_COLS, row)))
 
 
@@ -432,8 +437,9 @@ async def patch_license(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return _enrich(dict(zip(_LIC_COLS, row)))
 
 
@@ -449,8 +455,9 @@ async def delete_license(license_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Transitions ───────────────────────────────────────────────────────────────
@@ -482,8 +489,9 @@ async def transition_license(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True, "status": body.status}
 
 
@@ -502,8 +510,9 @@ async def list_assignments(license_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"assignments": [dict(zip(_ASN_COLS, r)) for r in rows]}
 
 
@@ -531,8 +540,9 @@ async def add_assignment(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": asn_id, "ok": True}
 
 
@@ -559,8 +569,9 @@ async def delete_assignment(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Renewals ──────────────────────────────────────────────────────────────────
@@ -578,8 +589,9 @@ async def list_renewals(license_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"renewals": [dict(zip(_REN_COLS, r)) for r in rows]}
 
 
@@ -606,6 +618,7 @@ async def add_renewal(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": ren_id, "ok": True}

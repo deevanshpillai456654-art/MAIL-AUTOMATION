@@ -274,8 +274,9 @@ async def list_slos(
             actual = _latest_actual(con, d["id"])
             result.append(_enrich(d, actual))
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"slos": result, "total": total, "limit": limit, "offset": offset}
 
 
@@ -298,8 +299,9 @@ async def create_slo(body: SLOCreate, _auth=Depends(require_local_auth)):
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "id": slo_id, "name": body.name, "status": "draft",
         "target_pct": body.target_pct,
@@ -338,8 +340,9 @@ async def slo_stats(_auth=Depends(require_local_auth)):
             if actual is not None and actual < d["target_pct"]:
                 breaching += 1
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total":      total,
         "active":     active,
@@ -362,8 +365,9 @@ async def get_slo(slo_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return _enrich(d, actual)
 
 
@@ -393,8 +397,9 @@ async def patch_slo(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return _enrich(dict(zip(_SLO_COLS, row)), actual)
 
 
@@ -409,8 +414,9 @@ async def delete_slo(slo_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Transitions ───────────────────────────────────────────────────────────────
@@ -441,8 +447,9 @@ async def transition_slo(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True, "status": body.status}
 
 
@@ -469,8 +476,9 @@ async def list_measurements(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "measurements": [dict(zip(_MEAS_COLS, r)) for r in rows],
         "total": total,
@@ -502,7 +510,8 @@ async def add_measurement(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     is_breaching = body.actual_pct < d["target_pct"]
     return {"id": meas_id, "is_breaching": is_breaching, "ok": True}

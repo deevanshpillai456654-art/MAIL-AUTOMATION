@@ -5,38 +5,38 @@ Idempotency Manager
 Manages event idempotency keys.
 """
 
-import time
 import threading
-from typing import Set, Optional
+import time
 from collections import deque
+from typing import Optional, Set
 
 
 class IdempotencyManager:
     """
     Idempotency key manager.
     """
-    
+
     def __init__(self, max_keys: int = 10000, ttl_seconds: float = 86400):
         self.max_keys = max_keys
         self.ttl_seconds = ttl_seconds
         self._keys: Set[str] = set()
         self._timestamps: deque = deque()
         self._lock = threading.Lock()
-    
+
     def check(self, key: str) -> bool:
         """Check if key is idempotent"""
         with self._lock:
             return key in self._keys
-    
+
     def add(self, key: str):
         """Add idempotency key"""
         with self._lock:
             self._keys.add(key)
             self._timestamps.append((key, time.time()))
-            
+
             # Clean expired
             self._clean()
-    
+
     def _clean(self):
         """Clean expired keys"""
         now = time.time()
@@ -47,7 +47,7 @@ class IdempotencyManager:
                 self._timestamps.popleft()
             else:
                 break
-        
+
         # Limit size
         while len(self._keys) > self.max_keys:
             if self._timestamps:

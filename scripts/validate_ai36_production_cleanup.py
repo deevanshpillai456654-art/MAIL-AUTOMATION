@@ -41,7 +41,7 @@ def main() -> int:
     from backend.main import app  # noqa: F401 - verifies API app imports
 
     engine = UniversalEmailAuthEngine()
-    gmail = engine.validate_account_payload({"email":"user@gmail.com","provider":"gmail","connection_method":"oauth","password":"ignored"}, base_url="http://127.0.0.1:4597")
+    gmail = engine.validate_account_payload({"email":"user@gmail.com","provider":"gmail","connection_method":"oauth","password":"ignored"}, base_url="http://127.0.0.1:{}".format(os.environ.get("API_PORT", "4597")))
     custom_missing = engine.validate_account_payload({"email":"user@company.com","provider":"custom","connection_method":"app_password"})
 
     frontend_files = list(iter_frontend_files())

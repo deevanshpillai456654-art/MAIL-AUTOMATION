@@ -19,26 +19,18 @@ Key requirements:
 - Sandbox isolation for untrusted content
 """
 
-import os
-import io
-import time
 import hashlib
-import zipfile
-import struct
 import logging
-import threading
-import sqlite3
-import json
-import tempfile
-import shutil
+import os
 import secrets
-import base64
-from pathlib import Path
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Set, BinaryIO, Tuple
-from enum import Enum
-from collections import deque
+import sqlite3
+import time
+import zipfile
 from contextlib import contextmanager
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger("security.sandbox_engine")
 
@@ -228,8 +220,9 @@ class AttachmentScanner:
         "application/pdf": b"%PDF-",
         "image/jpeg": b"\xff\xd8\xff",
         "image/png": b"\x89PNG",
-        "image/gif": b"GIF89a",
-        "image/gif": b"GIF87a",
+        # GIF89a is the common modern format; GIF87a is the legacy one.
+        # bytes.startswith() accepts a tuple of candidate prefixes.
+        "image/gif": (b"GIF89a", b"GIF87a"),
         "application/zip": b"PK\x03\x04",
         "application/x-zip-compressed": b"PK\x03\x04",
         "application/msword": b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",
@@ -245,7 +238,7 @@ class AttachmentScanner:
     DANGEROUS_EXTENSIONS = {
         ".exe", ".dll", ".bat", ".cmd", ".ps1", ".sh", ".bash",
         ".vbs", ".js", ".jse", ".wsf", ".wsh", ".msi",
-        ".scr", ".pif", ".com", ".jar", ".class", ".jar",
+        ".scr", ".pif", ".com", ".jar", ".class",
         ".shx", ".app", ".bin", ".dmg", ".pkg", ".deb", ".rpm",
         ".hta", ".lnk", ".inf", ".reg", ".vxd", ".sys",
     }

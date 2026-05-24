@@ -5,7 +5,6 @@ from backend.auth.provider_config import ProviderConfigManager
 from backend.core.account_persistence import detect_mail_settings
 from backend.core.provider_capability_registry import ProviderCapabilityRegistry
 
-
 PROVIDER_DOMAIN_RULES = {
     "gmail.com": ("gmail", "gmail"),
     "googlemail.com": ("gmail", "gmail"),

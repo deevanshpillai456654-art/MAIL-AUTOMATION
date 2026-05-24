@@ -9,14 +9,14 @@ Cryptographic nonce management:
 - Nonce cleanup (expired nonces)
 """
 
-import base64
-import secrets
-import time
-import threading
-import logging
 import hashlib
-from typing import Optional, Dict, Tuple
+import hmac
+import logging
+import secrets
+import threading
+import time
 from dataclasses import dataclass
+from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger("nonce.registry")
 

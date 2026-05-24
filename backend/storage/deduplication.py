@@ -8,15 +8,14 @@ Features:
 - Deduplication statistics
 """
 
-import os
 import hashlib
+import logging
+import os
 import threading
 import time
-import logging
-from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List, Tuple
-from collections import defaultdict
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger("storage.dedup")
 
@@ -59,7 +58,7 @@ class AttachmentDeduplicationEngine:
         /index/            # Dedup index JSON
         /references/       # Reference tracking
     """
-    
+
     def __init__(
         self,
         storage_root: str = "./data/storage/dedup",
@@ -71,31 +70,31 @@ class AttachmentDeduplicationEngine:
         self.enable_hard_links = enable_hard_links
         self.enable_reference_counting = enable_reference_counting
         self.index_save_interval = index_save_interval
-        
+
         self._ensure_directories()
-        
+
         self._index: Dict[str, DedupEntry] = {}
         self._lock = threading.RLock()
-        
+
         self._operation_count = 0
         self._load_index()
-        
+
         logger.info(f"Deduplication engine initialized at {storage_root}")
-    
+
     def _ensure_directories(self):
         """Create storage directory structure"""
         dirs = ["content", "index", "references"]
         for d in dirs:
             (self.storage_root / d).mkdir(parents=True, exist_ok=True)
-    
+
     def _content_path(self, content_hash: str) -> Path:
         """Get path for content hash"""
         return self.storage_root / "content" / f"{content_hash}.bin"
-    
+
     def compute_hash(self, data: bytes) -> str:
         """Compute SHA256 hash of data"""
         return hashlib.sha256(data).hexdigest()
-    
+
     def compute_hash_file(self, file_path: Path) -> str:
         """Compute SHA256 hash of file"""
         sha256 = hashlib.sha256()
@@ -103,7 +102,7 @@ class AttachmentDeduplicationEngine:
             for chunk in iter(lambda: f.read(65536), b""):
                 sha256.update(chunk)
         return sha256.hexdigest()
-    
+
     def store(
         self,
         data: bytes,
@@ -118,9 +117,9 @@ class AttachmentDeduplicationEngine:
         with self._lock:
             content_hash = self.compute_hash(data)
             content_path = self._content_path(content_hash)
-            
+
             is_new = False
-            
+
             if content_path.exists():
                 logger.debug(f"Content {content_hash[:8]}... already exists")
             else:
@@ -129,7 +128,7 @@ class AttachmentDeduplicationEngine:
                     f.write(data)
                 is_new = True
                 logger.info(f"Stored new content: {content_hash[:8]}...")
-            
+
             if self.enable_reference_counting:
                 if content_hash not in self._index:
                     self._index[content_hash] = DedupEntry(
@@ -141,14 +140,14 @@ class AttachmentDeduplicationEngine:
                 else:
                     self._index[content_hash].reference_count += 1
                     self._index[content_hash].last_accessed = time.time()
-            
+
             self._operation_count += 1
-            
+
             if self._operation_count % self.index_save_interval == 0:
                 self._save_index()
-            
+
             return content_hash, str(content_path)
-    
+
     def store_file(
         self,
         source_path: Path,
@@ -157,14 +156,14 @@ class AttachmentDeduplicationEngine:
         """Store file with deduplication"""
         content_hash = self.compute_hash_file(source_path)
         content_path = self._content_path(content_hash)
-        
+
         with self._lock:
             if not content_path.exists():
                 import shutil
                 content_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source_path, content_path)
                 logger.info(f"Stored file: {content_hash[:8]}...")
-            
+
             if self.enable_reference_counting:
                 file_size = source_path.stat().st_size
                 if content_hash not in self._index:
@@ -177,45 +176,45 @@ class AttachmentDeduplicationEngine:
                 else:
                     self._index[content_hash].reference_count += 1
                     self._index[content_hash].last_accessed = time.time()
-                
+
                 self._save_index()
-            
+
             return content_hash, str(content_path)
-    
+
     def retrieve(self, content_hash: str) -> Optional[bytes]:
         """Retrieve content by hash"""
         with self._lock:
             content_path = self._content_path(content_hash)
-            
+
             if not content_path.exists():
                 logger.warning(f"Content not found: {content_hash[:8]}...")
                 return None
-            
+
             try:
                 with open(content_path, "rb") as f:
                     data = f.read()
-                
+
                 if content_hash in self._index:
                     self._index[content_hash].last_accessed = time.time()
-                
+
                 return data
             except Exception as e:
                 logger.error(f"Failed to retrieve {content_hash[:8]}...: {e}")
                 return None
-    
+
     def has_content(self, content_hash: str) -> bool:
         """Check if content exists"""
         return self._content_path(content_hash).exists()
-    
+
     def release_reference(self, content_hash: str) -> bool:
         """Release a reference to content, remove if last reference"""
         with self._lock:
             if content_hash not in self._index:
                 return False
-            
+
             entry = self._index[content_hash]
             entry.reference_count -= 1
-            
+
             if entry.reference_count <= 0:
                 content_path = self._content_path(content_hash)
                 try:
@@ -228,9 +227,9 @@ class AttachmentDeduplicationEngine:
                 except Exception as e:
                     logger.error(f"Failed to remove content: {e}")
                     return False
-            
+
             return True
-    
+
     def get_stats(self) -> DedupStats:
         """Get deduplication statistics"""
         with self._lock:
@@ -238,7 +237,7 @@ class AttachmentDeduplicationEngine:
             unique_files = len(self._index)
             total_size = sum(e.reference_count * e.size for e in self._index.values())
             unique_size = sum(e.size for e in self._index.values())
-            
+
             return DedupStats(
                 total_files=total_files,
                 unique_files=unique_files,
@@ -247,17 +246,17 @@ class AttachmentDeduplicationEngine:
                 saved_bytes=total_size - unique_size,
                 files_by_hash={h: e.reference_count for h, e in self._index.items()}
             )
-    
+
     def create_hard_link(self, content_hash: str, link_path: Path) -> bool:
         """Create hard link to content (same filesystem only)"""
         if not self.enable_hard_links:
             return False
-        
+
         content_path = self._content_path(content_hash)
-        
+
         if not content_path.exists():
             return False
-        
+
         try:
             link_path.parent.mkdir(parents=True, exist_ok=True)
             if link_path.exists():
@@ -268,7 +267,7 @@ class AttachmentDeduplicationEngine:
         except Exception as e:
             logger.error(f"Failed to create hard link: {e}")
             return False
-    
+
     def find_duplicates(self) -> Dict[str, List[str]]:
         """Find files with same content hash"""
         with self._lock:
@@ -281,13 +280,13 @@ class AttachmentDeduplicationEngine:
                         "size": entry.size
                     }
             return duplicates
-    
+
     def cleanup_empty_content(self) -> int:
         """Remove content files with no index entry"""
         with self._lock:
             cleaned = 0
             content_dir = self.storage_root / "content"
-            
+
             for content_file in content_dir.glob("*.bin"):
                 content_hash = content_file.stem
                 if content_hash not in self._index:
@@ -296,16 +295,16 @@ class AttachmentDeduplicationEngine:
                         cleaned += 1
                     except Exception as e:
                         logger.error(f"Failed to clean {content_file.name}: {e}")
-            
+
             if cleaned > 0:
                 logger.info(f"Cleaned {cleaned} orphaned content files")
-            
+
             return cleaned
-    
+
     def _load_index(self):
         """Load dedup index from disk"""
         index_file = self.storage_root / "index" / "dedup_index.json"
-        
+
         if index_file.exists():
             try:
                 import json
@@ -317,12 +316,12 @@ class AttachmentDeduplicationEngine:
                 logger.info(f"Loaded {len(self._index)} dedup entries")
             except Exception as e:
                 logger.error(f"Failed to load dedup index: {e}")
-    
+
     def _save_index(self):
         """Save dedup index to disk"""
         import json
         index_file = self.storage_root / "index" / "dedup_index.json"
-        
+
         try:
             data = {
                 "entries": [
@@ -338,7 +337,7 @@ class AttachmentDeduplicationEngine:
                 ],
                 "updated_at": time.time()
             }
-            
+
             with open(index_file, "w") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:

@@ -6,17 +6,17 @@ read.  Provider/API/network failures raise explicit errors, while valid empty
 inbox results are reported with fetched/saved/duplicate counts.
 """
 
+import base64
 import logging
-from typing import List, Optional, Dict
+import time
 from datetime import datetime, timezone
 from email.utils import parseaddr
-import base64
-import time
+from typing import Dict, List
 
-from backend.db.database import Database
+from backend import config
 from backend.ai.classifier import EmailClassifier
 from backend.auth.gmail_auth import GmailOAuth
-from backend import config
+from backend.db.database import Database
 from backend.rules.action_executor import RuleActionExecutor
 
 _log = logging.getLogger(__name__)

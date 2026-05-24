@@ -1,7 +1,9 @@
 """OAuth state validation and replay protection."""
 from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
+
 from backend.db.database import Database
 
 

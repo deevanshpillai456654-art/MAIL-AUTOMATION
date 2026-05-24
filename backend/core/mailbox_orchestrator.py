@@ -6,24 +6,24 @@ sync idempotency before mailbox work starts.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Dict, Optional, Type
 import logging
+from datetime import datetime, timezone
+from typing import Dict
 
 from backend import config
-from backend.db.database import Database
-from backend.core.provider_adapter_base import ProviderAdapterBase, ProviderOperationResult
-from backend.core.provider_capability_registry import ProviderCapabilityRegistry
+from backend.auth.imap_auth import IMAPAccountManager
+from backend.auth.provider_token_manager import ProviderTokenManager
 from backend.core.mailbox_connection_manager import MailboxConnectionManager
 from backend.core.mailbox_health_engine import MailboxHealthEngine
-from backend.core.mailbox_recovery_engine import MailboxRecoveryEngine
 from backend.core.mailbox_quarantine_engine import MailboxQuarantineEngine
+from backend.core.mailbox_recovery_engine import MailboxRecoveryEngine
 from backend.core.mailbox_taxonomy import ProviderMailboxTaxonomy
-from backend.auth.provider_token_manager import ProviderTokenManager
-from backend.auth.imap_auth import IMAPAccountManager
-from backend.sync.gmail_sync import sync_gmail_account, GmailSync
-from backend.sync.outlook_sync import sync_outlook_account
+from backend.core.provider_adapter_base import ProviderAdapterBase, ProviderOperationResult
+from backend.core.provider_capability_registry import ProviderCapabilityRegistry
+from backend.db.database import Database
+from backend.sync.gmail_sync import GmailSync, sync_gmail_account
 from backend.sync.imap_sync import sync_imap_account
+from backend.sync.outlook_sync import sync_outlook_account
 
 logger = logging.getLogger(__name__)
 

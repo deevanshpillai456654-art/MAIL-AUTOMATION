@@ -12,9 +12,9 @@ from __future__ import annotations
 import ast
 import json
 import re
-from typing import Any, Dict, Iterable, List, Optional
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from backend.rules.scanner import build_search_document
 

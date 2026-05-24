@@ -27,12 +27,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Set
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+
 from backend.auth.local_auth import require_local_auth_or_localhost
 
 logger = logging.getLogger(__name__)

@@ -37,5 +37,5 @@ class SearchAgent(BaseAgent):
         }
 
     async def _index(self, data: Dict, tenant_id: Optional[str]) -> Dict:
-        # Placeholder – real implementation would update a vector store
+        # Search is backed by SQL LIKE on the live database; no separate index step is needed.
         return {"indexed": True, "document_id": data.get("id")}

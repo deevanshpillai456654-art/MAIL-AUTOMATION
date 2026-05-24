@@ -17,7 +17,6 @@ from typing import Dict, Optional
 from backend import config
 from backend.auth.token_crypto import TokenCipher
 
-
 OAUTH_GROUPS = {
     "gmail": {
         "display_name": "Gmail / Google Workspace",

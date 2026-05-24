@@ -6,12 +6,11 @@ scorecards, and diagnostics.
 """
 from __future__ import annotations
 
-import json
 import sqlite3
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional
+from typing import Any, Dict, Iterable, Optional
 
 
 @dataclass(frozen=True)

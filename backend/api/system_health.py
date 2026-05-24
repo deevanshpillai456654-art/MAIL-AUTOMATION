@@ -6,12 +6,12 @@ Provides comprehensive system health data for the admin dashboard.
 """
 
 import os
-import time
-import psutil
 import threading
+import time
 from dataclasses import dataclass
-from typing import Dict, List, Any, Optional
-from datetime import datetime
+from typing import Any, Dict
+
+import psutil
 
 
 @dataclass
@@ -32,10 +32,10 @@ class HealthSnapshot:
 
 class SystemHealthMonitor:
     """Real-time system health monitoring"""
-    
+
     _instance = None
     _lock = threading.Lock()
-    
+
     def __new__(cls):
         if cls._instance is None:
             with cls._lock:
@@ -43,25 +43,25 @@ class SystemHealthMonitor:
                     cls._instance = super().__new__(cls)
                     cls._instance._initialized = False
         return cls._instance
-    
+
     def __init__(self):
         if self._initialized:
             return
-        
+
         self._start_time = time.time()
         self._process = psutil.Process()
         self._initialized = True
-    
+
     @property
     def uptime(self) -> float:
         return time.time() - self._start_time
-    
+
     def get_snapshot(self) -> HealthSnapshot:
         """Get current health snapshot"""
         memory = psutil.virtual_memory()
         _disk_root = "/" if os.name != "nt" else os.environ.get("SystemDrive", "C:") + os.sep
         disk = psutil.disk_usage(_disk_root)
-        
+
         return HealthSnapshot(
             timestamp=time.time(),
             status="healthy",
@@ -75,11 +75,11 @@ class SystemHealthMonitor:
             open_connections=len(self._process.connections()),
             uptime_seconds=self.uptime
         )
-    
+
     def get_dashboard_data(self) -> Dict[str, Any]:
         """Get dashboard-ready health data"""
         snapshot = self.get_snapshot()
-        
+
         # Determine status
         if snapshot.memory_percent > 95 or snapshot.disk_percent > 95:
             status = "critical"
@@ -87,7 +87,7 @@ class SystemHealthMonitor:
             status = "warning"
         else:
             status = "healthy"
-        
+
         return {
             "status": status,
             "timestamp": snapshot.timestamp,
@@ -115,13 +115,13 @@ class SystemHealthMonitor:
                 "uptime_human": self._format_uptime(snapshot.uptime_seconds)
             }
         }
-    
+
     def _format_uptime(self, seconds: float) -> str:
         """Format uptime as human-readable string"""
         days = int(seconds // 86400)
         hours = int((seconds % 86400) // 3600)
         minutes = int((seconds % 3600) // 60)
-        
+
         if days > 0:
             return f"{days}d {hours}h"
         elif hours > 0:

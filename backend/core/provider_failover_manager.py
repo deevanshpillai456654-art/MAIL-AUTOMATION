@@ -1,9 +1,11 @@
 """Provider failover decisions for local mailbox operations."""
 from __future__ import annotations
+
 from typing import Dict
-from backend.db.database import Database
+
 from backend.core.mailbox_quarantine_engine import MailboxQuarantineEngine
 from backend.core.provider_reliability_engine import ProviderReliabilityEngine
+from backend.db.database import Database
 
 
 class ProviderFailoverManager:

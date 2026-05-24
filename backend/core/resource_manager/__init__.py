@@ -7,16 +7,16 @@ adaptive throttling, and emergency recovery.
 """
 
 from .enterprise_resource_manager import (
-    EnterpriseResourceManager,
-    ResourceState,
-    PressureLevel,
-    ResourceThresholds,
-    ResourceSnapshot,
-    VectorCache,
-    MemoryPressureEvent,
     CPUWatchdog,
     EmergencyCoordinator,
+    EnterpriseResourceManager,
     LowMemoryMode,
+    MemoryPressureEvent,
+    PressureLevel,
+    ResourceSnapshot,
+    ResourceState,
+    ResourceThresholds,
+    VectorCache,
     get_enterprise_resource_manager,
     init_enterprise_resource_manager,
 )

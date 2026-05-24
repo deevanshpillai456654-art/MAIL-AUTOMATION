@@ -18,7 +18,13 @@ import socket
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from backend.rules.engine import RuleAction, build_rule_engine, create_rule_from_dict, normalize_actions, parse_stored_value
+from backend.rules.engine import (
+    RuleAction,
+    build_rule_engine,
+    create_rule_from_dict,
+    normalize_actions,
+    parse_stored_value,
+)
 from backend.rules.scanner import enrich_email_for_rules, match_condition_payload
 
 _log = logging.getLogger(__name__)
@@ -458,6 +464,38 @@ class RuleActionExecutor:
             }
         details["email"] = enriched
         return details
+
+    def simulate_draft_rule(self, rule_dict: Dict, limit: int = 100, mailbox_id: int = None,
+                            category: str = None, message_ids: Optional[List[int]] = None) -> Dict:
+        rule = self._rule_from_row(rule_dict)
+        scope_mailbox = rule_dict.get("mailbox_id") if rule_dict.get("mailbox_scope") == "selected" else mailbox_id
+        emails = self._candidate_emails(limit=limit, mailbox_id=scope_mailbox, category=category, message_ids=message_ids)
+        matches = []
+        for email in emails:
+            details = self._match_details(rule, email)
+            if not details.get("matched"):
+                continue
+            enriched = details["email"]
+            matches.append({
+                "email_id": enriched.get("id"),
+                "mailbox_id": enriched.get("account_id") or enriched.get("mailbox_id"),
+                "subject": enriched.get("subject"),
+                "sender_email": enriched.get("sender_email"),
+                "matched_condition": details.get("matched_condition"),
+                "matched_source": details.get("matched_source"),
+                "matched_text_preview": details.get("matched_text_preview"),
+                "planned_actions": [self._planned_action_text(action) for action in normalize_actions(rule.actions)],
+            })
+        return {
+            "ok": True,
+            "dry_run": True,
+            "rule_id": None,
+            "rule_name": rule_dict.get("name", "Draft rule"),
+            "scanned_count": len(emails),
+            "matched_count": len(matches),
+            "matches": matches[:25],
+            "message": "Simulation complete. No messages were modified.",
+        }
 
     def simulate_rule(self, rule_id: int, limit: int = 100, mailbox_id: int = None,
                       category: str = None, message_ids: Optional[List[int]] = None) -> Dict:

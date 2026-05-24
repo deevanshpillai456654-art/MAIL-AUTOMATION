@@ -1,51 +1,39 @@
-import sys
-import os
-from pathlib import Path
 
 # Add parent directory to path
 
-from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, Body
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
-from pydantic import BaseModel, Field, field_validator, AliasChoices, ConfigDict
-from typing import Optional, List, Dict, Union, Any
-from datetime import datetime
-from time import time
 import asyncio
 import json
-import requests
 import logging
-from urllib.parse import quote
+from datetime import datetime
 from html import escape
+from typing import Any, Dict, List, Optional, Union
+from urllib.parse import quote
 
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse, StreamingResponse
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+
+from backend import config
 from backend.ai.classifier import EmailClassifier
-from backend.db.database import Database
-from backend.auth.local_auth import require_local_auth
-from backend.auth.gmail_auth import GmailOAuth
-from backend.auth.outlook_auth import OutlookOAuth
-from backend.auth.universal_oauth import UniversalOAuth
-from backend.auth.imap_auth import IMAPAccountManager
-from backend.auth.token_crypto import TokenCipher
-from backend.auth.provider_config import ProviderConfigManager, OAUTH_GROUPS, oauth_group_for
-from backend.auth.universal_auth_engine import UniversalEmailAuthEngine
-from backend.sync.gmail_sync import sync_gmail_account
-from backend.sync.outlook_sync import sync_outlook_account
-from backend.sync.imap_sync import sync_imap_account
-from backend.core.provider_capability_registry import ProviderCapabilityRegistry
-from backend.core.account_persistence import detect_mail_settings, account_metadata
-from backend.core.mailbox_orchestrator import MailboxOrchestrator
-from backend.core.mailbox_health_monitor import MailboxHealthMonitor
-from backend.core.mailbox_taxonomy import ProviderMailboxTaxonomy
-from backend.core.attachment_storage import attachment_storage
-from backend.core.scam_filter import FEEDBACK_CATEGORIES, normalize_feedback_category
 from backend.ai.onnx_control_plane import get_onnx_control_plane
 from backend.api.provider_detection import (
-    PROVIDER_DOMAIN_RULES as _PROVIDER_DOMAIN_RULES,
     detect_mail_provider,
-    domain_from_email as _domain_from_email,
     request_base_url,
 )
-from backend.scheduler.tasks import set_sync_interval, set_sync_enabled, get_sync_interval_seconds
-from backend import config
+from backend.auth.imap_auth import IMAPAccountManager
+from backend.auth.local_auth import require_local_auth
+from backend.auth.provider_config import OAUTH_GROUPS, ProviderConfigManager, oauth_group_for
+from backend.auth.token_crypto import TokenCipher
+from backend.auth.universal_auth_engine import UniversalEmailAuthEngine
+from backend.core.account_persistence import account_metadata, detect_mail_settings
+from backend.core.attachment_storage import attachment_storage
+from backend.core.mailbox_health_monitor import MailboxHealthMonitor
+from backend.core.mailbox_orchestrator import MailboxOrchestrator
+from backend.core.mailbox_taxonomy import ProviderMailboxTaxonomy
+from backend.core.provider_capability_registry import ProviderCapabilityRegistry
+from backend.core.scam_filter import FEEDBACK_CATEGORIES, normalize_feedback_category
+from backend.db.database import Database
+from backend.scheduler.tasks import get_sync_interval_seconds, set_sync_enabled, set_sync_interval
 
 logger = logging.getLogger(__name__)
 
@@ -583,8 +571,8 @@ async def submit_feedback(feedback: FeedbackInput):
 async def create_rule(rule: RuleInput):
     try:
         db = get_db()
-        from backend.rules.engine import parse_stored_value, normalize_actions
         from backend.rules.action_executor import RuleActionExecutor
+        from backend.rules.engine import normalize_actions, parse_stored_value
 
         condition_payload = parse_stored_value(rule.condition, {"type": "always", "value": []})
         action_payload = normalize_actions(rule.action)
@@ -1751,12 +1739,22 @@ async def reconnect_account(account_id: int, request: Request, body: AccountReco
 
     # OAuth accounts — delegate to the respective OAuth start handler
     from backend.auth.routes import (
-        google_start as _g_start,
-        microsoft_start as _ms_start,
-        yahoo_start as _y_start,
-        zoho_start as _zo_start,
-        yandex_start as _ya_start,
         OAuthStartBody as _OAuthBody,
+    )
+    from backend.auth.routes import (
+        google_start as _g_start,
+    )
+    from backend.auth.routes import (
+        microsoft_start as _ms_start,
+    )
+    from backend.auth.routes import (
+        yahoo_start as _y_start,
+    )
+    from backend.auth.routes import (
+        yandex_start as _ya_start,
+    )
+    from backend.auth.routes import (
+        zoho_start as _zo_start,
     )
     if provider == "gmail":
         return await _g_start(request, _OAuthBody(email=account.get("email")))

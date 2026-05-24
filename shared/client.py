@@ -3,12 +3,16 @@ API Client for AI Email Organizer
 Use this in external applications to communicate with the local service
 """
 
+import os
+
 import requests
 from typing import Optional, Dict, List, Any
 
+_DEFAULT_URL = "http://127.0.0.1:{}".format(os.environ.get("API_PORT", "4597"))
+
 
 class EmailOrganizerClient:
-    def __init__(self, base_url: str = "http://127.0.0.1:4597"):
+    def __init__(self, base_url: str = _DEFAULT_URL):
         self.base_url = base_url
         self.api_version = "api/v1"
 

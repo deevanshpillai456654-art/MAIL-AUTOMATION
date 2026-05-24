@@ -1,5 +1,7 @@
 from __future__ import annotations
-import re, json
+
+import json
+import re
 from typing import Any, Dict, List
 
 from backend.core.scam_filter import ScamFilter

@@ -22,7 +22,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Generator, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from backend import config
@@ -419,7 +419,7 @@ async def add_to_blacklist(entry: BlacklistEntry) -> Dict:
             return {"ok": True, "message": f"{value} added to blacklist"}
         except Exception as exc:
             logger.error("Blacklist add error: %s", exc)
-            raise HTTPException(500, str(exc))
+            raise HTTPException(500, "Internal server error")
 
 
 @router.delete("/blacklist/{entry_id}")
@@ -486,7 +486,7 @@ async def add_to_whitelist(entry: WhitelistEntry) -> Dict:
             return {"ok": True, "message": f"{value} added to trusted list"}
         except Exception as exc:
             logger.error("Whitelist add error: %s", exc)
-            raise HTTPException(500, str(exc))
+            raise HTTPException(500, "Internal server error")
 
 
 @router.delete("/whitelist/{entry_id}")
@@ -683,7 +683,7 @@ async def restore_email(email_id: str) -> Dict:
             raise
         except Exception as exc:
             logger.error("Restore error: %s", exc)
-            raise HTTPException(500, str(exc))
+            raise HTTPException(500, "Internal server error")
 
 
 @router.post("/emails/{email_id}/confirm")
@@ -721,7 +721,7 @@ async def confirm_scam(email_id: str, request: ConfirmScamRequest = Body(default
             raise
         except Exception as exc:
             logger.error("Confirm scam error: %s", exc)
-            raise HTTPException(500, str(exc))
+            raise HTTPException(500, "Internal server error")
 
 
 # ---------------------------------------------------------------------------
@@ -805,6 +805,7 @@ async def record_lookalike_alert(data: LookalikRecordRequest) -> Dict:
             # Emit to operational event bus + WS broadcast
             try:
                 import asyncio
+
                 from backend.api.event_bus import emit as _emit
                 sev = "critical" if data.confidence_score >= 90 else "high" if data.confidence_score >= 70 else "medium"
                 asyncio.create_task(_emit(
@@ -835,7 +836,7 @@ async def record_lookalike_alert(data: LookalikRecordRequest) -> Dict:
             return {"ok": True}
         except Exception as exc:
             logger.error("Record lookalike error: %s", exc)
-            raise HTTPException(500, str(exc))
+            raise HTTPException(500, "Internal server error")
 
 
 @router.post("/lookalike/{alert_id}/dismiss")
@@ -915,6 +916,7 @@ def _run_scan_sync() -> Dict:
     engine. Uses sqlite3 directly to avoid the singleton thread-local issue.
     """
     import sqlite3 as _sqlite3
+
     from backend.ai.domain_intelligence import get_engine
     from backend.core.scam_filter import ScamFilter
 
@@ -979,6 +981,7 @@ def _run_scan_sync() -> Dict:
                     # Emit to operational event bus
                     try:
                         import asyncio as _asyncio
+
                         from backend.api.event_bus import emit as _emit_bus
                         _sev = "critical" if domain_result.confidence_score >= 90 else "high" if domain_result.confidence_score >= 70 else "medium"
                         _asyncio.create_task(_emit_bus(

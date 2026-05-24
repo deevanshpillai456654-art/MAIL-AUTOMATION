@@ -1,6 +1,6 @@
 from __future__ import annotations
-import json, socket
-from typing import Dict, Any
+
+from typing import Any, Dict
 
 COMMON_PROVIDERS = {
     "gmail.com": {"provider":"gmail", "imap_host":"imap.gmail.com", "imap_port":993, "smtp_host":"smtp.gmail.com", "smtp_port":465, "ssl":True},

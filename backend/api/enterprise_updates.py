@@ -1,13 +1,17 @@
 from __future__ import annotations
+
 import os
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
-from fastapi import APIRouter, Depends, Request, UploadFile, File
+
+from fastapi import APIRouter, Depends, File, Request, UploadFile
+
 from backend import config
 from backend.auth.local_auth import require_local_auth_or_localhost
 from backend.core.enterprise_operations import EnterpriseOperationsCenter
 from backend.core.zip_patch_update import update_status
+
 router = APIRouter(dependencies=[Depends(require_local_auth_or_localhost)])
 @router.get("/updates/status")
 async def status(): return update_status()

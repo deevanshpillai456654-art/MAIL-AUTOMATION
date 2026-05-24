@@ -4,17 +4,18 @@ Service runner for AI Email Organizer
 Provides easy startup and status checks
 """
 
-import sys
 import os
 import subprocess
-import requests
+import sys
 import time
 from pathlib import Path
 
+import requests
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SERVICE_DIR = PROJECT_ROOT
-API_URL = "http://127.0.0.1:4597"
+_API_PORT = int(os.environ.get("API_PORT", "4597"))
+API_URL = f"http://127.0.0.1:{_API_PORT}"
 
 
 def check_python_version():
@@ -99,7 +100,7 @@ def _find_service_pids(psutil_module):
     for connection in psutil_module.net_connections(kind="inet"):
         if getattr(connection, "status", None) != listen_status:
             continue
-        if _addr_port(getattr(connection, "laddr", None)) != 4597:
+        if _addr_port(getattr(connection, "laddr", None)) != _API_PORT:
             continue
 
         pid = getattr(connection, "pid", None)

@@ -1,6 +1,8 @@
 """Credential encryption facade for provider secrets."""
 from __future__ import annotations
+
 from typing import Optional
+
 from backend.auth.token_crypto import TokenCipher
 
 

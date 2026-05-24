@@ -2,23 +2,22 @@
 Connection and Discovery API endpoints for extensions
 """
 
-import sys
-from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Header
-from pydantic import BaseModel
-from typing import Optional
 import time
-from backend.runtime_version import APP_VERSION
+from typing import Optional
 
-from backend.utils.discovery import discovery, get_known_ports, is_service_running
+from fastapi import APIRouter, Header, HTTPException
+from pydantic import BaseModel
+
+from backend.runtime_version import APP_VERSION
 from backend.utils.connection import (
     connection_validator,
-    handshake,
     create_extension_token,
+    get_connection_stats,
+    handshake,
     validate_extension_connection,
-    get_connection_stats
 )
+from backend.utils.discovery import discovery, get_known_ports
 
 router = APIRouter()
 

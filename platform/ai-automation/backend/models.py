@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ---------------------------------------------------------------------------
@@ -231,11 +231,13 @@ class AIProviderConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 class OCRRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     document_url: Optional[str] = None
     document_base64: Optional[str] = None
     document_type: Optional[str] = None
     extract_fields: List[str] = Field(default_factory=list)
-    validate: bool = True
+    should_validate: bool = Field(default=True, alias="validate")
     tenant_id: Optional[str] = None
 
 

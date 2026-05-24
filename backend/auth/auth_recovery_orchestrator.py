@@ -1,9 +1,11 @@
 """Provider-aware authentication recovery orchestration."""
 from __future__ import annotations
+
 from typing import Dict
-from backend.db.database import Database
-from backend.core.provider_capability_registry import ProviderCapabilityRegistry
+
 from backend.auth.oauth_recovery_engine import OAuthRecoveryEngine
+from backend.core.provider_capability_registry import ProviderCapabilityRegistry
+from backend.db.database import Database
 
 
 class AuthRecoveryOrchestrator:

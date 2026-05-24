@@ -21,7 +21,7 @@ import secrets as _secrets
 import time
 from collections import deque
 from datetime import datetime
-from typing import Callable, Dict, Deque
+from typing import Callable, Deque, Dict
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -32,9 +32,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from backend import config
 from backend.auth.local_auth import request_has_valid_local_auth
 from backend.security.audit import record_security_event
-from backend.security.redaction import redact_text
 from backend.security.request_signing import RequestSigner
-
 
 logger = logging.getLogger(__name__)
 

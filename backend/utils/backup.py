@@ -2,14 +2,14 @@
 Backup and restore functionality for AI Email Organizer
 """
 
+import json
 import logging
 import os
-import json
 import shutil
 import zipfile
-from pathlib import Path
 from datetime import datetime
-from typing import List, Optional, Dict
+from pathlib import Path
+from typing import Dict, List
 
 _log = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ class BackupManager:
             return True
 
         except Exception as e:
-            print(f"Restore error: {e}")
+            _log.error("Restore error: %s", e)
             if temp_dir.exists():
                 shutil.rmtree(temp_dir)
             return False
@@ -143,7 +143,7 @@ class BackupManager:
 
             return True
         except Exception as e:
-            print(f"Import error: {e}")
+            _log.error("Import error: %s", e)
             return False
 
 

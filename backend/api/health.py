@@ -2,24 +2,22 @@
 System health and monitoring endpoints
 """
 
-import sys
-import os
-from pathlib import Path
-
 import logging
-import psutil
+import os
 import platform
-from fastapi import APIRouter, Depends
-from fastapi.responses import PlainTextResponse
-from backend.auth.local_auth import require_local_auth_or_localhost
 from datetime import datetime
 from typing import Dict
 
-from backend.db.database import Database
+import psutil
+from fastapi import APIRouter, Depends
+from fastapi.responses import PlainTextResponse
+
 from backend import config
-from backend.runtime_version import APP_VERSION, DISPLAY_VERSION
 from backend.ai.metrics import metrics_collector
+from backend.auth.local_auth import require_local_auth_or_localhost
 from backend.core.production_readiness import ProductionReadinessValidator, evidence_templates
+from backend.db.database import Database
+from backend.runtime_version import APP_VERSION, DISPLAY_VERSION
 
 router = APIRouter()
 db = Database(config.DB_PATH)

@@ -13,12 +13,12 @@ from datetime import datetime, timezone
 from email.header import decode_header, make_header
 from email.policy import default
 from email.utils import parseaddr
-from typing import Dict, Optional, List
+from typing import Dict, List, Optional
 
+from backend import config
 from backend.ai.classifier import EmailClassifier
 from backend.auth.imap_auth import IMAPAccountManager
 from backend.db.database import Database
-from backend import config
 from backend.rules.action_executor import RuleActionExecutor
 
 

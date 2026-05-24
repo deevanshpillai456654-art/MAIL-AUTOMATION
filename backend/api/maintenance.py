@@ -44,7 +44,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
@@ -108,6 +108,14 @@ def _init_db() -> None:
     """)
     con.commit()
     con.close()
+
+
+# Ensure schema exists at import — routers can be mounted directly without
+# the background MaintenanceChecker being started (e.g. test clients).
+try:
+    _init_db()
+except Exception:  # pragma: no cover
+    logger.warning("Maintenance: schema init at import failed", exc_info=True)
 
 
 def _conn() -> sqlite3.Connection:
@@ -298,21 +306,21 @@ def get_checker() -> Optional[MaintenanceChecker]:
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 class WindowCreate(BaseModel):
-    name:               str
-    description:        str  = ""
-    starts_at:          str
-    ends_at:            str
-    created_by:         str  = "system"
+    name:               str = Field(min_length=1, max_length=200)
+    description:        str = Field(default="", max_length=10000)
+    starts_at:          str = Field(min_length=1, max_length=64)
+    ends_at:            str = Field(min_length=1, max_length=64)
+    created_by:         str = Field(default="system", max_length=200)
     suppress_alerts:    bool = True
     suppress_incidents: bool = True
     suppress_sla:       bool = True
 
 
 class WindowPatch(BaseModel):
-    name:               Optional[str]  = None
-    description:        Optional[str]  = None
-    starts_at:          Optional[str]  = None
-    ends_at:            Optional[str]  = None
+    name:               Optional[str]  = Field(default=None, max_length=200)
+    description:        Optional[str]  = Field(default=None, max_length=10000)
+    starts_at:          Optional[str]  = Field(default=None, max_length=64)
+    ends_at:            Optional[str]  = Field(default=None, max_length=64)
     suppress_alerts:    Optional[bool] = None
     suppress_incidents: Optional[bool] = None
     suppress_sla:       Optional[bool] = None
@@ -342,8 +350,9 @@ async def list_windows(
             params + [limit, offset],
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "windows": [dict(zip(_WINDOW_COLS, r)) for r in rows],
         "total":   total,
@@ -378,8 +387,9 @@ async def create_window(body: WindowCreate, _auth=Depends(require_local_auth)):
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     _add_log(win_id, body.name, "created", f"Created by {body.created_by}")
     return {"id": win_id, "name": body.name}
 
@@ -395,8 +405,9 @@ async def maintenance_status(_auth=Depends(require_local_auth)):
         completed = con.execute("SELECT COUNT(*) FROM maintenance_windows WHERE status='completed'").fetchone()[0]
         cancelled = con.execute("SELECT COUNT(*) FROM maintenance_windows WHERE status='cancelled'").fetchone()[0]
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "is_active":     window is not None,
         "active_window": window,
@@ -432,8 +443,9 @@ async def get_window(window_id: str, _auth=Depends(require_local_auth)):
         return window
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 @router.patch("/{window_id}", summary="Update maintenance window")
@@ -477,8 +489,9 @@ async def patch_window(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True}
 
 
@@ -501,8 +514,9 @@ async def delete_window(window_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 @router.post("/{window_id}/activate", summary="Manually activate a scheduled window")

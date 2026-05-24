@@ -5,14 +5,14 @@ from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends
-from backend.auth.local_auth import require_local_auth_or_localhost
 
+from backend import config
+from backend.auth.local_auth import require_local_auth_or_localhost
+from backend.core.analytics_engine import LocalAnalyticsEngine
+from backend.core.granular_production_scorecard import assert_granular_gate, build_granular_production_scorecard
+from backend.core.persistence_recovery_scorecard import assert_persistence_gate, build_persistence_recovery_scorecard
 from backend.core.production_guardrails import run_local_guardrails
 from backend.core.production_scorecard import assert_gate, build_scorecard
-from backend.core.persistence_recovery_scorecard import assert_persistence_gate, build_persistence_recovery_scorecard
-from backend.core.granular_production_scorecard import assert_granular_gate, build_granular_production_scorecard
-from backend.core.analytics_engine import LocalAnalyticsEngine
-from backend import config
 
 router = APIRouter(dependencies=[Depends(require_local_auth_or_localhost)])
 

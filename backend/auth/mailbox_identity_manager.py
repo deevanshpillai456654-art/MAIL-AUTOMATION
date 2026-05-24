@@ -1,7 +1,9 @@
 """Mailbox identity normalization and isolation helpers."""
 from __future__ import annotations
+
 import hashlib
 from typing import Dict
+
 from backend.core.provider_capability_registry import ProviderCapabilityRegistry
 
 

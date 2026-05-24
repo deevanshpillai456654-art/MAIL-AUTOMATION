@@ -1,4 +1,4 @@
-"""
+﻿"""
 Connector & Plugin Panel – Main Router
 
 Mount into your FastAPI app:
@@ -53,7 +53,7 @@ _AUTH = [Depends(require_local_auth)]
 @router.get("/", summary="Panel status and version", dependencies=_AUTH)
 async def panel_root():
     return {
-        "name": "MailPilot Connector & Plugin Panel",
+        "name": "INTEMO Connector & Plugin Panel",
         "version": CONNECTOR_PANEL_VERSION,
         "status": "running",
         "endpoints": {
@@ -185,4 +185,4 @@ def setup_connector_panel(app, *, db_path: str | None = None) -> None:
     else:
         log.warning("Connector Panel frontend not found at %s", _frontend)
 
-    log.info("MailPilot Connector Panel ready — API: /api/connector-panel")
+    log.info("INTEMO Connector Panel ready — API: /api/connector-panel")

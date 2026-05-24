@@ -1,12 +1,12 @@
-import sqlite3
-import os
-import threading
-import time
-from typing import Optional
-from datetime import datetime, timezone
-import json
 import atexit
+import json
+import os
+import sqlite3
+import threading
 from contextlib import contextmanager
+from datetime import datetime, timezone
+from typing import Optional
+
 from backend.core.mailbox_infrastructure_guard import (
     bucket_name_from_provider_item,
     canonical_bucket_key,
@@ -47,7 +47,7 @@ class Database:
             db_path = config.DB_PATH
         if self._initialized and hasattr(self, 'db_path') and self.db_path == db_path:
             return
-            
+
         self.db_path = db_path
         self._local = threading.local()
         self._write_lock = threading.Lock()
@@ -68,13 +68,13 @@ class Database:
                 isolation_level=None  # Autocommit mode for better concurrency
             )
             conn.row_factory = sqlite3.Row
-            
+
             self._apply_pragmas(conn)
             self._pragmas_applied = True
-            
+
             self._local.conn = conn
             self._register_connection(conn)
-        
+
         return self._local.conn
 
     def _register_connection(self, conn: sqlite3.Connection) -> None:
@@ -137,7 +137,7 @@ class Database:
             ("foreign_keys", "ON"),
             ("ignore_check_constraints", "OFF"),
         ]
-        
+
         for key, value in pragmas:
             try:
                 conn.execute(f"PRAGMA {key} = {value}")
@@ -500,7 +500,7 @@ class Database:
         self._safe_index(cursor, "CREATE UNIQUE INDEX IF NOT EXISTS idx_emails_mailbox_message_unique ON emails(mailbox_id, provider_message_id)")
         self._safe_index(cursor, "CREATE UNIQUE INDEX IF NOT EXISTS idx_mail_folders_mailbox_provider_id_unique ON mail_folders(mailbox_id, provider_folder_id)")
         self._safe_index(cursor, "CREATE UNIQUE INDEX IF NOT EXISTS idx_mail_labels_mailbox_provider_id_unique ON mail_labels(mailbox_id, provider_label_id)")
-        
+
         # Sync status table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS sync_status (
@@ -549,7 +549,7 @@ class Database:
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_provider_diagnostics_account ON provider_diagnostics(account_id)")
-        
+
         # AI Memory tables for adaptive learning
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS ai_memory (
@@ -562,7 +562,7 @@ class Database:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_preferences (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -578,7 +578,7 @@ class Database:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS behavioral_patterns (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -590,7 +590,7 @@ class Database:
                 occurrence_count INTEGER DEFAULT 1
             )
         """)
-        
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS learning_feedback (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -605,12 +605,12 @@ class Database:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_memory_user ON ai_memory(user_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_memory_type ON ai_memory(memory_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_learning_feedback_user ON learning_feedback(user_id)")
         self._backfill_mailbox_columns(cursor)
-        
+
         # Enable foreign keys
         cursor.execute("PRAGMA foreign_keys = ON")
 
@@ -1502,8 +1502,8 @@ class Database:
             (account_id, status)
         )
 
-    def update_sync_status(self, sync_id: int, status: str, progress: int = None, 
-                          processed_emails: int = None, total_emails: int = None, 
+    def update_sync_status(self, sync_id: int, status: str, progress: int = None,
+                          processed_emails: int = None, total_emails: int = None,
                           error: str = None) -> bool:
         query = "UPDATE sync_status SET status = ?"
         params = [status]
@@ -1585,7 +1585,7 @@ class Database:
                 pages = cursor.fetchone()[0]
                 cursor.execute("PRAGMA page_size")
                 page_size = cursor.fetchone()[0]
-                
+
                 return {
                     "status": "healthy",
                     "journal_mode": journal,
@@ -1594,17 +1594,5 @@ class Database:
                 }
         except Exception as e:
             return {"status": "error", "error": str(e)}
-
-    def close(self):
-        """Close the current thread connection; use close_all_instances on app shutdown."""
-        conn = getattr(self._local, 'conn', None)
-        if conn is not None:
-            try:
-                conn.close()
-            finally:
-                self._local.conn = None
-                self._unregister_connection(conn)
-                self._pragmas_applied = False
-
 
 atexit.register(Database.close_all_instances)

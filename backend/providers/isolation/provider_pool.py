@@ -10,16 +10,17 @@ Enterprise isolation for email providers:
 - Provider-level circuit breakers
 """
 
-import time
-import threading
-import queue
 import logging
-import uuid
-import psutil
 import os
-from dataclasses import dataclass, field
-from typing import Dict, Optional, Any, List, Callable
+import queue
+import threading
+import time
+import uuid
+from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Callable, Dict, Optional
+
+import psutil
 
 logger = logging.getLogger("provider.pool")
 

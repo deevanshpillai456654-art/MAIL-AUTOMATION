@@ -8,12 +8,12 @@ operational controls and reports.
 """
 from __future__ import annotations
 
-import os
-import json
 import hashlib
 import hmac
 import importlib
 import importlib.util
+import json
+import os
 import re
 import sqlite3
 import zipfile
@@ -27,7 +27,6 @@ from backend.core.persistent_job_queue import PersistentJobQueue
 from backend.core.runtime_control import RuntimeControl
 from backend.core.zip_patch_update import validate_patch_zip
 from backend.security.redaction import redact_text
-
 
 _SECRET_KEYS: frozenset[str] = frozenset({
     "DATABASE_URL", "AIO_UPDATE_SIGNING_KEY", "UPDATE_SIGNING_KEY",

@@ -17,7 +17,6 @@ from pydantic import BaseModel, Field
 
 from backend.auth.local_auth import require_local_auth
 
-
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 TALLY_DB_PATH = str(DATA_DIR / "tally.db")
 

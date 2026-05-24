@@ -16,20 +16,20 @@ import json
 import logging
 from html import escape
 from time import time
+from typing import Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
 
 from backend import config
 from backend.auth.middleware import require_local_request
+from backend.auth.provider_config import OAUTH_GROUPS, ProviderConfigManager, normalize_email_address, oauth_group_for
 from backend.auth.providers.google import GoogleOAuthProvider
 from backend.auth.providers.microsoft import MicrosoftOAuthProvider
 from backend.auth.providers.yahoo import YahooOAuthProvider
 from backend.auth.state_store import OAuthStateStore
-from backend.auth.provider_config import OAUTH_GROUPS, ProviderConfigManager, normalize_email_address, oauth_group_for
 from backend.auth.token_store import TokenStore
 from backend.core.account_persistence import account_metadata
 from backend.core.provider_capability_registry import ProviderCapabilityRegistry
@@ -617,8 +617,8 @@ async def zoho_start_redirect(request: Request, email: str = None):
     except HTTPException as exc:
         if exc.status_code != 428:
             raise
-        from backend.auth.provider_config import ProviderConfigManager
         from backend.api.routes import oauth_setup_page
+        from backend.auth.provider_config import ProviderConfigManager
         return oauth_setup_page("zoho", ProviderConfigManager().status("zoho", _base_url(request), email_address=requested),
                                 _base_url(request), requested)
     data = json.loads(resp.body.decode())
@@ -653,8 +653,8 @@ async def yandex_start_redirect(request: Request, email: str = None):
     except HTTPException as exc:
         if exc.status_code != 428:
             raise
-        from backend.auth.provider_config import ProviderConfigManager
         from backend.api.routes import oauth_setup_page
+        from backend.auth.provider_config import ProviderConfigManager
         return oauth_setup_page("yandex", ProviderConfigManager().status("yandex", _base_url(request), email_address=requested),
                                 _base_url(request), requested)
     data = json.loads(resp.body.decode())

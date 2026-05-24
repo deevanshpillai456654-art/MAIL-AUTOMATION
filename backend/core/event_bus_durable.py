@@ -13,18 +13,18 @@ Features:
 """
 
 import asyncio
+import hashlib
 import json
+import logging
+import sqlite3
+import threading
 import time
 import uuid
-import hashlib
-import threading
-import logging
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Callable, Any
-from enum import Enum
 from collections import defaultdict
+from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
-import sqlite3
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger("eventbus.core")
 
@@ -51,14 +51,14 @@ class Event:
     topic: str
     payload: Dict[str, Any]
     correlation_id: Optional[str] = None
-    
+
     priority: EventPriority = EventPriority.NORMAL
     created_at: float = field(default_factory=time.time)
     expires_at: Optional[float] = None
-    
+
     retry_count: int = 0
     max_retries: int = 3
-    
+
     status: EventStatus = EventStatus.PENDING
     acknowledged_at: Optional[float] = None
     error: Optional[str] = None
@@ -87,7 +87,7 @@ class EventBusCore:
     - DLQ integration
     - Replay engine
     """
-    
+
     def __init__(
         self,
         db_path: str = "./data/eventbus.db",
@@ -99,37 +99,37 @@ class EventBusCore:
         self.max_queue_size = max_queue_size
         self.worker_count = worker_count
         self.enable_persistence = enable_persistence
-        
+
         # Ensure data directory exists
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Initialize database
         self._init_db()
-        
+
         # In-memory structures
         self._topics: Dict[str, List[Event]] = defaultdict(list)
         self._consumers: Dict[str, Callable] = {}
         self._consumer_groups: Dict[str, ConsumerGroup] = {}
         self._event_handlers: Dict[str, List[Callable]] = defaultdict(list)
-        
+
         # Backpressure tracking
         self._queue_sizes: Dict[str, int] = defaultdict(int)
         self._backpressure_enabled = False
-        
+
         # Lock for thread safety
         self._lock = threading.RLock()
-        
+
         # Start background tasks
         self._running = True
         self._background_tasks = []
-        
+
         logger.info(f"Event bus initialized with {worker_count} workers")
-    
+
     def _init_db(self):
         """Initialize database tables"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         # Events table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS events (
@@ -147,7 +147,7 @@ class EventBusCore:
                 error TEXT
             )
         """)
-        
+
         # Consumer offsets table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS consumer_offsets (
@@ -157,7 +157,7 @@ class EventBusCore:
                 last_heartbeat REAL
             )
         """)
-        
+
         # DLQ events table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS dlq_events (
@@ -172,12 +172,12 @@ class EventBusCore:
                 replay_attempts INTEGER DEFAULT 0
             )
         """)
-        
+
         conn.commit()
         conn.close()
-        
+
         logger.info("Event bus database initialized")
-    
+
     def publish(
         self,
         topic: str,
@@ -198,10 +198,10 @@ class EventBusCore:
             if self._backpressure_enabled:
                 if self._queue_sizes[topic] >= self.max_queue_size:
                     raise Exception(f"Backpressure: topic {topic} queue full")
-            
+
             # Generate event ID
             event_id = f"evt_{uuid.uuid4().hex[:16]}"
-            
+
             event = Event(
                 event_id=event_id,
                 topic=topic,
@@ -211,28 +211,28 @@ class EventBusCore:
                 expires_at=expires_at,
                 max_retries=max_retries
             )
-            
+
             # Add to topic queue
             self._topics[topic].append(event)
             self._queue_sizes[topic] += 1
-            
+
             # Persist to database
             if self.enable_persistence:
                 self._persist_event(event)
-            
+
             # Trigger handlers
             self._dispatch_event(event)
-            
+
             logger.info(f"Event published: {event_id[:8]}... to {topic}")
-            
+
             return event_id
-    
+
     def _persist_event(self, event: Event):
         """Persist event to database"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            
+
             cursor.execute("""
                 INSERT OR REPLACE INTO events
                 (event_id, topic, payload, correlation_id, priority, created_at, 
@@ -250,13 +250,13 @@ class EventBusCore:
                 event.max_retries,
                 event.status.value
             ))
-            
+
             conn.commit()
             conn.close()
-            
+
         except Exception as e:
             logger.error(f"Failed to persist event {event.event_id[:8]}...: {e}")
-    
+
     def subscribe(
         self,
         topic: str,
@@ -273,7 +273,7 @@ class EventBusCore:
         """
         with self._lock:
             self._event_handlers[topic].append(handler)
-            
+
             if group_id:
                 if group_id not in self._consumer_groups:
                     self._consumer_groups[group_id] = ConsumerGroup(
@@ -281,13 +281,13 @@ class EventBusCore:
                         topic=topic
                     )
                 self._consumer_groups[group_id].members.append(topic)
-            
+
             logger.info(f"Subscribed handler to topic: {topic}")
-    
+
     def _dispatch_event(self, event: Event):
         """Dispatch event to all handlers"""
         handlers = self._event_handlers.get(event.topic, [])
-        
+
         for handler in handlers:
             try:
                 # Run handler (can be sync or async)
@@ -298,12 +298,12 @@ class EventBusCore:
             except Exception as e:
                 logger.error(f"Handler error for {event.topic}: {e}")
                 self._handle_event_failure(event, str(e))
-    
+
     def _handle_event_failure(self, event: Event, error: str):
         """Handle event processing failure"""
         event.retry_count += 1
         event.error = error
-        
+
         if event.retry_count >= event.max_retries:
             # Move to DLQ
             event.status = EventStatus.POISON
@@ -313,17 +313,17 @@ class EventBusCore:
             event.status = EventStatus.FAILED
             # Re-queue for retry
             self._topics[event.topic].append(event)
-    
+
     def _send_to_dlq(self, event: Event):
         """Send failed event to dead letter queue"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            
+
             payload_hash = hashlib.sha256(
                 json.dumps(event.payload).encode()
             ).hexdigest()
-            
+
             cursor.execute("""
                 INSERT INTO dlq_events
                 (event_id, payload_hash, retry_count, last_error, topic, failed_at, replay_status)
@@ -337,19 +337,19 @@ class EventBusCore:
                 time.time(),
                 "pending"
             ))
-            
+
             conn.commit()
             conn.close()
-            
+
             logger.info(f"Event {event.event_id[:8]}... added to DLQ")
-            
+
         except Exception as e:
             logger.error(f"Failed to send to DLQ: {e}")
-    
+
     def get_queue_size(self, topic: str) -> int:
         """Get current queue size for a topic"""
         return self._queue_sizes.get(topic, 0)
-    
+
     def set_backpressure(self, enabled: bool, threshold: int = None):
         """Enable/disable backpressure"""
         with self._lock:
@@ -357,7 +357,7 @@ class EventBusCore:
             if threshold:
                 self.max_queue_size = threshold
             logger.info(f"Backpressure {'enabled' if enabled else 'disabled'}")
-    
+
     def acknowledge(self, event_id: str) -> bool:
         """Acknowledge an event as processed"""
         with self._lock:
@@ -365,49 +365,49 @@ class EventBusCore:
             try:
                 conn = sqlite3.connect(self.db_path)
                 cursor = conn.cursor()
-                
+
                 cursor.execute("""
                     UPDATE events 
                     SET status = 'acknowledged', acknowledged_at = ?
                     WHERE event_id = ?
                 """, (time.time(), event_id))
-                
+
                 conn.commit()
                 conn.close()
-                
+
                 return True
-                
+
             except Exception as e:
                 logger.error(f"Failed to acknowledge event: {e}")
                 return False
-    
+
     def replay_dlq(self, event_id: str) -> bool:
         """Replay a failed event from DLQ"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            
+
             # Get DLQ event
             cursor.execute("SELECT * FROM dlq_events WHERE event_id = ?", (event_id,))
             dlq_event = cursor.fetchone()
-            
+
             if not dlq_event:
                 return False
-            
+
             # Get original event
             cursor.execute("SELECT * FROM events WHERE event_id = ?", (event_id,))
             original_event = cursor.fetchone()
-            
+
             if not original_event:
                 return False
-            
+
             # Update DLQ status
             cursor.execute("""
                 UPDATE dlq_events 
                 SET replay_status = 'replaying', replay_attempts = replay_attempts + 1
                 WHERE event_id = ?
             """, (event_id,))
-            
+
             # Re-publish
             payload = json.loads(original_event[2])
             self.publish(
@@ -415,40 +415,40 @@ class EventBusCore:
                 payload=payload,
                 priority=EventPriority(original_event[4])
             )
-            
+
             # Update DLQ
             cursor.execute("""
                 UPDATE dlq_events 
                 SET replay_status = 'completed'
                 WHERE event_id = ?
             """, (event_id,))
-            
+
             conn.commit()
             conn.close()
-            
+
             logger.info(f"Replayed DLQ event: {event_id[:8]}...")
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to replay DLQ event: {e}")
             return False
-    
+
     def get_dlq_events(self, limit: int = 100) -> List[Dict]:
         """Get DLQ events for UI display"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            
+
             cursor.execute("""
                 SELECT * FROM dlq_events 
                 ORDER BY failed_at DESC 
                 LIMIT ?
             """, (limit,))
-            
+
             rows = cursor.fetchall()
             conn.close()
-            
+
             return [
                 {
                     "event_id": row[0],
@@ -461,11 +461,11 @@ class EventBusCore:
                 }
                 for row in rows
             ]
-            
+
         except Exception as e:
             logger.error(f"Failed to get DLQ events: {e}")
             return []
-    
+
     def get_stats(self) -> Dict:
         """Get event bus statistics"""
         with self._lock:
@@ -473,7 +473,7 @@ class EventBusCore:
                 topic: len(events)
                 for topic, events in self._topics.items()
             }
-            
+
             return {
                 "topics": list(self._topics.keys()),
                 "topic_sizes": topic_sizes,
@@ -482,25 +482,25 @@ class EventBusCore:
                 "backpressure_enabled": self._backpressure_enabled,
                 "worker_count": self.worker_count
             }
-    
+
     def shutdown(self):
         """Graceful shutdown"""
         self._running = False
-        
+
         # Save any pending state
         self._save_state()
-        
+
         logger.info("Event bus shutdown complete")
-    
+
     def _save_state(self):
         """Save current state to database"""
         if not self.enable_persistence:
             return
-        
+
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            
+
             # Save consumer offsets
             for group in self._consumer_groups.values():
                 cursor.execute("""
@@ -513,12 +513,12 @@ class EventBusCore:
                     group.current_offset,
                     time.time()
                 ))
-            
+
             conn.commit()
             conn.close()
-            
+
             logger.info("Event bus state saved")
-            
+
         except Exception as e:
             logger.error(f"Failed to save state: {e}")
 

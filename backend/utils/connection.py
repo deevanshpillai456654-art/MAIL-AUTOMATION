@@ -5,10 +5,10 @@ Validates extension/add-in connections to local service
 
 import hashlib
 import os
-import time
 import secrets
-from typing import Optional, Dict
+import time
 from datetime import datetime, timedelta
+from typing import Dict, Optional
 
 
 class ConnectionValidator:
@@ -94,7 +94,7 @@ class ExtensionHandshake:
 
 
 class PortScanner:
-    SAFE_PORTS = list(range(4597, 4510))
+    SAFE_PORTS = list(range(4597, 4509, -1))
     TIMEOUT = 0.5
 
     @staticmethod

@@ -28,14 +28,14 @@
             <div class="field"><label for="clientId">Client ID</label><input aria-label="Paste OAuth client/application ID" class="input" id="clientId" placeholder="Paste OAuth client/application ID"></div>
             <div class="field"><label for="clientSecret">Client Secret</label><input aria-label="Paste OAuth client secret" class="input" id="clientSecret" type="password" placeholder="Paste OAuth client secret"></div>
             <div class="field" id="tenantBox" hidden><label for="tenantId">Microsoft Tenant ID</label><input aria-label="common" class="input" id="tenantId" placeholder="common"></div>
-            <div class="field"><label>Redirect URL to register in provider console</label><div class="mono" id="redirectUri">—</div></div>
+            <div class="field"><label>Redirect URL to register in provider console</label><div class="mono" id="redirectUri">-</div></div>
           </div>
-          <div class="actions"><button class="btn primary" type="button" id="setupSaveOAuthBtn">Save credentials</button><button class="btn" type="button" id="setupTestOAuthBtn">Test connect page</button><a class="btn" id="consoleLink" href="#" target="_blank" rel="noreferrer">Open provider console</a></div>
+          <div class="actions"><button class="btn primary" type="button" id="setupSaveOAuthBtn">Save credentials</button><button class="btn" type="button" id="setupTestOAuthBtn">Test connect page</button><a class="btn" id="consoleLink" href="about:blank" target="_blank" rel="noreferrer" aria-disabled="true" tabindex="-1">Open provider console</a></div>
           <p class="small mt-12" id="providerNotes"></p>
         </div>
         <div class="panel">
           <h2>Provider readiness</h2>
-          <div id="statusList"><p class="small">Loading status…</p></div>
+          <div id="statusList"><p class="small">Loading status...</p></div>
           <h2 class="mt-18">Manual providers</h2>
           <div class="provider-row"><div><b>Gmail via IMAP</b><div class="small">Use Google app password if you do not want OAuth.</div></div><span class="tag good">App password</span></div>
           <div class="provider-row"><div><b>Yahoo / Zoho / Fastmail</b><div class="small">Use each provider's app-password and IMAP host preset.</div></div><span class="tag good">Ready</span></div>

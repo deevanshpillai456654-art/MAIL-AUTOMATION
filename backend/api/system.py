@@ -1,7 +1,9 @@
 import logging
+from typing import Any, Dict
+
 from fastapi import APIRouter, Depends, Request
+
 from backend.auth.local_auth import require_local_auth_or_localhost
-from typing import Dict, Any
 
 logger = logging.getLogger("api.system")
 router = APIRouter(dependencies=[Depends(require_local_auth_or_localhost)])

@@ -161,7 +161,7 @@
           <button class="nav-btn nav-nested" data-view="licenses"     type="button" data-role-min="system_admin">Licenses</button>
           <button class="nav-btn nav-nested" data-view="budgets"      type="button" data-role-min="system_admin">Budgets</button>
           <button class="nav-btn nav-nested" data-view="vendors"      type="button" data-role-min="system_admin">Vendors</button>
-          <button class="nav-btn nav-nested" data-view="configs"      type="button" data-role-min="workspace_admin">Workspace Config</button>
+          <button class="nav-btn nav-nested" data-view="configs"      type="button" data-role-min="workspace_admin">Workspace Settings</button>
           <button class="nav-btn nav-nested" data-view="maintenance"  type="button" data-role-min="workspace_admin">System Updates</button>
           <button class="nav-btn nav-nested" data-view="deployments"  type="button" data-role-min="workspace_admin">Releases</button>
           <button class="nav-btn nav-nested" data-view="webhooks"     type="button" data-role-min="workspace_admin">Webhooks</button>
@@ -298,7 +298,7 @@
           <p id="pageSubtitle">Operational overview - mailboxes, inbox health, AI processing, and automations.</p>
         </div>
         <div class="heading-actions">
-          <button class="btn" type="button" id="refreshBtn" aria-label="Refresh current view">
+          <button class="btn" type="button" id="pageRefreshBtn" aria-label="Refresh current view">
             <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4a8 8 0 1 1 0 12"/><path d="M4 4v5h5"/></svg>
             Refresh
           </button>
@@ -323,7 +323,7 @@
               <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M2 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5Z"/><path d="m2 5 8 6 8-6"/></svg>
               Open Inbox
             </button>
-            <button class="btn" type="button" id="refreshBtn" aria-label="Refresh dashboard">
+            <button class="btn" type="button" id="refreshDashBtn" aria-label="Refresh dashboard">
               <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4a8 8 0 1 1 0 12"/><path d="M4 4v5h5"/></svg>
               Refresh
             </button>
@@ -590,7 +590,7 @@
             </select>
             <div class="sidebar-add-row">
               <input id="sidebarNewFolder" type="text" placeholder="New folder..." aria-label="New folder name" />
-              <button class="btn sm" id="sidebarCreateFolderBtn" type="button">+</button>
+              <button class="btn sm" id="sidebarCreateFolderBtn" type="button" aria-label="Create folder" title="Create folder">+</button>
             </div>
 
             <h3>Labels</h3>
@@ -599,7 +599,7 @@
             </select>
             <div class="sidebar-add-row">
               <input id="sidebarNewLabel" type="text" placeholder="New label..." aria-label="New label name" />
-              <button class="btn sm" id="sidebarCreateLabelBtn" type="button">+</button>
+              <button class="btn sm" id="sidebarCreateLabelBtn" type="button" aria-label="Create label" title="Create label">+</button>
             </div>
           </aside>
 
@@ -1575,7 +1575,7 @@
             <div class="dash-inline-056">
               <div class="dash-inline-057">
                 <h3 id="incModalTitle" class="dash-inline-058"></h3>
-                <button class="btn sm ghost" type="button" id="incModalCloseBtn">x</button>
+                <button class="btn sm ghost" type="button" id="incModalCloseBtn" aria-label="Close incident details" title="Close incident details">x</button>
               </div>
               <div id="incModalMeta" class="dash-inline-059"></div>
               <p id="incModalDesc" class="dash-inline-060"></p>
@@ -1713,7 +1713,7 @@
           <div class="ops-run-dialog-panel">
             <div class="ops-modal-head">
               <h3 id="pbRunModalTitle" class="dash-inline-031"></h3>
-              <button class="btn sm ghost" type="button" id="pbRunModalCloseBtn">x</button>
+              <button class="btn sm ghost" type="button" id="pbRunModalCloseBtn" aria-label="Close playbook run details" title="Close playbook run details">x</button>
             </div>
             <div id="pbRunModalMeta" class="ops-modal-meta"></div>
             <h4 class="ops-modal-subtitle">Step Log</h4>
@@ -1799,7 +1799,7 @@
           <div class="ops-wide-dialog-panel">
             <div class="ops-modal-head">
               <h3 id="dispRunModalTitle" class="dash-inline-031"></h3>
-              <button class="btn sm ghost" type="button" id="dispRunModalCloseBtn">x</button>
+              <button class="btn sm ghost" type="button" id="dispRunModalCloseBtn" aria-label="Close dispatch run details" title="Close dispatch run details">x</button>
             </div>
             <div id="dispRunModalMeta" class="ops-modal-meta"></div>
             <pre id="dispRunModalContent" class="ops-pre-log"></pre>
@@ -4965,7 +4965,7 @@
                 </div>
                 <div class="dash-inline-135">
                   <label class="field-label dash-inline-042">Time Window
-                    <select class="field-input" id="sloFormWindow">
+                    <select class="field-input" id="sloFormWindow" aria-label="SLO reporting window">
                       <option value="rolling_30d">Rolling 30d</option>
                       <option value="rolling_7d">Rolling 7d</option>
                       <option value="rolling_90d">Rolling 90d</option>
@@ -5019,7 +5019,7 @@
             <form id="sloTransitionForm" autocomplete="off">
               <div class="modal-body dash-inline-102">
                 <label class="field-label">New Status
-                  <select class="field-input" id="sloTransitionStatus"></select>
+                  <select class="field-input" id="sloTransitionStatus" aria-label="SLO transition status"></select>
                 </label>
                 <label class="field-label">Notes
                   <input class="field-input" type="text" id="sloTransitionNotes" placeholder="Reason for transition"/>

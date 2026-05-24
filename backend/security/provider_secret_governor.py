@@ -1,6 +1,8 @@
 """Provider secret isolation policy."""
 from __future__ import annotations
+
 from typing import Dict
+
 from backend.db.database import Database
 
 

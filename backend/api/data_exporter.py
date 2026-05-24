@@ -10,18 +10,17 @@ Data export functionality:
 - Large export handling
 """
 
-import os
-import json
 import csv
-import zipfile
+import json
 import logging
 import sqlite3
 import threading
 import time
-from typing import Any, Dict, List, Optional, Iterator
-from pathlib import Path
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+from typing import Dict, List, Optional
+
 from backend import config
 
 logger = logging.getLogger("data.export")
@@ -60,15 +59,15 @@ class DataExporter:
     """
     Data export manager.
     """
-    
+
     def __init__(self, export_dir: str = None):
         self.export_dir = Path(export_dir or config.DATA_DIR) / "exports"
         self.export_dir.mkdir(parents=True, exist_ok=True)
-        
+
         self._lock = threading.Lock()
-        
+
         logger.info(f"DataExporter initialized: {self.export_dir}")
-    
+
     def export_emails(
         self,
         format: ExportFormat = ExportFormat.JSON,
@@ -78,16 +77,16 @@ class DataExporter:
         """Export emails"""
         import secrets
         job_id = f"export_{secrets.token_hex(8)}"
-        
+
         # Start export in background
         threading.Thread(
             target=self._export_emails_async,
             args=(job_id, format, limit, filters),
             daemon=True
         ).start()
-        
+
         return job_id
-    
+
     def _export_emails_async(self, job_id: str, format: ExportFormat, limit: int, filters: Dict):
         """Async export"""
         try:
@@ -99,7 +98,7 @@ class DataExporter:
 
             query = "SELECT * FROM emails"
             params = []
-            
+
             if filters:
                 query += " WHERE 1=1"
                 if filters.get("category"):
@@ -108,45 +107,45 @@ class DataExporter:
                 if filters.get("account_id"):
                     query += " AND account_id = ?"
                     params.append(filters["account_id"])
-            
+
             query += f" LIMIT {limit}"
-            
+
             cursor.execute(query, params)
             rows = cursor.fetchall()
             conn.close()
-            
+
             # Export based on format
             output_file = self.export_dir / f"{job_id}.{format.value}"
-            
+
             if format == ExportFormat.JSON:
                 self._export_json(rows, output_file)
             elif format == ExportFormat.CSV:
                 self._export_csv(rows, output_file)
-            
+
             logger.info(f"Export completed: {job_id} ({len(rows)} rows)")
-        
+
         except Exception as e:
             logger.error(f"Export error: {e}")
-    
+
     def _export_json(self, rows: List, file_path: Path):
         """Export as JSON"""
         data = [dict(row) for row in rows]
-        
+
         with open(file_path, "w") as f:
             json.dump(data, f, indent=2)
-    
+
     def _export_csv(self, rows: List, file_path: Path):
         """Export as CSV"""
         if not rows:
             return
-        
+
         with open(file_path, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=rows[0].keys())
             writer.writeheader()
-            
+
             for row in rows:
                 writer.writerow(dict(row))
-    
+
     def export_rules(
         self,
         format: ExportFormat = ExportFormat.JSON
@@ -154,7 +153,7 @@ class DataExporter:
         """Export rules"""
         import secrets
         job_id = f"export_rules_{secrets.token_hex(8)}"
-        
+
         conn = sqlite3.connect(config.DB_PATH, timeout=30, check_same_thread=False)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.row_factory = sqlite3.Row
@@ -167,16 +166,16 @@ class DataExporter:
         if format == ExportFormat.JSON:
             rows = cursor.fetchall()
             self._export_json(rows, output_file)
-        
+
         conn.close()
-        
+
         return job_id
-    
+
     def get_export_status(self, job_id: str) -> Optional[ExportJob]:
         """Get export status"""
         # Simple file-based status tracking
         output_file = self.export_dir / f"{job_id}.*"
-        
+
         for f in self.export_dir.glob(f"{job_id}.*"):
             return ExportJob(
                 job_id=job_id,
@@ -185,13 +184,13 @@ class DataExporter:
                 status=ExportStatus.COMPLETED,
                 file_path=str(f)
             )
-        
+
         return None
-    
+
     def cleanup_old_exports(self, days: int = 7):
         """Clean up old exports"""
         cutoff = time.time() - (days * 86400)
-        
+
         for f in self.export_dir.glob("*"):
             if f.stat().st_mtime < cutoff:
                 f.unlink()

@@ -1,9 +1,11 @@
 """Sync recovery helpers that avoid duplicate execution."""
 from __future__ import annotations
+
 from typing import Dict
-from backend.db.database import Database
+
 from backend.core.mailbox_connection_manager import MailboxConnectionManager
 from backend.core.mailbox_recovery_engine import MailboxRecoveryEngine
+from backend.db.database import Database
 
 
 class MailboxSyncRecovery:

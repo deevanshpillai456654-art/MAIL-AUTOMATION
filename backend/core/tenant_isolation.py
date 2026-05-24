@@ -16,18 +16,15 @@ Enterprise multi-tenant platform:
 - Data leakage prevention
 """
 
-import os
 import json
-import time
-import hashlib
 import logging
-import asyncio
 import threading
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+import time
+import uuid
+from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
-from collections import defaultdict
-import uuid
+from typing import Dict, List, Optional, Set
 
 logger = logging.getLogger("tenant.isolation")
 
@@ -130,10 +127,10 @@ class TenantManager:
     Enterprise multi-tenant manager.
     Provides complete tenant isolation and management.
     """
-    
+
     def __init__(self, config: Dict = None):
         self.config = config or {}
-        
+
         # Tenant storage (would be backed by database)
         self._tenants: Dict[str, Tenant] = {}
         self._organizations: Dict[str, Organization] = {}
@@ -142,13 +139,13 @@ class TenantManager:
         self._tenant_users: Dict[str, Set[str]] = defaultdict(set)
         self._quotas: Dict[str, TenantQuota] = {}
         self._audit_domains: Dict[str, AuditDomain] = {}
-        
+
         # Encryption key management
         self._encryption_keys: Dict[str, Dict] = {}
-        
+
         # Policy engine
         self._policies: Dict[str, Dict] = {}
-        
+
         # RBAC cache
         self._role_permissions: Dict[UserRole, Set[Permission]] = {
             UserRole.OWNER: {p for p in Permission},
@@ -166,15 +163,15 @@ class TenantManager:
                 Permission.READ
             }
         }
-        
+
         self._lock = threading.RLock()
-        
+
         logger.info("TenantManager initialized")
-    
+
     # =========================================================================
     # Tenant Operations
     # =========================================================================
-    
+
     def create_tenant(
         self,
         tenant_id: str,
@@ -186,10 +183,10 @@ class TenantManager:
         with self._lock:
             if tenant_id in self._tenants:
                 raise TenantExistsError(f"Tenant exists: {tenant_id}")
-            
+
             # Generate encryption key
             key_id = self._generate_encryption_key(tenant_id)
-            
+
             tenant = Tenant(
                 tenant_id=tenant_id,
                 name=name,
@@ -198,43 +195,43 @@ class TenantManager:
                 encryption_key_id=key_id,
                 status=TenantStatus.ACTIVE
             )
-            
+
             self._tenants[tenant_id] = tenant
             self._quotas[tenant_id] = TenantQuota(tenant_id=tenant_id)
             self._audit_domains[tenant_id] = AuditDomain(tenant_id=tenant_id)
-            
+
             logger.info(f"Tenant created: {tenant_id}")
-            
+
             return tenant
-    
+
     def get_tenant(self, tenant_id: str) -> Optional[Tenant]:
         """Get tenant"""
         return self._tenants.get(tenant_id)
-    
+
     def update_tenant(self, tenant_id: str, updates: Dict) -> Tenant:
         """Update tenant"""
         tenant = self._tenants.get(tenant_id)
-        
+
         if not tenant:
             raise TenantNotFoundError(f"Tenant not found: {tenant_id}")
-        
+
         for key, value in updates.items():
             if hasattr(tenant, key):
                 setattr(tenant, key, value)
-        
+
         return tenant
-    
+
     def delete_tenant(self, tenant_id: str, hard_delete: bool = False):
         """Delete tenant"""
         with self._lock:
             if tenant_id not in self._tenants:
                 raise TenantNotFoundError(f"Tenant not found: {tenant_id}")
-            
+
             if hard_delete:
                 # Remove all tenant data
                 del self._tenants[tenant_id]
                 del self._quotas[tenant_id]
-                
+
                 # Remove users
                 user_ids = list(self._tenant_users.get(tenant_id, []))
                 for user_id in user_ids:
@@ -242,13 +239,13 @@ class TenantManager:
             else:
                 # Soft delete
                 self._tenants[tenant_id].status = TenantStatus.DELETED
-            
+
             logger.info(f"Tenant deleted: {tenant_id}")
-    
+
     # =========================================================================
     # Organization Hierarchy
     # =========================================================================
-    
+
     def create_organization(
         self,
         org_id: str,
@@ -261,7 +258,7 @@ class TenantManager:
         with self._lock:
             if tenant_id not in self._tenants:
                 raise TenantNotFoundError(f"Tenant not found: {tenant_id}")
-            
+
             org = Organization(
                 org_id=org_id,
                 tenant_id=tenant_id,
@@ -269,21 +266,21 @@ class TenantManager:
                 parent_org_id=parent_org_id,
                 department=department
             )
-            
+
             self._organizations[org_id] = org
-            
+
             return org
-    
+
     def get_org_tree(self, tenant_id: str) -> Dict:
         """Get organization tree"""
         tenant_orgs = [
             org for org in self._organizations.values()
             if org.tenant_id == tenant_id
         ]
-        
+
         # Build tree
         root_orgs = [o for o in tenant_orgs if not o.parent_org_id]
-        
+
         def build_tree(org):
             children = [
                 o for o in tenant_orgs
@@ -295,13 +292,13 @@ class TenantManager:
                 "department": org.department,
                 "children": [build_tree(c) for c in children]
             }
-        
+
         return [build_tree(r) for r in root_orgs]
-    
+
     # =========================================================================
     # User Management
     # =========================================================================
-    
+
     def create_user(
         self,
         user_id: str,
@@ -315,10 +312,10 @@ class TenantManager:
         with self._lock:
             if tenant_id not in self._tenants:
                 raise TenantNotFoundError(f"Tenant not found: {tenant_id}")
-            
+
             if email in self._user_by_email:
                 raise UserExistsError(f"User exists: {email}")
-            
+
             user = User(
                 user_id=user_id,
                 tenant_id=tenant_id,
@@ -328,48 +325,48 @@ class TenantManager:
                 departments=departments or [],
                 permissions=self._role_permissions.get(role, set())
             )
-            
+
             self._users[user_id] = user
             self._user_by_email[email] = user
             self._tenant_users[tenant_id].add(user_id)
-            
-            logger.info(f"User created: {email} in tenant {tenant_id}")
-            
+
+            logger.info("User created: id=%s tenant=%s", user_id, tenant_id)
+
             return user
-    
+
     def get_user(self, user_id: str) -> Optional[User]:
         """Get user"""
         return self._users.get(user_id)
-    
+
     def get_user_by_email(self, email: str) -> Optional[User]:
         """Get user by email"""
         return self._user_by_email.get(email)
-    
+
     def update_user_role(self, user_id: str, role: UserRole) -> User:
         """Update user role"""
         user = self._users.get(user_id)
-        
+
         if not user:
             raise UserNotFoundError(f"User not found: {user_id}")
-        
+
         user.role = role
         user.permissions = self._role_permissions.get(role, set())
-        
+
         return user
-    
+
     def _delete_user(self, user_id: str):
         """Delete user"""
         user = self._users.get(user_id)
-        
+
         if user:
             del self._user_by_email[user.email]
             self._tenant_users[user.tenant_id].discard(user_id)
             del self._users[user_id]
-    
+
     # =========================================================================
     # Access Control
     # =========================================================================
-    
+
     def check_permission(
         self,
         user_id: str,
@@ -378,19 +375,19 @@ class TenantManager:
     ) -> bool:
         """Check if user has permission"""
         user = self._users.get(user_id)
-        
+
         if not user:
             return False
-        
+
         # Check tenant access
         if resource_tenant_id and user.tenant_id != resource_tenant_id:
             # Check if user has cross-tenant permission
             if Permission.ADMIN not in user.permissions:
                 return False
-        
+
         # Check role permission
         return permission in user.permissions
-    
+
     def check_resource_access(
         self,
         user_id: str,
@@ -400,114 +397,114 @@ class TenantManager:
     ) -> bool:
         """Check resource-level access"""
         user = self._users.get(user_id)
-        
+
         if not user:
             return False
-        
+
         # Must be same tenant
         if user.tenant_id != resource_tenant_id:
             return False
-        
+
         # Check permission
         return permission in user.permissions
-    
+
     def get_user_tenants(self, user_id: str) -> List[Tenant]:
         """Get all tenants user has access to"""
         user = self._users.get(user_id)
-        
+
         if not user:
             return []
-        
+
         # For now, return user's primary tenant
         return [self._tenants.get(user.tenant_id)] if user.tenant_id in self._tenants else []
-    
+
     # =========================================================================
     # Quota Management
     # =========================================================================
-    
+
     def check_quota(self, tenant_id: str, quota_type: str, amount: float = 1) -> bool:
         """Check if tenant has quota"""
         quota = self._quotas.get(tenant_id)
         tenant = self._tenants.get(tenant_id)
-        
+
         if not quota or not tenant:
             return False
-        
+
         # Reset daily quotas if needed
         now = time.time()
         if now - quota.last_reset > 86400:  # 24 hours
             quota.api_calls_today = 0
             quota.emails_today = 0
             quota.last_reset = now
-        
+
         tenant_quota = tenant.quota
-        
+
         if quota_type == "storage":
             return quota.storage_used_mb + amount <= tenant_quota.get("storage_mb", 10240)
         elif quota_type == "api_calls":
             return quota.api_calls_today + amount <= tenant_quota.get("api_calls_per_day", 100000)
         elif quota_type == "emails":
             return quota.emails_today + amount <= tenant_quota.get("emails_per_day", 10000)
-        
+
         return True
-    
+
     def consume_quota(self, tenant_id: str, quota_type: str, amount: float = 1):
         """Consume quota"""
         quota = self._quotas.get(tenant_id)
-        
+
         if not quota:
             return
-        
+
         if quota_type == "storage":
             quota.storage_used_mb += amount
         elif quota_type == "api_calls":
             quota.api_calls_today += int(amount)
         elif quota_type == "emails":
             quota.emails_today += int(amount)
-    
+
     # =========================================================================
     # Data Isolation
     # =========================================================================
-    
+
     def get_tenant_data_key(self, tenant_id: str, data_type: str) -> str:
         """Get tenant-specific data key"""
         tenant = self._tenants.get(tenant_id)
-        
+
         if not tenant:
             raise TenantNotFoundError(f"Tenant not found: {tenant_id}")
-        
+
         return f"{tenant_id}:{data_type}"
-    
+
     def encrypt_for_tenant(self, tenant_id: str, data: str) -> str:
         """Encrypt data for tenant"""
         tenant = self._tenants.get(tenant_id)
-        
+
         if not tenant:
             raise TenantNotFoundError(f"Tenant not found: {tenant_id}")
-        
+
         # Use tenant-specific encryption
         key = self._encryption_keys.get(tenant.encryption_key_id, {})
-        
+
         # Simplified - in production would use proper encryption
         import base64
         return base64.b64encode(f"{tenant_id}:{data}".encode()).decode()
-    
+
     def _generate_encryption_key(self, tenant_id: str) -> str:
         """Generate tenant encryption key"""
         key_id = f"key_{uuid.uuid4().hex[:16]}"
-        
+
         self._encryption_keys[key_id] = {
             "tenant_id": tenant_id,
             "created_at": time.time(),
             "algorithm": "AES-256-GCM"
         }
-        
+
         return key_id
-    
+
     # =========================================================================
     # Audit Logging
     # =========================================================================
-    
+
     def log_audit_event(
         self,
         tenant_id: str,
@@ -518,10 +515,10 @@ class TenantManager:
     ):
         """Log tenant audit event"""
         domain = self._audit_domains.get(tenant_id)
-        
+
         if not domain:
             return
-        
+
         event = {
             "timestamp": time.time(),
             "user_id": user_id,
@@ -529,24 +526,24 @@ class TenantManager:
             "resource": resource,
             "details": details or {}
         }
-        
+
         domain.events.append(event)
-        
+
         self._persist_audit_event(tenant_id, event)
-    
+
     def _persist_audit_event(self, tenant_id: str, event: Dict):
         """Persist audit event to storage"""
         try:
             import os
             audit_dir = os.path.join(os.getcwd(), "data", "audit", tenant_id)
             os.makedirs(audit_dir, exist_ok=True)
-            
+
             event_file = os.path.join(audit_dir, f"{int(event['timestamp'])}.json")
             with open(event_file, 'w') as f:
                 json.dump(event, f)
         except Exception as e:
             logger.debug(f"Audit persistence skipped: {e}")
-    
+
     def get_audit_log(
         self,
         tenant_id: str,
@@ -556,20 +553,20 @@ class TenantManager:
     ) -> List[Dict]:
         """Get tenant audit log"""
         domain = self._audit_domains.get(tenant_id)
-        
+
         if not domain:
             return []
-        
+
         events = domain.events
-        
+
         if user_id:
             events = [e for e in events if e.get("user_id") == user_id]
-        
+
         if action:
             events = [e for e in events if e.get("action") == action]
-        
+
         return events[-limit:]
-    
+
     def get_stats(self) -> Dict:
         """Get tenant statistics"""
         return {

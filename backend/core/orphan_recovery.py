@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from .control_plane import ControlPlane, get_control_plane
 from .job_coordinator import JobCoordinator, get_job_coordinator

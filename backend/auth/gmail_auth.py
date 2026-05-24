@@ -13,8 +13,8 @@ from urllib.parse import urlencode
 import requests
 
 from backend import config
-from backend.auth.token_crypto import TokenCipher
 from backend.auth.provider_config import ProviderConfigManager
+from backend.auth.token_crypto import TokenCipher
 from backend.db.database import Database
 
 logger = logging.getLogger(__name__)
@@ -148,7 +148,13 @@ class GmailOAuth:
                     "refresh_token": token_data.get("refresh_token"),
                     "expires_in": token_data.get("expires_in", config.TOKEN_EXPIRY_SECONDS),
                 }
-            logger.warning("Gmail token exchange failed: %s %s", response.status_code, response.text[:500])
+            # Provider error bodies can echo PII — log RFC 6749 `error` only.
+            _err = "unknown_error"
+            try:
+                _err = str((response.json() or {}).get("error", "unknown_error"))[:64]
+            except Exception:
+                pass
+            logger.warning("Gmail token exchange failed: status=%s error=%s", response.status_code, _err)
         except requests.RequestException as exc:
             logger.exception("Gmail token exchange error: %s", exc)
         return None
@@ -169,7 +175,12 @@ class GmailOAuth:
                     "access_token": token_data["access_token"],
                     "expires_in": token_data.get("expires_in", config.TOKEN_EXPIRY_SECONDS),
                 }
-            logger.warning("Gmail token refresh failed: %s %s", response.status_code, response.text[:500])
+            _err = "unknown_error"
+            try:
+                _err = str((response.json() or {}).get("error", "unknown_error"))[:64]
+            except Exception:
+                pass
+            logger.warning("Gmail token refresh failed: status=%s error=%s", response.status_code, _err)
         except requests.RequestException as exc:
             logger.exception("Gmail token refresh error: %s", exc)
         return None
@@ -183,7 +194,8 @@ class GmailOAuth:
             )
             if response.ok:
                 return response.json()
-            logger.warning("Gmail user profile failed: %s %s", response.status_code, response.text[:500])
+            # Profile responses contain user PII (email, name) — log status only.
+            logger.warning("Gmail user profile failed: status=%s", response.status_code)
         except requests.RequestException as exc:
             logger.exception("Gmail user profile error: %s", exc)
         return None

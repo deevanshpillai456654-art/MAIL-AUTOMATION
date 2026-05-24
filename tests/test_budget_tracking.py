@@ -84,6 +84,20 @@ def test_list_returns_created(tmp_path, monkeypatch):
     assert r.json()["total"] == 2
 
 
+def test_list_returns_budget_spend_fields(tmp_path, monkeypatch):
+    c = _client(tmp_path, monkeypatch)
+    d = _create(c, name="Budget A", amount=500.0)
+    _add_entry(c, d["id"], amount=125.0)
+
+    r = c.get("/api/v1/budgets")
+
+    assert r.status_code == 200
+    budget = r.json()["budgets"][0]
+    assert budget["spent"] == 125.0
+    assert budget["remaining"] == 375.0
+    assert budget["utilization_pct"] == 25.0
+
+
 def test_list_filter_by_status(tmp_path, monkeypatch):
     c = _client(tmp_path, monkeypatch)
     d1 = _create(c, name="A")

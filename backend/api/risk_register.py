@@ -267,8 +267,9 @@ async def list_risks(
             params + [limit, offset],
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "risks": [_enrich(dict(zip(_RISK_COLS, r))) for r in rows],
         "total": total, "limit": limit, "offset": offset,
@@ -295,8 +296,9 @@ async def create_risk(body: RiskCreate, _auth=Depends(require_local_auth)):
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     score = body.likelihood * body.impact
     return {
         "id": risk_id, "title": body.title, "status": "identified",
@@ -340,8 +342,9 @@ async def risk_stats(_auth=Depends(require_local_auth)):
             "FROM risks"
         ).fetchone()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total":      total,
         "open":       open_count,
@@ -369,8 +372,9 @@ async def get_risk(risk_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return _enrich(dict(zip(_RISK_COLS, row)))
 
 
@@ -399,8 +403,9 @@ async def patch_risk(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return _enrich(dict(zip(_RISK_COLS, row)))
 
 
@@ -415,8 +420,9 @@ async def delete_risk(risk_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Transitions ───────────────────────────────────────────────────────────────
@@ -447,8 +453,9 @@ async def transition_risk(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True, "status": body.status}
 
 
@@ -467,8 +474,9 @@ async def list_reviews(risk_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"reviews": [dict(zip(_REV_COLS, r)) for r in rows]}
 
 
@@ -496,8 +504,9 @@ async def add_review(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     score = body.likelihood * body.impact
     return {
         "id": rev_id, "risk_score": score,

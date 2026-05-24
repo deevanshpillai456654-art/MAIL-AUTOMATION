@@ -16,22 +16,17 @@ Architecture:
 - SQLite vector: Vector embeddings
 - Object Storage: Attachments
 """
+from __future__ import annotations  # defer type-hint evaluation; MigrationEngine is not yet implemented
 
-import os
 import asyncio
-import json
-import time
-import hashlib
 import logging
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, AsyncIterator
-from dataclasses import dataclass, field
-from enum import Enum
-from contextlib import asynccontextmanager
-from abc import ABC, abstractmethod
-from collections import defaultdict
-from pathlib import Path
+import os
+import time
 import uuid
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
 # PostgreSQL async driver
 try:
@@ -40,9 +35,9 @@ try:
 except ImportError:
     POSTGRES_AVAILABLE = False
 
-# Redis async driver
+# Redis async driver — the modern redis-py async API replaces the deprecated
+# standalone aioredis package.
 try:
-    import aioredis
     import redis.asyncio as aioredis
     REDIS_AVAILABLE = True
 except ImportError:
@@ -85,7 +80,7 @@ class DatabaseConfig:
     use_ssl: bool = True
     ssl_cert_path: Optional[str] = None
     ssl_key_path: Optional[str] = None
-    
+
     # Connection string alias
     @property
     def connection_string(self) -> str:
@@ -145,7 +140,7 @@ class PostgresConnectionPool:
     Enterprise PostgreSQL async connection pool.
     Supports read/write separation, connection pooling, and failover.
     """
-    
+
     def __init__(self, config: DatabaseConfig):
         self.config = config
         self._pool: Optional[asyncpg.Pool] = None
@@ -153,21 +148,21 @@ class PostgresConnectionPool:
         self._lock = asyncio.Lock()
         self._health_check_task: Optional[asyncio.Task] = None
         self._is_healthy = False
-        
+
         # Metrics
         self._query_count = 0
         self._error_count = 0
         self._total_query_time = 0.0
-    
+
     async def initialize(self):
         """Initialize connection pool"""
         async with self._lock:
             if self._pool is not None:
                 return
-            
+
             if not POSTGRES_AVAILABLE:
                 raise DatabaseError("asyncpg not installed")
-            
+
             # Create connection pool
             self._pool = await asyncpg.create_pool(
                 host=self.config.host,
@@ -180,7 +175,7 @@ class PostgresConnectionPool:
                 command_timeout=self.config.command_timeout,
                 timeout=self.config.pool_timeout,
             )
-            
+
             # Create read replica pool if configured
             read_host = os.environ.get("POSTGRES_READ_HOST")
             if read_host:
@@ -193,24 +188,24 @@ class PostgresConnectionPool:
                     min_size=2,
                     max_size=10,
                 )
-            
+
             self._is_healthy = True
-            
+
             # Start health check
             self._health_check_task = asyncio.create_task(self._health_check())
-            
+
             logger.info(f"PostgreSQL pool initialized: {self.config.host}:{self.config.port}")
-    
+
     async def _handle_pool_exception(self, exc: Exception):
         """Handle pool exception"""
         logger.error(f"Pool exception: {exc}")
         self._error_count += 1
-    
+
     async def health_check(self) -> bool:
         """Verify pool health"""
         if not self._pool:
             return False
-        
+
         try:
             async with self._pool.acquire() as conn:
                 await conn.fetchval("SELECT 1")
@@ -219,7 +214,7 @@ class PostgresConnectionPool:
             logger.error(f"Health check failed: {e}")
             self._is_healthy = False
             return False
-    
+
     async def _health_check(self):
         """Periodic health check"""
         while True:
@@ -230,15 +225,15 @@ class PostgresConnectionPool:
                 break
             except Exception as e:
                 logger.error(f"Health check error: {e}")
-    
+
     @asynccontextmanager
     async def connection(self, read_only: bool = False):
         """Acquire connection from pool"""
         pool = self._read_pool if read_only and self._read_pool else self._pool
-        
+
         if not pool:
             raise ConnectionError("Pool not initialized")
-        
+
         try:
             async with pool.acquire() as conn:
                 yield conn
@@ -248,11 +243,11 @@ class PostgresConnectionPool:
         except Exception as e:
             self._error_count += 1
             raise QueryError(f"Query failed: {e}")
-    
+
     async def execute(self, query: str, *args, read_only: bool = False) -> QueryResult:
         """Execute query and return results"""
         start_time = time.time()
-        
+
         async with self.connection(read_only=read_only) as conn:
             if query.strip().upper().startswith("SELECT"):
                 rows = await conn.fetch(query, *args) if args else await conn.fetch(query)
@@ -270,42 +265,42 @@ class PostgresConnectionPool:
                     last_oid=result,
                     execution_time_ms=(time.time() - start_time) * 1000
                 )
-        
+
         self._query_count += 1
         self._total_query_time += (time.time() - start_time) * 1000
-        
+
         return result
-    
+
     async def execute_many(self, query: str, args_list: List[tuple]) -> int:
         """Execute many queries"""
         async with self.connection() as conn:
             await conn.executemany(query, args_list)
         return len(args_list)
-    
+
     async def fetch(self, query: str, *args) -> List[Dict]:
         """Fetch rows"""
         async with self.connection(read_only=True) as conn:
             rows = await conn.fetch(query, *args) if args else await conn.fetch(query)
             return [dict(r) for r in rows]
-    
+
     async def fetchval(self, query: str, *args) -> Any:
         """Fetch single value"""
         async with self.connection(read_only=True) as conn:
             return await conn.fetchval(query, *args) if args else await conn.fetchval(query)
-    
+
     async def close(self):
         """Close connection pool"""
         if self._health_check_task:
             self._health_check_task.cancel()
-        
+
         if self._pool:
             await self._pool.close()
-        
+
         if self._read_pool:
             await self._read_pool.close()
-        
+
         logger.info("PostgreSQL pool closed")
-    
+
     def get_stats(self) -> Dict:
         """Get pool statistics"""
         return {
@@ -326,18 +321,18 @@ class RedisManager:
     """
     Enterprise Redis manager for caching, queuing, locks, and pub/sub.
     """
-    
+
     def __init__(self, config: DatabaseConfig):
         self.config = config
         self._client: Optional[aioredis.Redis] = None
         self._pubsub: Optional[aioredis.client.PubSub] = None
         self._lock = asyncio.Lock()
-    
+
     async def initialize(self):
         """Initialize Redis connection"""
         if not REDIS_AVAILABLE:
             raise DatabaseError("redis.asyncio not installed")
-        
+
         self._client = aioredis.Redis(
             host=self.config.host,
             port=self.config.port,
@@ -346,88 +341,88 @@ class RedisManager:
             decode_responses=False,
             encoding="utf-8",
         )
-        
+
         # Test connection
         await self._client.ping()
-        
+
         logger.info(f"Redis initialized: {self.config.host}:{self.config.port}")
-    
+
     # Cache operations
     async def get(self, key: str) -> Optional[str]:
         """Get value"""
         return await self._client.get(key)
-    
+
     async def set(self, key: str, value: str, expire: int = None, nx: bool = False) -> bool:
         """Set value"""
         return await self._client.set(key, value, ex=expire, nx=nx)
-    
+
     async def delete(self, *keys) -> int:
         """Delete keys"""
         return await self._client.delete(*keys)
-    
+
     async def exists(self, *keys) -> int:
         """Check if keys exist"""
         return await self._client.exists(*keys)
-    
+
     async def expire(self, key: str, seconds: int) -> bool:
         """Set expiration"""
         return await self._client.expire(key, seconds)
-    
+
     async def incr(self, key: str, amount: int = 1) -> int:
         """Increment counter"""
         return await self._client.incrby(key, amount)
-    
+
     # Hash operations
     async def hget(self, key: str, field: str) -> Optional[str]:
         """Get hash field"""
         return await self._client.hget(key, field)
-    
+
     async def hset(self, key: str, mapping: Dict) -> int:
         """Set hash fields"""
         return await self._client.hset(key, mapping)
-    
+
     async def hgetall(self, key: str) -> Dict:
         """Get all hash fields"""
         return await self._client.hgetall(key)
-    
+
     # List operations
     async def lpush(self, key: str, *values) -> int:
         """Push to list head"""
         return await self._client.lpush(key, *values)
-    
+
     async def rpop(self, key: str) -> Optional[str]:
         """Pop from list tail"""
         return await self._client.rpop(key)
-    
+
     async def lrange(self, key: str, start: int, end: int) -> List:
         """Get list range"""
         return await self._client.lrange(key, start, end)
-    
+
     # Stream operations
     async def xadd(self, stream: str, mapping: Dict, maxlen: int = None) -> str:
         """Add to stream"""
         return await self._client.xadd(stream, mapping, maxlen=maxlen)
-    
+
     async def xread(self, streams: Dict[str, str], count: int = 1, block: int = None) -> List:
         """Read from streams"""
         if block:
             return await self._client.xread(streams, count=count, block=block)
         return await self._client.xread(streams, count=count)
-    
+
     async def xgroup_create(self, stream: str, group: str, start: str = "0"):
         """Create consumer group"""
         return await self._client.xgroup_create(stream, group, start)
-    
+
     async def xgroup_read(self, stream: str, group: str, consumer: str, count: int = 1) -> List:
         """Read from consumer group"""
         return await self._client.xreadgroup(group, consumer, {stream: "0"}, count=count)
-    
+
     # Lock operations
     async def lock_acquire(self, name: str, timeout: int = 30, worker_id: str = None) -> bool:
         """Acquire distributed lock"""
         worker_id = worker_id or str(uuid.uuid4())
         return await self._client.set(f"lock:{name}", worker_id, nx=True, ex=timeout)
-    
+
     async def lock_release(self, name: str, worker_id: str) -> bool:
         """Release distributed lock"""
         lock_key = f"lock:{name}"
@@ -436,24 +431,24 @@ class RedisManager:
             await self._client.delete(lock_key)
             return True
         return False
-    
+
     # Pub/Sub
     async def publish(self, channel: str, message: str) -> int:
         """Publish to channel"""
         return await self._client.publish(channel, message)
-    
+
     async def subscribe(self, *channels: str):
         """Subscribe to channels"""
         pubsub = self._client.pubsub()
         await pubsub.subscribe(*channels)
         return pubsub
-    
+
     async def close(self):
         """Close connection"""
         if self._client:
             await self._client.close()
         logger.info("Redis closed")
-    
+
     def get_stats(self) -> Dict:
         """Get Redis statistics"""
         return {
@@ -546,24 +541,24 @@ class DistributedDatabaseManager:
     Unified distributed database manager.
     Provides unified interface to PostgreSQL, Redis, local SQLite vector storage, and object storage.
     """
-    
+
     def __init__(self):
         self.config = self._load_config()
-        
+
         # Initialize managers
         self.postgres: Optional[PostgresConnectionPool] = None
         self.redis: Optional[RedisManager] = None
         self.sqlite_vector: Optional[SQLiteVectorManager] = None
-        self.migration_engine: Optional[MigrationEngine] = None
-        
+        self.migration_engine: Optional["MigrationEngine"] = None  # noqa: F821 — class TBD
+
         # Connection state
         self._initialized = False
         self._lock = asyncio.Lock()
-    
+
     def _load_config(self) -> Dict[DatabaseType, DatabaseConfig]:
         """Load database configurations"""
         configs = {}
-        
+
         # PostgreSQL config
         configs[DatabaseType.POSTGRESQL] = DatabaseConfig(
             db_type=DatabaseType.POSTGRESQL,
@@ -574,7 +569,7 @@ class DistributedDatabaseManager:
             database=os.environ.get("POSTGRES_DB", "aiemailorganizer"),
             pool_size=int(os.environ.get("POSTGRES_POOL", "20")),
         )
-        
+
         # Redis config
         configs[DatabaseType.REDIS] = DatabaseConfig(
             db_type=DatabaseType.REDIS,
@@ -582,22 +577,22 @@ class DistributedDatabaseManager:
             port=int(os.environ.get("REDIS_PORT", "6379")),
             password=os.environ.get("REDIS_PASSWORD", ""),
         )
-        
+
         # SQLite vector config
         configs[DatabaseType.SQLITE_VECTOR] = DatabaseConfig(
             db_type=DatabaseType.SQLITE_VECTOR,
             host=os.environ.get("SQLITE_VECTOR_HOST", "localhost"),
             port=int(os.environ.get("SQLITE_VECTOR_PORT", "0")),
         )
-        
+
         return configs
-    
+
     async def initialize(self):
         """Initialize all database connections"""
         async with self._lock:
             if self._initialized:
                 return
-            
+
             # Initialize PostgreSQL
             try:
                 self.postgres = PostgresConnectionPool(
@@ -608,7 +603,7 @@ class DistributedDatabaseManager:
             except Exception as e:
                 logger.warning(f"PostgreSQL unavailable: {e}")
                 self.postgres = None
-            
+
             # Initialize Redis
             try:
                 self.redis = RedisManager(self.config[DatabaseType.REDIS])
@@ -617,7 +612,7 @@ class DistributedDatabaseManager:
             except Exception as e:
                 logger.warning(f"Redis unavailable: {e}")
                 self.redis = None
-            
+
             # Initialize SQLite vector
             try:
                 self.sqlite_vector = SQLiteVectorManager(self.config[DatabaseType.SQLITE_VECTOR])
@@ -626,25 +621,25 @@ class DistributedDatabaseManager:
             except Exception as e:
                 logger.warning(f"SQLite vector manager unavailable: {e}")
                 self.sqlite_vector = None
-            
-            # Initialize migration engine
+
+            # Initialize migration engine — MigrationEngine is not yet
+            # implemented in this build (local-first deploys don't need it).
+            # Leaving this gated path inert until the class is added.
             if self.postgres:
-                self.migration_engine = MigrationEngine(self.postgres)
-                await self.migration_engine.initialize_schema()
-                await self.migration_engine.migrate_to_latest()
-            
+                logger.warning("Postgres migrations skipped: MigrationEngine not implemented")
+
             self._initialized = True
             logger.info("DistributedDatabaseManager initialized")
-    
+
     async def close(self):
         """Close all connections"""
         if self.postgres:
             await self.postgres.close()
         if self.redis:
             await self.redis.close()
-        
+
         self._initialized = False
-    
+
     def get_stats(self) -> Dict:
         """Get all database stats"""
         return {
@@ -659,9 +654,9 @@ class DistributedDatabaseManager:
 # Register Default Migrations
 # =============================================================================
 
-def register_core_migrations(engine: MigrationEngine):
+def register_core_migrations(engine: "MigrationEngine"):  # noqa: F821 — class TBD
     """Register core schema migrations"""
-    
+
     # Version 1: Initial schema
     engine.register_migration(
         version=1,
@@ -703,7 +698,7 @@ def register_core_migrations(engine: MigrationEngine):
             DROP TABLE IF EXISTS accounts;
         """
     )
-    
+
     # Version 2: Add rules table
     engine.register_migration(
         version=2,
@@ -737,7 +732,7 @@ def register_core_migrations(engine: MigrationEngine):
             DROP TABLE IF EXISTS rules;
         """
     )
-    
+
     # Version 3: Add sync checkpoints
     engine.register_migration(
         version=3,
@@ -797,7 +792,6 @@ __all__ = [
     "PostgresConnectionPool",
     "RedisManager",
     "SQLiteVectorManager",
-    "MigrationEngine",
     "DistributedDatabaseManager",
     "get_db_manager"
 ]

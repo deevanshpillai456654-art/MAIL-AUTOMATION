@@ -1,9 +1,11 @@
 """Mailbox health scoring and account-safe diagnostics."""
 from __future__ import annotations
+
 from typing import Dict, List
-from backend.db.database import Database
-from backend.core.provider_reliability_engine import ProviderReliabilityEngine
+
 from backend.auth.provider_auth_health import ProviderAuthHealth
+from backend.core.provider_reliability_engine import ProviderReliabilityEngine
+from backend.db.database import Database
 
 
 class MailboxHealthEngine:

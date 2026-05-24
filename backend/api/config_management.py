@@ -225,8 +225,9 @@ async def list_configs(
         ).fetchall()
         result = [_enrich(dict(zip(_CFG_COLS, r)), con) for r in rows]
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"configs": result, "total": total, "limit": limit, "offset": offset}
 
 
@@ -254,8 +255,9 @@ async def create_config(body: ConfigCreate, _auth=Depends(require_local_auth)):
         raise HTTPException(
             409, f"Config key '{body.key}' already exists in environment '{body.environment}'"
         )
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": cfg_id, "key": body.key, "environment": body.environment, "status": "active"}
 
 
@@ -284,8 +286,9 @@ async def config_stats(_auth=Depends(require_local_auth)):
             "SELECT COUNT(*) FROM config_versions"
         ).fetchone()[0]
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total":          total,
         "active":         active,
@@ -307,8 +310,9 @@ async def get_config(config_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return d
 
 
@@ -342,8 +346,9 @@ async def patch_config(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return d
 
 
@@ -358,8 +363,9 @@ async def delete_config(config_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Transitions ───────────────────────────────────────────────────────────────
@@ -390,8 +396,9 @@ async def transition_config(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True, "status": body.status}
 
 
@@ -418,8 +425,9 @@ async def list_versions(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "versions": [dict(zip(_VER_COLS, r)) for r in rows],
         "total": total,
@@ -458,8 +466,9 @@ async def promote_config(
         )
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "id": new_id,
         "key": src["key"],

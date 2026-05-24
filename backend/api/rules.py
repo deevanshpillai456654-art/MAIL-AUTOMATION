@@ -7,31 +7,29 @@ missing labels/folders, and attempts provider writes when credentials support it
 """
 
 import json
-import sys
-from pathlib import Path
-
-from fastapi import APIRouter, Depends, HTTPException, Body
-from pydantic import BaseModel
-from typing import Optional, List, Any
 from datetime import datetime
+from typing import Any, List, Optional
 
+from fastapi import APIRouter, Body, Depends, HTTPException
+from pydantic import BaseModel
+
+from backend import config
 from backend.auth.local_auth import require_local_auth_or_localhost
-
+from backend.core.email_forwarding import UniversalEmailForwarder, normalize_forward_payload
+from backend.db.database import Database
+from backend.rules.action_executor import RuleActionExecutor
 from backend.rules.engine import (
-    Rule,
-    RuleEngine,
     DEFAULT_RULES,
     RULE_PRESET_PACKS,
-    create_rule_from_dict,
+    Rule,
+    RuleEngine,
     build_rule_engine,
     normalize_actions,
-    parse_condition as parse_rule_condition,
     rule_to_public_dict,
 )
-from backend.rules.action_executor import RuleActionExecutor
-from backend.core.email_forwarding import normalize_forward_payload, UniversalEmailForwarder
-from backend.db.database import Database
-from backend import config
+from backend.rules.engine import (
+    parse_condition as parse_rule_condition,
+)
 
 router = APIRouter(dependencies=[Depends(require_local_auth_or_localhost)])
 db = Database(config.DB_PATH)
@@ -113,6 +111,19 @@ class RuleRunInput(BaseModel):
     limit: int = 100
     category: Optional[str] = None
     provider_write: bool = False
+
+
+class RuleSimulateDraftInput(BaseModel):
+    name: str
+    condition: dict
+    actions: List[dict] = []
+    mailbox_scope: str = "all"
+    mailbox_id: Optional[int] = None
+    scan_scope: str = "entire_email_with_attachments"
+    match_mode: str = "any"
+    limit: int = 100
+    category: Optional[str] = None
+    message_ids: Optional[List[int]] = None
 
 
 class ForwardingRuleInput(BaseModel):
@@ -278,6 +289,34 @@ async def create_folder(body: BucketCreateRequest):
 async def get_rule_audit(limit: int = 100):
     rows = db.fetch_all("SELECT * FROM rule_action_audit ORDER BY created_at DESC, id DESC LIMIT ?", (min(limit, 1000),))
     return {"actions": rows, "count": len(rows)}
+
+
+@router.post("/rules/simulate-draft")
+async def simulate_rule_draft(payload: RuleSimulateDraftInput):
+    actions = normalize_actions(payload.actions)
+    rule_dict = {
+        "id": None,
+        "name": payload.name,
+        "condition": payload.condition,
+        "action": actions,
+        "is_active": 1,
+        "mailbox_scope": payload.mailbox_scope or "all",
+        "mailbox_id": payload.mailbox_id,
+        "scan_scope": payload.scan_scope or "entire_email_with_attachments",
+        "match_mode": payload.match_mode or "any",
+        "priority": "Medium",
+        "stop_processing": False,
+        "is_sample": False,
+        "description": "",
+    }
+    result = RuleActionExecutor(db, enable_provider_write=False).simulate_draft_rule(
+        rule_dict=rule_dict,
+        limit=payload.limit,
+        mailbox_id=payload.mailbox_id,
+        category=payload.category,
+        message_ids=payload.message_ids,
+    )
+    return result
 
 
 @router.post("/rules/{rule_id:int}/simulate")

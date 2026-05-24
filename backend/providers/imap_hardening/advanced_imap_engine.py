@@ -13,12 +13,10 @@ Comprehensive IMAP hardening with:
 """
 
 import hashlib
-import imaplib
 import json
 import logging
 import random
 import sqlite3
-import threading
 import time
 from collections import deque
 from contextlib import contextmanager

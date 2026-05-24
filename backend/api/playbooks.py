@@ -45,15 +45,15 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
-from backend.security.ssrf import validate_outbound_url
+from pydantic import BaseModel, Field
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
 from backend.core.runtime_control import get_runtime_control
+from backend.security.ssrf import validate_outbound_url
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/playbooks", tags=["playbooks"])
@@ -117,6 +117,14 @@ def _init_db() -> None:
     con.close()
 
 
+# Ensure schema exists at import — routers can be mounted directly without
+# going through ensure_playbooks_running() (e.g. test clients).
+try:
+    _init_db()
+except Exception:  # pragma: no cover
+    logger.warning("Playbooks: schema init at import failed", exc_info=True)
+
+
 def _conn() -> sqlite3.Connection:
     from backend.utils.sqlite_connection_guard import connect_with_defaults
     return connect_with_defaults(_DB_PATH)
@@ -142,6 +150,11 @@ def _render_dict(d: dict, context: dict) -> dict:
 # ── Step executor ─────────────────────────────────────────────────────────────
 
 async def _http_post(url: str, payload: dict) -> bool:
+    # Reject non-http(s) schemes to prevent file:/ and gopher:/ SSRF via webhook config.
+    from urllib.parse import urlparse
+    scheme = urlparse(url).scheme.lower()
+    if scheme not in ("http", "https"):
+        raise RuntimeError(f"webhook url scheme {scheme!r} not allowed")
     try:
         import httpx
         async with httpx.AsyncClient(timeout=15) as client:
@@ -154,7 +167,7 @@ async def _http_post(url: str, payload: dict) -> bool:
             url, data=body,
             headers={"Content-Type": "application/json"}, method="POST",
         )
-        with urllib.request.urlopen(req, timeout=15) as r:
+        with urllib.request.urlopen(req, timeout=15) as r:  # nosec B310 — scheme already validated
             return r.status < 400
     except Exception as exc:
         raise RuntimeError(f"HTTP POST failed: {exc}") from exc
@@ -391,19 +404,19 @@ def ensure_playbooks_running() -> None:
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 class PlaybookCreate(BaseModel):
-    name:           str
-    description:    str  = ""
-    trigger_type:   str  = "manual"
-    trigger_filter: str  = ""
+    name:           str = Field(min_length=1, max_length=200)
+    description:    str = Field(default="", max_length=10000)
+    trigger_type:   str = Field(default="manual", max_length=64)
+    trigger_filter: str = Field(default="", max_length=1000)
     steps:          list = []
     enabled:        bool = True
 
 
 class PlaybookPatch(BaseModel):
-    name:           Optional[str]  = None
-    description:    Optional[str]  = None
-    trigger_type:   Optional[str]  = None
-    trigger_filter: Optional[str]  = None
+    name:           Optional[str]  = Field(default=None, max_length=200)
+    description:    Optional[str]  = Field(default=None, max_length=10000)
+    trigger_type:   Optional[str]  = Field(default=None, max_length=64)
+    trigger_filter: Optional[str]  = Field(default=None, max_length=1000)
     steps:          Optional[list] = None
     enabled:        Optional[bool] = None
 
@@ -449,8 +462,9 @@ async def create_playbook(body: PlaybookCreate, _auth=Depends(require_local_auth
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if body.enabled and body.trigger_type in ("event", "incident"):
         _subscribe_playbook({
             "id": pb_id, "name": body.name,
@@ -495,8 +509,9 @@ async def get_run(run_id: str, _auth=Depends(require_local_auth)):
             f"SELECT {','.join(_RUN_COLS)} FROM playbook_runs WHERE id=?", (run_id,)
         ).fetchone()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if not row:
         raise HTTPException(404, "Run not found")
     r = dict(zip(_RUN_COLS, row))
@@ -519,8 +534,9 @@ async def get_playbook(playbook_id: str, _auth=Depends(require_local_auth)):
             f"SELECT {','.join(_PB_COLS)} FROM playbooks WHERE id=?", (playbook_id,)
         ).fetchone()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if not row:
         raise HTTPException(404, "Playbook not found")
     pb = dict(zip(_PB_COLS, row))
@@ -561,8 +577,9 @@ async def patch_playbook(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True}
 
 
@@ -574,8 +591,9 @@ async def delete_playbook(playbook_id: str, _auth=Depends(require_local_auth)):
         con.execute("DELETE FROM playbooks WHERE id=?", (playbook_id,))
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 @router.post("/{playbook_id}/run", summary="Trigger playbook manually")
@@ -586,8 +604,9 @@ async def trigger_playbook(playbook_id: str, _auth=Depends(require_local_auth)):
             "SELECT id, name FROM playbooks WHERE id=?", (playbook_id,)
         ).fetchone()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if not row:
         raise HTTPException(404, "Playbook not found")
     ctx = {"_trigger_type": "manual"}

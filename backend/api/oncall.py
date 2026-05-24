@@ -42,12 +42,12 @@ import logging
 import sqlite3
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
@@ -142,6 +142,14 @@ def _init_db() -> None:
     """)
     con.commit()
     con.close()
+
+
+# Ensure schema exists at import — routers can be mounted directly without
+# going through the OncallManager startup hook (e.g. test clients).
+try:
+    _init_db()
+except Exception:  # pragma: no cover
+    logger.warning("Oncall: schema init at import failed", exc_info=True)
 
 
 def _conn() -> sqlite3.Connection:
@@ -341,35 +349,35 @@ def get_checker() -> Optional[OncallChecker]:
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 class ScheduleCreate(BaseModel):
-    name:        str
-    description: str  = ""
-    timezone:    str  = "UTC"
+    name:        str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=10000)
+    timezone:    str = Field(default="UTC", max_length=64)
     enabled:     bool = True
 
 
 class SchedulePatch(BaseModel):
-    name:        Optional[str]  = None
-    description: Optional[str]  = None
-    timezone:    Optional[str]  = None
+    name:        Optional[str]  = Field(default=None, max_length=200)
+    description: Optional[str]  = Field(default=None, max_length=10000)
+    timezone:    Optional[str]  = Field(default=None, max_length=64)
     enabled:     Optional[bool] = None
 
 
 class SlotCreate(BaseModel):
-    schedule_id:  str
-    member_name:  str
-    member_email: str  = ""
-    starts_at:    str
-    ends_at:      str
+    schedule_id:  str = Field(min_length=1, max_length=64)
+    member_name:  str = Field(min_length=1, max_length=200)
+    member_email: str = Field(default="", max_length=320)  # RFC 5321 cap
+    starts_at:    str = Field(min_length=1, max_length=64)
+    ends_at:      str = Field(min_length=1, max_length=64)
     is_override:  bool = False
-    note:         str  = ""
+    note:         str = Field(default="", max_length=10000)
 
 
 class EscalationCreate(BaseModel):
-    schedule_id:   str
+    schedule_id:   str = Field(min_length=1, max_length=64)
     level:         int
-    contact_name:  str
-    contact_email: str = ""
-    notify_via:    str = "event"
+    contact_name:  str = Field(min_length=1, max_length=200)
+    contact_email: str = Field(default="", max_length=320)
+    notify_via:    str = Field(default="event", max_length=32)
     delay_minutes: int = 15
 
 
@@ -409,8 +417,9 @@ async def create_schedule(body: ScheduleCreate, _auth=Depends(require_local_auth
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": sch_id, "name": body.name}
 
 
@@ -455,8 +464,9 @@ async def get_schedule(schedule_id: str, _auth=Depends(require_local_auth)):
         return schedule
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 @router.patch("/schedules/{schedule_id}", summary="Update schedule")
@@ -486,8 +496,9 @@ async def patch_schedule(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True}
 
 
@@ -501,8 +512,9 @@ async def delete_schedule(schedule_id: str, _auth=Depends(require_local_auth)):
         con.execute("DELETE FROM oncall_schedules WHERE id=?", (schedule_id,))
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Slot routes ───────────────────────────────────────────────────────────────
@@ -537,8 +549,9 @@ async def create_slot(body: SlotCreate, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": slot_id, "member_name": body.member_name}
 
 
@@ -549,8 +562,9 @@ async def delete_slot(slot_id: str, _auth=Depends(require_local_auth)):
         con.execute("DELETE FROM oncall_slots WHERE id=?", (slot_id,))
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Escalation routes ─────────────────────────────────────────────────────────
@@ -582,8 +596,9 @@ async def create_escalation(body: EscalationCreate, _auth=Depends(require_local_
         raise
     except sqlite3.IntegrityError:
         raise HTTPException(409, f"Level {body.level} already exists for this schedule")
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": esc_id, "level": body.level, "contact_name": body.contact_name}
 
 
@@ -594,5 +609,6 @@ async def delete_escalation(esc_id: str, _auth=Depends(require_local_auth)):
         con.execute("DELETE FROM oncall_escalations WHERE id=?", (esc_id,))
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")

@@ -31,12 +31,12 @@ import asyncio
 import logging
 import sqlite3
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
@@ -102,6 +102,14 @@ def _init_db() -> None:
     """)
     con.commit()
     con.close()
+
+
+# Ensure schema exists at import — routers can be mounted directly without
+# going through the SLA startup hook (e.g. test clients).
+try:
+    _init_db()
+except Exception:  # pragma: no cover
+    logger.warning("SLA: schema init at import failed", exc_info=True)
 
 
 def _conn() -> sqlite3.Connection:
@@ -302,16 +310,16 @@ _VALID_SEVERITIES = {"", "info", "low", "medium", "high", "critical"}
 
 
 class PolicyCreate(BaseModel):
-    name:             str
-    severity:         str  = ""
-    response_minutes: int  = 60
-    resolve_minutes:  int  = 240
+    name:             str = Field(min_length=1, max_length=200)
+    severity:         str = Field(default="", max_length=32)
+    response_minutes: int = 60
+    resolve_minutes:  int = 240
     enabled:          bool = True
 
 
 class PolicyPatch(BaseModel):
-    name:             Optional[str]  = None
-    severity:         Optional[str]  = None
+    name:             Optional[str]  = Field(default=None, max_length=200)
+    severity:         Optional[str]  = Field(default=None, max_length=32)
     response_minutes: Optional[int]  = None
     resolve_minutes:  Optional[int]  = None
     enabled:          Optional[bool] = None
@@ -345,8 +353,9 @@ async def policy_stats(_auth=Depends(require_local_auth)):
             "open_breaches": open_breaches,
             "breaches_by_type": by_type,
         }
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 @router.get("/status", summary="Current SLA compliance status")
@@ -374,8 +383,9 @@ async def sla_status(_auth=Depends(require_local_auth)):
                 _checker._task is not None and not _checker._task.done()
             ),
         }
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 @router.get("/breaches", summary="List SLA breaches")
@@ -403,8 +413,9 @@ async def list_breaches(
             params + [limit, offset],
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "breaches": [dict(zip(_BREACH_COLS, r)) for r in rows],
         "total":    total,
@@ -450,8 +461,9 @@ async def create_policy(body: PolicyCreate, _auth=Depends(require_local_auth)):
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": pol_id, "name": body.name}
 
 
@@ -463,8 +475,9 @@ async def get_policy(policy_id: str, _auth=Depends(require_local_auth)):
             f"SELECT {','.join(_POLICY_COLS)} FROM sla_policies WHERE id=?", (policy_id,)
         ).fetchone()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if not row:
         raise HTTPException(404, "Policy not found")
     pol = dict(zip(_POLICY_COLS, row))
@@ -517,8 +530,9 @@ async def patch_policy(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True}
 
 
@@ -530,5 +544,6 @@ async def delete_policy(policy_id: str, _auth=Depends(require_local_auth)):
         con.execute("DELETE FROM sla_policies WHERE id=?", (policy_id,))
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")

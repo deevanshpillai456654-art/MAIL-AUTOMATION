@@ -1,9 +1,11 @@
 """Mailbox health monitor entry point."""
 from __future__ import annotations
+
 from typing import Dict, List
-from backend.db.database import Database
+
 from backend.core.mailbox_health_engine import MailboxHealthEngine
 from backend.core.provider_failover_manager import ProviderFailoverManager
+from backend.db.database import Database
 
 
 class MailboxHealthMonitor:

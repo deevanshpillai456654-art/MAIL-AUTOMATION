@@ -6,9 +6,9 @@ from pydantic import BaseModel
 
 from backend.auth.local_auth import require_local_auth
 from backend.core.runtime_control import (
-    get_runtime_control,
     apply_runtime_override,
     clear_runtime_override,
+    get_runtime_control,
 )
 
 router = APIRouter(prefix="/runtime", tags=["runtime-control"])

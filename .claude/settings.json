@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python _audit_dead_core.py)",
+      "Bash(python -m pytest --timeout=60 -q --no-header)",
+      "Bash(python -m pytest tests/test_risk_register.py --collect-only -q)",
+      "Bash(pip install *)"
+    ]
+  }
+}

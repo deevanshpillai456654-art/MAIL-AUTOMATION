@@ -352,9 +352,10 @@ For issues, check logs in the `logs` folder.
         print("  1. Double-click start.bat")
         print("  2. Or run: python service/main.py")
         print("\nAccess:")
-        print("  - API: http://127.0.0.1:4597")
-        print("  - Dashboard: http://127.0.0.1:4597/dashboard")
-        print("  - Admin: http://127.0.0.1:4597/admin")
+        _port = os.environ.get("API_PORT", "4597")
+        print(f"  - API: http://127.0.0.1:{_port}")
+        print(f"  - Dashboard: http://127.0.0.1:{_port}/dashboard")
+        print(f"  - Admin: http://127.0.0.1:{_port}/admin")
         print("=" * 50)
         
     def build(self):

@@ -37,9 +37,9 @@ import json
 import logging
 import sqlite3
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -270,8 +270,8 @@ async def _post_webhook(url: str, payload: dict) -> bool:
         logger.warning("ReportScheduler: blocked webhook delivery to %s (%s)", url, decision.reason)
         return False
     try:
-        import hmac as hmaclib
         import hashlib
+        import hmac as hmaclib
         body = json.dumps(payload).encode()
         sig = "sha256=" + hmaclib.new(b"", body, hashlib.sha256).hexdigest()
         try:
@@ -291,7 +291,7 @@ async def _post_webhook(url: str, payload: dict) -> bool:
                          "X-Intemo-Signature": sig},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with urllib.request.urlopen(req, timeout=30) as r:  # nosec B310 — validate_outbound_url enforces http/https above
                 return r.status < 400
     except Exception as exc:
         logger.warning("ScheduledReports: webhook delivery failed: %s", exc)
@@ -500,8 +500,9 @@ async def create_config(body: ConfigCreate, _auth=Depends(require_local_auth)):
         )
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": cfg_id, "name": body.name, "next_run": next_run}
 
 
@@ -543,8 +544,9 @@ async def get_run(run_id: str, _auth=Depends(require_local_auth)):
             f"SELECT {','.join(_RUN_COLS)} FROM report_runs WHERE id=?", (run_id,)
         ).fetchone()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if not row:
         raise HTTPException(404, "Run not found")
     run = dict(zip(_RUN_COLS, row))
@@ -566,8 +568,9 @@ async def get_config(config_id: str, _auth=Depends(require_local_auth)):
             f"SELECT {','.join(_CONFIG_COLS)} FROM report_configs WHERE id=?", (config_id,)
         ).fetchone()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if not row:
         raise HTTPException(404, "Config not found")
     return dict(zip(_CONFIG_COLS, row))
@@ -613,8 +616,9 @@ async def patch_config(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True}
 
 
@@ -626,8 +630,9 @@ async def delete_config(config_id: str, _auth=Depends(require_local_auth)):
         con.execute("DELETE FROM report_configs WHERE id=?", (config_id,))
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 @router.post("/{config_id}/run", summary="Trigger an immediate report run")
@@ -638,8 +643,9 @@ async def trigger_run(config_id: str, _auth=Depends(require_local_auth)):
             f"SELECT {','.join(_CONFIG_COLS)} FROM report_configs WHERE id=?", (config_id,)
         ).fetchone()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if not row:
         raise HTTPException(404, "Config not found")
     config = dict(zip(_CONFIG_COLS, row))

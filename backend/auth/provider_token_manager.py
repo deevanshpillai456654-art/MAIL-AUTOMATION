@@ -1,17 +1,18 @@
 """Provider token governance with encrypted storage and scoped refresh."""
 from __future__ import annotations
+
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
-import logging
 
 from backend import config
-from backend.auth.token_crypto import TokenCipher
 from backend.auth.gmail_auth import GmailOAuth
 from backend.auth.outlook_auth import OutlookOAuth
-from backend.auth.universal_oauth import UniversalOAuth
 from backend.auth.provider_config import oauth_group_for
-from backend.db.database import Database
+from backend.auth.token_crypto import TokenCipher
+from backend.auth.universal_oauth import UniversalOAuth
 from backend.core.provider_capability_registry import ProviderCapabilityRegistry
+from backend.db.database import Database
 
 logger = logging.getLogger(__name__)
 

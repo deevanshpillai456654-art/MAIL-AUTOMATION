@@ -2,14 +2,13 @@
 Cache management for AI Email Organizer
 """
 
+import hashlib
+import json
 import logging
 import os
-import json
 import time
-import hashlib
 from pathlib import Path
-from typing import Optional, Any, Dict
-from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
 
 _log = logging.getLogger(__name__)
 

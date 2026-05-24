@@ -161,8 +161,9 @@ _register(
 # ── action: run DB maintenance ────────────────────────────────────────────────
 
 def _run_db_maintenance(params: Dict[str, Any]) -> ActionResult:
-    from backend.core.db_maintenance import prune_job_queue, prune_app_db, run_wal_checkpoint
     import pathlib
+
+    from backend.core.db_maintenance import prune_app_db, prune_job_queue, run_wal_checkpoint
     job_db = pathlib.Path(os.path.dirname(config.DB_PATH)) / "job_queue.db"
     try:
         pruned_jobs = prune_job_queue(job_db)

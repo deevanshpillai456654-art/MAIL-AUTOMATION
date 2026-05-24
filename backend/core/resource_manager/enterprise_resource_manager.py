@@ -10,16 +10,17 @@ Comprehensive resource management with:
 - Adaptive throttling
 """
 
-import os
-import time
-import threading
-import psutil
-import logging
 import gc
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Callable
-from enum import Enum
+import logging
+import os
+import threading
+import time
 from collections import deque
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Callable, Dict, List, Optional
+
+import psutil
 
 logger = logging.getLogger("enterprise.resource.manager")
 
@@ -88,7 +89,7 @@ class CPUWatchdog:
     def __init__(self, threshold: float = 90.0):
         self.threshold = threshold
         self._process = psutil.Process()
-    
+
     def is_overloaded(self) -> bool:
         return psutil.cpu_percent(interval=0.1) > self.threshold
 
@@ -98,16 +99,16 @@ class EmergencyCoordinator:
     def __init__(self):
         self._lock = threading.Lock()
         self._emergency_active = False
-    
+
     def activate(self):
         with self._lock:
             self._emergency_active = True
             gc.collect()
-    
+
     def deactivate(self):
         with self._lock:
             self._emergency_active = False
-    
+
     def is_active(self) -> bool:
         return self._emergency_active
 
@@ -116,7 +117,7 @@ class LowMemoryMode:
     """Low memory mode handler"""
     def __init__(self, threshold: float = 85.0):
         self.threshold = threshold
-    
+
     def should_activate(self) -> bool:
         return psutil.virtual_memory().percent > self.threshold
 
@@ -125,33 +126,33 @@ class EnterpriseResourceManager:
     """
     Enterprise resource manager with adaptive throttling.
     """
-    
+
     def __init__(self, thresholds: ResourceThresholds = None):
         self.thresholds = thresholds or ResourceThresholds()
         self.current_state = ResourceState.NORMAL
         self.last_state_change = time.time()
-        
+
         self.on_warning: Optional[Callable] = None
         self.on_critical: Optional[Callable] = None
         self.on_emergency: Optional[Callable] = None
         self.on_recovery: Optional[Callable] = None
-        
+
         self._memory_history: deque = deque(maxlen=60)
         self._cpu_history: deque = deque(maxlen=60)
         self._queue_limits: Dict[str, int] = {}
         self._queue_sizes: Dict[str, int] = {}
         self._component_memory: Dict[str, float] = {}
-        
+
         self._throttle_active = False
         self._throttle_factor = 1.0
-        
+
         self._running = False
         self._monitor_thread: Optional[threading.Thread] = None
         self._lock = threading.RLock()
         self._process = psutil.Process()
-        
+
         logger.info("EnterpriseResourceManager initialized")
-    
+
     def start(self):
         """Start resource monitoring"""
         if self._running:
@@ -160,13 +161,13 @@ class EnterpriseResourceManager:
         self._monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self._monitor_thread.start()
         logger.info("Resource monitoring started")
-    
+
     def stop(self):
         """Stop resource monitoring"""
         self._running = False
         if self._monitor_thread:
             self._monitor_thread.join(timeout=5)
-    
+
     def _monitor_loop(self):
         """Main monitoring loop"""
         while self._running:
@@ -175,7 +176,7 @@ class EnterpriseResourceManager:
             except Exception as e:
                 logger.error(f"Resource check error: {e}")
             time.sleep(1)
-    
+
     def _check_resources(self):
         """Check all resource metrics"""
         with self._lock:
@@ -183,12 +184,12 @@ class EnterpriseResourceManager:
             cpu = psutil.cpu_percent(interval=0.1)
             _disk_root = "/" if os.name != "nt" else os.environ.get("SystemDrive", "C:") + os.sep
             disk = psutil.disk_usage(_disk_root)
-            
+
             self._memory_history.append(memory.percent)
             self._cpu_history.append(cpu)
-            
+
             old_state = self.current_state
-            
+
             if memory.percent >= self.thresholds.memory_emergency_percent:
                 self.current_state = ResourceState.EMERGENCY
             elif memory.percent >= self.thresholds.memory_critical_percent:
@@ -197,17 +198,17 @@ class EnterpriseResourceManager:
                 self.current_state = ResourceState.WARNING
             else:
                 self.current_state = ResourceState.NORMAL
-            
+
             if old_state != self.current_state:
                 self._handle_state_change(old_state, self.current_state)
-            
+
             self._update_throttling()
-    
+
     def _handle_state_change(self, old_state: ResourceState, new_state: ResourceState):
         """Handle state transitions"""
         logger.warning(f"Resource state: {old_state.value} -> {new_state.value}")
         self.last_state_change = time.time()
-        
+
         if new_state == ResourceState.WARNING and self.on_warning:
             self.on_warning()
         elif new_state == ResourceState.CRITICAL and self.on_critical:
@@ -217,7 +218,7 @@ class EnterpriseResourceManager:
         elif new_state == ResourceState.NORMAL and old_state != ResourceState.NORMAL:
             if self.on_recovery:
                 self.on_recovery()
-    
+
     def _update_throttling(self):
         """Update throttling based on state"""
         if self.current_state == ResourceState.EMERGENCY:
@@ -232,29 +233,29 @@ class EnterpriseResourceManager:
         else:
             self._throttle_active = False
             self._throttle_factor = 1.0
-    
+
     def can_allocate(self, required_mb: float) -> bool:
         """Check if memory can be allocated"""
         memory = psutil.virtual_memory()
         available = memory.available / (1024 * 1024)
         safe_available = available * 0.8
         return safe_available > required_mb
-    
+
     def get_throttle_factor(self) -> float:
         return self._throttle_factor
-    
+
     def is_throttled(self) -> bool:
         return self._throttle_active
-    
+
     def get_current_state(self) -> ResourceState:
         return self.current_state
-    
+
     def get_snapshot(self) -> ResourceSnapshot:
         memory = psutil.virtual_memory()
         cpu = psutil.cpu_percent(interval=0.1)
         _disk_root = "/" if os.name != "nt" else os.environ.get("SystemDrive", "C:") + os.sep
         disk = psutil.disk_usage(_disk_root)
-        
+
         return ResourceSnapshot(
             timestamp=time.time(),
             memory_used_mb=memory.used / (1024 * 1024),
@@ -266,7 +267,7 @@ class EnterpriseResourceManager:
             active_threads=threading.active_count(),
             open_connections=len(self._process.connections())
         )
-    
+
     def get_stats(self) -> Dict:
         snapshot = self.get_snapshot()
         return {

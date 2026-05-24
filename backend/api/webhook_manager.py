@@ -13,17 +13,18 @@ Webhook management:
 import hashlib
 import hmac
 import json
-import time
 import logging
 import threading
-import requests
-from typing import Any, Callable, Dict, List, Optional
+import time
 from dataclasses import dataclass, field
 from enum import Enum
-from backend import config
-from backend.security.ssrf import validate_outbound_url
+from typing import Any, Dict, List, Optional
+
+import requests
+
 from backend.security.audit import record_security_event
 from backend.security.redaction import redact_text
+from backend.security.ssrf import validate_outbound_url
 
 logger = logging.getLogger("webhook.manager")
 
@@ -62,13 +63,13 @@ class WebhookManager:
     """
     Webhook manager.
     """
-    
+
     def __init__(self):
         self._webhooks: Dict[str, Webhook] = {}
         self._lock = threading.RLock()
-        
+
         logger.info("WebhookManager initialized")
-    
+
     def register(
         self,
         webhook_id: str,
@@ -83,19 +84,19 @@ class WebhookManager:
             raise ValueError(f"Webhook URL blocked: {decision.reason}")
         with self._lock:
             webhook_events = [WebhookEvent(e) for e in events]
-            
+
             webhook = Webhook(
                 webhook_id=webhook_id,
                 url=url,
                 events=webhook_events,
                 secret=secret
             )
-            
+
             self._webhooks[webhook_id] = webhook
             logger.info(f"Webhook registered: {webhook_id}")
-            
+
             return webhook
-    
+
     def unregister(self, webhook_id: str) -> bool:
         """Unregister webhook"""
         with self._lock:
@@ -103,17 +104,17 @@ class WebhookManager:
                 del self._webhooks[webhook_id]
                 return True
             return False
-    
+
     def trigger(self, event: WebhookEvent, data: Dict[str, Any]) -> int:
         """Trigger webhooks for event"""
         triggered = 0
-        
+
         with self._lock:
             webhooks = [
                 w for w in self._webhooks.values()
                 if w.status == WebhookStatus.ACTIVE and event in w.events
             ]
-        
+
         for webhook in webhooks:
             if self._send_webhook(webhook, event, data):
                 triggered += 1
@@ -123,9 +124,9 @@ class WebhookManager:
                 webhook.failure_count += 1
                 if webhook.failure_count >= webhook.retry_count:
                     webhook.status = WebhookStatus.FAILED
-        
+
         return triggered
-    
+
     def _send_webhook(self, webhook: Webhook, event: WebhookEvent, data: Dict) -> bool:
         """Send webhook request"""
         try:
@@ -138,9 +139,9 @@ class WebhookManager:
                 "timestamp": time.time(),
                 "data": data
             })
-            
+
             headers = {"Content-Type": "application/json"}
-            
+
             # Add signature if secret
             if webhook.secret:
                 signature = hmac.new(
@@ -149,24 +150,24 @@ class WebhookManager:
                     hashlib.sha256
                 ).hexdigest()
                 headers["X-Webhook-Signature"] = signature
-            
+
             response = requests.post(
                 webhook.url,
                 data=payload,
                 headers=headers,
                 timeout=10
             )
-            
+
             return response.status_code == 200
-        
+
         except Exception as e:
             logger.error("Webhook send error for %s: %s", webhook.webhook_id, redact_text(str(e), max_length=160))
             return False
-    
+
     def get_webhook(self, webhook_id: str) -> Optional[Webhook]:
         """Get webhook"""
         return self._webhooks.get(webhook_id)
-    
+
     def get_stats(self) -> Dict:
         """Get webhook stats"""
         return {

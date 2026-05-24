@@ -32,12 +32,12 @@ from __future__ import annotations
 import logging
 import sqlite3
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.auth.local_auth import require_local_auth
 from backend.config import DATA_DIR
@@ -95,6 +95,14 @@ def _init_db() -> None:
     """)
     con.commit()
     con.close()
+
+
+# Ensure schema exists at import — routers can be mounted directly without
+# going through ensure_incident_manager_running() (e.g. test clients).
+try:
+    _init_db()
+except Exception:  # pragma: no cover
+    logger.warning("IncidentManager: schema init at import failed", exc_info=True)
 
 
 def _conn() -> sqlite3.Connection:
@@ -170,8 +178,9 @@ def _create_incident(
                   note=f"Incident created: {title}")
 
     try:
-        from backend.api.event_bus import get_event_bus
         import asyncio
+
+        from backend.api.event_bus import get_event_bus
         asyncio.create_task(get_event_bus().publish({
             "type":       "incident.created",
             "severity":   severity,
@@ -253,19 +262,19 @@ def ensure_incident_manager_running() -> None:
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 class IncidentCreate(BaseModel):
-    title:       str
-    description: str = ""
-    severity:    str = "medium"
-    assigned_to: str = ""
+    title:       str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=10000)
+    severity:    str = Field(default="medium", max_length=32)
+    assigned_to: str = Field(default="", max_length=200)
 
 
 class IncidentPatch(BaseModel):
-    assigned_to: Optional[str] = None
-    status:      Optional[str] = None
+    assigned_to: Optional[str] = Field(default=None, max_length=200)
+    status:      Optional[str] = Field(default=None, max_length=32)
 
 
 class CommentBody(BaseModel):
-    note: str
+    note: str = Field(min_length=1, max_length=10000)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -406,8 +415,9 @@ async def patch_incident(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if body.status:
         _add_timeline(incident_id, actor="operator", action=body.status,
                       note=f"Status changed to {body.status}")
@@ -426,8 +436,9 @@ async def acknowledge_incident(incident_id: str, _auth=Depends(require_local_aut
         changed = con.execute("SELECT changes()").fetchone()[0]
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if changed == 0:
         raise HTTPException(404, "Incident not found or not in 'open' state")
     _add_timeline(incident_id, actor="operator", action="acknowledged",
@@ -447,15 +458,17 @@ async def resolve_incident(incident_id: str, _auth=Depends(require_local_auth)):
         changed = con.execute("SELECT changes()").fetchone()[0]
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if changed == 0:
         raise HTTPException(404, "Incident not found or already resolved")
     _add_timeline(incident_id, actor="operator", action="resolved",
                   note="Incident resolved")
     try:
-        from backend.api.event_bus import get_event_bus
         import asyncio
+
+        from backend.api.event_bus import get_event_bus
         asyncio.create_task(get_event_bus().publish({
             "type":       "incident.resolved",
             "severity":   "info",
@@ -481,8 +494,9 @@ async def add_comment(
             "SELECT 1 FROM incidents WHERE id=?", (incident_id,)
         ).fetchone()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if not exists:
         raise HTTPException(404, "Incident not found")
     _add_timeline(incident_id, actor="operator", action="commented", note=body.note.strip())

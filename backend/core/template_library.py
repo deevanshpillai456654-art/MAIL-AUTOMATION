@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import List, Dict, Any
+
+from typing import Any, Dict, List
+
 TEMPLATES = [
     {"id":"invoice-forwarding", "name":"Invoice Forwarding", "category":"Finance Rules", "description":"Detect invoice emails, apply Finance label and forward to accounts."},
     {"id":"rfq-routing", "name":"RFQ Routing", "category":"RFQ Rules", "description":"Detect RFQs, apply RFQ label, forward to operations or sales and create lead."},

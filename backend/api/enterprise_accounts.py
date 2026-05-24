@@ -1,15 +1,18 @@
 from __future__ import annotations
-from fastapi import APIRouter, Depends, HTTPException, Body
-from backend.auth.local_auth import require_local_auth_or_localhost
-from pydantic import BaseModel
-from typing import Optional, Any, Dict
+
 import json
-from backend.db.database import Database
-from backend.core.account_persistence import detect_mail_settings, account_metadata
-from backend.core.provider_capability_registry import ProviderCapabilityRegistry
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, Body, Depends, HTTPException
+from pydantic import BaseModel
+
+from backend import config
+from backend.auth.local_auth import require_local_auth_or_localhost
 from backend.auth.provider_config import ProviderConfigManager, oauth_group_for
 from backend.auth.token_crypto import TokenCipher
-from backend import config
+from backend.core.account_persistence import account_metadata, detect_mail_settings
+from backend.core.provider_capability_registry import ProviderCapabilityRegistry
+from backend.db.database import Database
 
 router = APIRouter(dependencies=[Depends(require_local_auth_or_localhost)])
 db = Database(config.DB_PATH)

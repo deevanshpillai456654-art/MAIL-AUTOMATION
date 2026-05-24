@@ -3,11 +3,10 @@ Email parsing utilities for AI Email Organizer
 """
 
 import re
-import json
-from typing import Dict, Optional, List
-from email.utils import parseaddr
 from datetime import datetime
+from email.utils import parseaddr
 from html import unescape
+from typing import Dict, List
 
 
 class EmailParser:

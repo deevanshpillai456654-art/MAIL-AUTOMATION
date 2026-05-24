@@ -1,6 +1,6 @@
+import inspect
 import logging
 import os
-import inspect
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -142,8 +142,8 @@ def create_lifespan(project_root: Path, logger: logging.Logger | None = None):
         await _record("system_scheduler", "Scheduler", _start_system_scheduler)
 
         async def _start_job_runner():
-            from backend.core.persistent_job_queue import PersistentJobQueue
             from backend.core.job_runner import init_job_runner
+            from backend.core.persistent_job_queue import PersistentJobQueue
             job_queue = PersistentJobQueue(Path(config.DATA_DIR) / "job_queue.db")
             job_runner = init_job_runner(
                 job_queue,

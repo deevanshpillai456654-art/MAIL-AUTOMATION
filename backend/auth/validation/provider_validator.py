@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from .oauth_validator import OAuthPayloadValidator
 from .imap_validator import IMAPPayloadValidator
+from .oauth_validator import OAuthPayloadValidator
 from .schema_registry import normalize_auth_method
 
 

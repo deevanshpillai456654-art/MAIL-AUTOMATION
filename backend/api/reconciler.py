@@ -22,14 +22,12 @@ Endpoints:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import sqlite3
 import uuid
-from contextlib import contextmanager
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 

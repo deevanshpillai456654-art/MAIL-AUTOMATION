@@ -5,11 +5,13 @@ Streaming Pipeline
 Streaming pipeline wrapper.
 """
 
-from .streaming import StreamingPipeline, get_streaming_pipeline as _get_pipeline
+from .streaming import StreamingPipeline
+from .streaming import get_streaming_pipeline as _get_pipeline
+
 
 class StreamingPipeline(StreamingPipeline):
     """Enhanced streaming pipeline"""
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

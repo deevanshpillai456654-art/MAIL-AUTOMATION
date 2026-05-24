@@ -3,9 +3,12 @@ Performance optimizations for AI Email Organizer
 """
 
 import functools
+import logging
 import time
-from typing import Callable, Any
 from collections import OrderedDict
+from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
 
 
 class LRUCache:
@@ -50,7 +53,7 @@ def timing_decorator(func: Callable) -> Callable:
         start = time.time()
         result = func(*args, **kwargs)
         elapsed = time.time() - start
-        print(f"{func.__name__} took {elapsed:.3f}s")
+        logger.debug("%s took %.3fs", func.__name__, elapsed)
         return result
     return wrapper
 
@@ -61,7 +64,7 @@ def async_timing_decorator(func: Callable) -> Callable:
         start = time.time()
         result = await func(*args, **kwargs)
         elapsed = time.time() - start
-        print(f"{func.__name__} took {elapsed:.3f}s")
+        logger.debug("%s took %.3fs", func.__name__, elapsed)
         return result
     return wrapper
 
@@ -73,7 +76,7 @@ def retry(max_attempts: int = 3, delay: float = 1.0):
             for attempt in range(max_attempts):
                 try:
                     return func(*args, **kwargs)
-                except Exception as e:
+                except Exception:
                     if attempt == max_attempts - 1:
                         raise
                     time.sleep(delay)

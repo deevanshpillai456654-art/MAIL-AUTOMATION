@@ -1,8 +1,9 @@
 """Mailbox-scoped websocket namespace helpers."""
 from __future__ import annotations
+
+import threading
 from dataclasses import dataclass, field
 from typing import Dict, Set
-import threading
 
 
 @dataclass

@@ -32,12 +32,11 @@ import logging
 import sqlite3
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from backend.auth.local_auth import require_local_auth
@@ -627,6 +626,7 @@ async def get_recommendations(_auth=Depends(require_local_auth)):
         # Pull a rough email category distribution to personalise recommendations
         try:
             import sqlite3 as _sq
+
             from backend import config as _cfg
             ec = _sq.connect(_cfg.DB_PATH, timeout=5)
             cat_rows = ec.execute(

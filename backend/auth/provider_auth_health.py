@@ -1,8 +1,10 @@
 """Auth health aggregation."""
 from __future__ import annotations
+
 from typing import Dict, List
-from backend.db.database import Database
+
 from backend.auth.provider_token_manager import ProviderTokenManager
+from backend.db.database import Database
 
 
 class ProviderAuthHealth:

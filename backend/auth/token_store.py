@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict
+from typing import Optional
 
 from backend import config
 from backend.auth.token_crypto import TokenCipher

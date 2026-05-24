@@ -7,8 +7,24 @@
     "validate": "python -B scripts/validate_ai36_production_cleanup.py",
     "test": "python -B -m pytest -q -p no:cacheprovider",
     "visual:smoke": "python -B scripts/dashboard_visual_smoke.py",
-    "onnx:evaluate": "python -B scripts/evaluate_onnx_models.py"
+    "onnx:evaluate": "python -B scripts/evaluate_onnx_models.py",
+    "test:unit:jest": "jest --passWithNoTests",
+    "test:unit:vitest": "vitest run --passWithNoTests",
+    "test:e2e:playwright": "playwright test",
+    "test:e2e:cypress": "cypress run",
+    "test:e2e:selenium": "node tests/e2e/selenium/run.js",
+    "audit:lighthouse": "lighthouse --output=json --output-path=./reports/lighthouse.json --chrome-flags=\"--headless\"",
+    "audit:axe": "node tests/a11y/run-axe.js"
   },
   "dependencies": {},
-  "devDependencies": {}
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "cypress": "^13.17.0",
+    "jest": "^29.7.0",
+    "vitest": "^3.0.0",
+    "selenium-webdriver": "^4.27.0",
+    "lighthouse": "^12.3.0",
+    "axe-core": "^4.10.0",
+    "@axe-core/playwright": "^4.10.0"
+  }
 }

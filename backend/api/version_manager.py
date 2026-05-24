@@ -9,11 +9,11 @@ API versioning:
 - API changelog
 """
 
-import time
 import logging
-from typing import Dict, List, Optional, Tuple
+import time
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger("api.version")
 
@@ -40,16 +40,16 @@ class VersionManager:
     """
     API version manager.
     """
-    
+
     def __init__(self):
         self._versions: Dict[str, APIVersion] = {}
         self._current = "v1"
-        
+
         # Register versions
         self._register_versions()
-        
+
         logger.info("VersionManager initialized")
-    
+
     def _register_versions(self):
         """Register API versions"""
         versions = [
@@ -66,48 +66,48 @@ class VersionManager:
                 features=["classify_v2", "rules", "sync", "accounts", "oauth", "streaming"]
             ),
         ]
-        
+
         for v in versions:
             self._versions[v.version] = v
-    
+
     def get_current_version(self) -> str:
         """Get current version"""
         return self._current
-    
+
     def get_version_info(self, version: str) -> Optional[APIVersion]:
         """Get version info"""
         return self._versions.get(version)
-    
+
     def is_supported(self, version: str) -> bool:
         """Check if version is supported"""
         v = self._versions.get(version)
         return v and v.status != VersionStatus.RETIRED
-    
+
     def is_deprecated(self, version: str) -> bool:
         """Check if version is deprecated"""
         v = self._versions.get(version)
         return v and v.status == VersionStatus.DEPRECATED
-    
+
     def should_upgrade(self, version: str) -> Tuple[bool, str]:
         """Check if client should upgrade"""
         if version == self._current:
             return False, ""
-        
+
         current = self._versions.get(self._current)
         old = self._versions.get(version)
-        
+
         if not old or not current:
             return True, "Version not found"
-        
+
         if old.status == VersionStatus.DEPRECATED:
             return True, f"Version {version} is deprecated. Please upgrade to {self._current}"
-        
+
         return False, ""
-    
+
     def get_supported_versions(self) -> List[str]:
         """Get list of supported versions"""
         return [v for v in self._versions if self.is_supported(v)]
-    
+
     def get_version_headers(self) -> Dict[str, str]:
         """Get version headers for responses"""
         return {

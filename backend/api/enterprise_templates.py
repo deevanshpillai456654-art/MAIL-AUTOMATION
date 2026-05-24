@@ -1,7 +1,10 @@
 from __future__ import annotations
+
 from fastapi import APIRouter, Depends, HTTPException
+
 from backend.auth.local_auth import require_local_auth_or_localhost
-from backend.core.template_library import list_templates, get_template
+from backend.core.template_library import get_template, list_templates
+
 router = APIRouter(dependencies=[Depends(require_local_auth_or_localhost)])
 @router.get("/templates")
 async def templates(): return {"templates": list_templates(), "count": len(list_templates())}

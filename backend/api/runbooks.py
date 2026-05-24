@@ -38,7 +38,6 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from backend.auth.local_auth import require_local_auth
@@ -229,8 +228,9 @@ async def list_runbooks(
             params + [limit, offset],
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     results = []
     for row in rows:
         rb = dict(zip(_RB_COLS, row))
@@ -261,8 +261,9 @@ async def create_runbook(body: RunbookCreate, _auth=Depends(require_local_auth))
         con.close()
     except sqlite3.IntegrityError:
         raise HTTPException(409, f"Slug '{slug}' already exists")
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if body.content_md:
         _save_version(rb_id, body.content_md, body.owner or "system", "Initial version")
     return {"id": rb_id, "title": body.title, "slug": slug}
@@ -288,8 +289,9 @@ async def runbook_stats(_auth=Depends(require_local_auth)):
             "GROUP BY r.id ORDER BY edits DESC LIMIT 5"
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total":        total,
         "total_versions": versions,
@@ -339,8 +341,9 @@ async def get_runbook(runbook_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     rb = dict(zip(_RB_COLS, row))
     rb["tags"] = [t.strip() for t in rb["tags"].split(",") if t.strip()]
     rb["latest_version"] = {
@@ -385,8 +388,9 @@ async def patch_runbook(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if content_changed and body.content_md is not None:
         ver_num = _save_version(
             runbook_id, body.content_md,
@@ -404,8 +408,9 @@ async def delete_runbook(runbook_id: str, _auth=Depends(require_local_auth)):
         con.execute("DELETE FROM runbooks WHERE id=?", (runbook_id,))
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 @router.get("/{runbook_id}/versions", summary="Version history")
@@ -428,8 +433,9 @@ async def list_versions(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     cols = ["id", "runbook_id", "version_number", "edited_by", "edited_at", "change_note"]
     return {"versions": [dict(zip(cols, r)) for r in rows]}
 
@@ -446,8 +452,9 @@ async def get_version(
             (runbook_id, version_number),
         ).fetchone()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     if not row:
         raise HTTPException(404, "Version not found")
     return dict(zip(_VER_COLS, row))

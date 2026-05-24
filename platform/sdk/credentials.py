@@ -1,8 +1,12 @@
 from __future__ import annotations
 import base64
 import hashlib
+import logging
 import os
+import secrets
 from typing import Dict
+
+logger = logging.getLogger(__name__)
 
 class LocalCredentialVault:
     """Small local-only credential helper.
@@ -11,7 +15,17 @@ class LocalCredentialVault:
     It does not contact any central server.
     """
     def __init__(self, secret: str | None = None) -> None:
-        self.secret = secret or os.environ.get("MAILPILOT_LOCAL_SECRET", "local-dev-secret")
+        env_secret = os.environ.get("MAILPILOT_LOCAL_SECRET")
+        if secret:
+            self.secret = secret
+        elif env_secret:
+            self.secret = env_secret
+        else:
+            self.secret = secrets.token_hex(32)
+            logger.warning(
+                "LocalCredentialVault: MAILPILOT_LOCAL_SECRET not set; "
+                "using a random per-instance key. Secrets will not survive process restart."
+            )
         self._store: Dict[str, str] = {}
 
     def _stream(self, key: str, length: int) -> bytes:

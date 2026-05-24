@@ -70,7 +70,7 @@ def _status(value: str) -> str:
 # ── probe functions ───────────────────────────────────────────────────────────
 
 def _probe_system() -> ComponentStatus:
-    from backend.api.health_checks import check_cpu_health, check_memory_health, check_disk_health
+    from backend.api.health_checks import check_cpu_health, check_disk_health, check_memory_health
     cpu  = _safe(check_cpu_health)
     mem  = _safe(check_memory_health)
     disk = _safe(check_disk_health)
@@ -165,8 +165,9 @@ def _probe_accounts() -> ComponentStatus:
 
 def _probe_sync() -> ComponentStatus:
     """Detect stale syncs, stuck jobs, and accounts that haven't synced."""
-    from backend.db.database import Database
     import sqlite3
+
+    from backend.db.database import Database
     db = Database(config.DB_PATH)
 
     # check for stale sync_status rows

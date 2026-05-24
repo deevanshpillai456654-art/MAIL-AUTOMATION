@@ -2,14 +2,14 @@
 Metrics and analytics for AI Email Organizer
 """
 
+import json
 import logging
 import os
-import json
-from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional
-from collections import defaultdict
 import threading
+from collections import defaultdict
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict
 
 _log = logging.getLogger(__name__)
 

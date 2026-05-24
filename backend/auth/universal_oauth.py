@@ -146,7 +146,14 @@ class UniversalOAuth:
                     "expires_in": token_data.get("expires_in", config.TOKEN_EXPIRY_SECONDS),
                     "scope": token_data.get("scope"),
                 }
-            logger.warning("%s token exchange failed: %s %s", self.provider, response.status_code, response.text[:500])
+            # OAuth provider error bodies can echo PII / session state — log
+            # only the RFC 6749 `error` code, never the raw body.
+            _err = "unknown_error"
+            try:
+                _err = str((response.json() or {}).get("error", "unknown_error"))[:64]
+            except Exception:
+                pass
+            logger.warning("%s token exchange failed: status=%s error=%s", self.provider, response.status_code, _err)
         except requests.RequestException as exc:
             logger.exception("%s token exchange error: %s", self.provider, exc)
         return None
@@ -167,7 +174,12 @@ class UniversalOAuth:
                     "expires_in": token_data.get("expires_in", config.TOKEN_EXPIRY_SECONDS),
                     "scope": token_data.get("scope"),
                 }
-            logger.warning("%s token refresh failed: %s %s", self.provider, response.status_code, response.text[:500])
+            _err = "unknown_error"
+            try:
+                _err = str((response.json() or {}).get("error", "unknown_error"))[:64]
+            except Exception:
+                pass
+            logger.warning("%s token refresh failed: status=%s error=%s", self.provider, response.status_code, _err)
         except requests.RequestException as exc:
             logger.exception("%s token refresh error: %s", self.provider, exc)
         return None
@@ -180,7 +192,8 @@ class UniversalOAuth:
             response = requests.get(self._format_url(profile_url), headers={"Authorization": f"Bearer {access_token}"}, timeout=20)
             if response.ok:
                 return response.json()
-            logger.warning("%s profile lookup failed: %s %s", self.provider, response.status_code, response.text[:500])
+            # Profile responses contain user PII (email, name) — log status only.
+            logger.warning("%s profile lookup failed: status=%s", self.provider, response.status_code)
         except requests.RequestException as exc:
             logger.exception("%s profile lookup error: %s", self.provider, exc)
         return None

@@ -47,7 +47,7 @@ from typing import Any, Callable, Dict, Generator, List, Optional, Set
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from backend.auth.local_auth import require_local_auth, request_has_valid_local_auth
+from backend.auth.local_auth import request_has_valid_local_auth, require_local_auth
 from backend.config import DATA_DIR
 
 logger = logging.getLogger(__name__)

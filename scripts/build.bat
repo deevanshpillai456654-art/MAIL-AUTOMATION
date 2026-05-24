@@ -102,10 +102,11 @@ if %ERRORS% equ 0 (
     echo   1. Double-click start.bat
     echo   2. Or run: start_service.bat
     echo.
+    if not defined API_PORT set "API_PORT=4597"
     echo Access:
-    echo   - API: http://127.0.0.1:4597
-    echo   - Dashboard: http://127.0.0.1:4597/dashboard
-    echo   - Admin: http://127.0.0.1:4597/admin
+    echo   - API: http://127.0.0.1:%API_PORT%
+    echo   - Dashboard: http://127.0.0.1:%API_PORT%/dashboard
+    echo   - Admin: http://127.0.0.1:%API_PORT%/admin
     echo.
 ) else (
     echo.

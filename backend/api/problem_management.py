@@ -242,8 +242,9 @@ async def list_problems(
             params + [limit, offset],
         ).fetchall()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "problems": [dict(zip(_PR_COLS, r)) for r in rows],
         "total": total, "limit": limit, "offset": offset,
@@ -269,8 +270,9 @@ async def create_problem(body: ProblemCreate, _auth=Depends(require_local_auth))
         _add_timeline(con, pr_id, "note", "Problem record created.", body.owner or "system")
         con.commit()
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": pr_id, "title": body.title, "status": "open"}
 
 
@@ -286,8 +288,9 @@ async def problem_stats(_auth=Depends(require_local_auth)):
         open_count = con.execute("SELECT COUNT(*) FROM problems WHERE status NOT IN ('closed','resolved')").fetchone()[0]
         linked     = con.execute("SELECT COUNT(*) FROM problem_incidents").fetchone()[0]
         con.close()
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "total":       total,
         "open":        open_count,
@@ -317,8 +320,9 @@ async def get_problem(problem_id: str, _auth=Depends(require_local_auth)):
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     pr = dict(zip(_PR_COLS, row))
     pr["linked_incidents"] = [
         dict(zip(["id", "problem_id", "incident_id", "note", "linked_at"], r))
@@ -367,8 +371,9 @@ async def patch_problem(problem_id: str, body: ProblemPatch,
         con.commit(); con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True}
 
 
@@ -385,8 +390,9 @@ async def delete_problem(problem_id: str, _auth=Depends(require_local_auth)):
         con.commit(); con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 @router.post("/{problem_id}/transition", summary="Transition problem status")
@@ -418,8 +424,9 @@ async def transition_problem(problem_id: str, body: TransitionBody,
         con.commit(); con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"ok": True, "status": body.status}
 
 
@@ -438,8 +445,9 @@ async def list_linked_incidents(problem_id: str, _auth=Depends(require_local_aut
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     cols = ["id", "problem_id", "incident_id", "note", "linked_at"]
     return {"incidents": [dict(zip(cols, r)) for r in rows]}
 
@@ -468,8 +476,9 @@ async def link_incident(problem_id: str, body: LinkIncidentBody,
         raise
     except sqlite3.IntegrityError:
         raise HTTPException(409, f"Incident '{body.incident_id}' already linked")
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": link_id, "incident_id": body.incident_id}
 
 
@@ -493,8 +502,9 @@ async def unlink_incident(problem_id: str, incident_id: str,
         con.commit(); con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ── Timeline ──────────────────────────────────────────────────────────────────
@@ -520,8 +530,9 @@ async def get_timeline(
         con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {
         "timeline": [dict(zip(_TL_COLS, r)) for r in rows],
         "total": total, "limit": limit, "offset": offset,
@@ -549,6 +560,7 @@ async def add_timeline_entry(problem_id: str, body: TimelineEntry,
         con.commit(); con.close()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    except Exception:
+        logger.exception("DB operation failed")
+        raise HTTPException(500, "Internal server error")
     return {"id": entry_id, "event_type": body.event_type, "created_at": now}

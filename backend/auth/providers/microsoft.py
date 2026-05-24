@@ -55,8 +55,10 @@ class MicrosoftOAuthProvider(BaseOAuthProvider):
         return self.TOKEN_URL.format(tenant=self.tenant_id)
 
     def exchange_code(self, code: str, redirect_uri: str, code_verifier: str = None):
-        import requests
         import logging
+
+        import requests
+
         from backend import config as cfg
         logger = logging.getLogger(__name__)
         data = {
@@ -78,7 +80,13 @@ class MicrosoftOAuthProvider(BaseOAuthProvider):
                     "refresh_token": tok.get("refresh_token"),
                     "expires_in": tok.get("expires_in", cfg.TOKEN_EXPIRY_SECONDS),
                 }
-            logger.warning("microsoft token exchange failed %s: %s", resp.status_code, resp.text[:300])
+            # Provider error bodies can echo PII — log RFC 6749 `error` only.
+            _err = "unknown_error"
+            try:
+                _err = str((resp.json() or {}).get("error", "unknown_error"))[:64]
+            except Exception:
+                pass
+            logger.warning("microsoft token exchange failed: status=%s error=%s", resp.status_code, _err)
         except requests.RequestException as exc:
             logger.exception("microsoft token exchange error: %s", exc)
         return None

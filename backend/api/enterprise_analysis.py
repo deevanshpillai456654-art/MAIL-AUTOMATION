@@ -1,7 +1,10 @@
 from __future__ import annotations
+
+from typing import Any, Dict, List
+
 from fastapi import APIRouter, Body, Depends
 from pydantic import BaseModel, Field
-from typing import Any, Dict, List, Optional
+
 from backend.auth.local_auth import require_local_auth_or_localhost
 from backend.core.enterprise_email_analysis import analyze_email_content
 

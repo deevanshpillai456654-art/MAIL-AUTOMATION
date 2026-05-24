@@ -8,12 +8,12 @@ ONNX MiniLM/BGE/E5 encoder later without changing callers.
 """
 
 import hashlib
+import json
 import logging
 import os
 import re
 from pathlib import Path
 from typing import List, Tuple
-import json
 
 import numpy as np
 

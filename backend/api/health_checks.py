@@ -2,11 +2,12 @@
 # Provides centralized health checking for all system components
 
 import os
-import psutil
 import time
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
 from enum import Enum
+from typing import Any, Dict
+
+import psutil
 
 
 class HealthStatus(Enum):
@@ -47,14 +48,14 @@ def check_memory_health() -> ComponentHealth:
     """Check memory usage"""
     mem = psutil.virtual_memory()
     percent = mem.percent
-    
+
     if percent < 75:
         status = HealthStatus.HEALTHY
     elif percent < 90:
         status = HealthStatus.DEGRADED
     else:
         status = HealthStatus.UNHEALTHY
-    
+
     return ComponentHealth(
         name="memory",
         status=status,
@@ -68,14 +69,14 @@ def check_disk_health() -> ComponentHealth:
     _disk_root = "/" if os.name != "nt" else os.environ.get("SystemDrive", "C:") + os.sep
     disk = psutil.disk_usage(_disk_root)
     percent = disk.percent
-    
+
     if percent < 80:
         status = HealthStatus.HEALTHY
     elif percent < 95:
         status = HealthStatus.DEGRADED
     else:
         status = HealthStatus.UNHEALTHY
-    
+
     return ComponentHealth(
         name="disk",
         status=status,
@@ -87,14 +88,14 @@ def check_disk_health() -> ComponentHealth:
 def check_cpu_health() -> ComponentHealth:
     """Check CPU usage"""
     cpu = psutil.cpu_percent(interval=0.5)
-    
+
     if cpu < 70:
         status = HealthStatus.HEALTHY
     elif cpu < 90:
         status = HealthStatus.DEGRADED
     else:
         status = HealthStatus.UNHEALTHY
-    
+
     return ComponentHealth(
         name="cpu",
         status=status,
@@ -111,17 +112,17 @@ def get_system_health() -> Dict[str, Any]:
         check_disk_health(),
         check_cpu_health()
     ]
-    
+
     unhealthy = [c for c in checks if c.status == HealthStatus.UNHEALTHY]
     degraded = [c for c in checks if c.status == HealthStatus.DEGRADED]
-    
+
     if unhealthy:
         overall = HealthStatus.UNHEALTHY
     elif degraded:
         overall = HealthStatus.DEGRADED
     else:
         overall = HealthStatus.HEALTHY
-    
+
     return {
         "status": overall.value,
         "timestamp": time.time(),
